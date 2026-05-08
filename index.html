@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compliance Landing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="desktop-layout" aria-label="Desktop layout">
+        <header class="desktop-nav">
+          <div class="desktop-nav__inner">
+            <a href="#" class="desktop-nav__brand">Logo</a>
+            <nav class="desktop-nav__links" aria-label="Primary navigation">
+              <a class="desktop-nav__link is-active" href="#">Home</a>
+              <a class="desktop-nav__link" href="#">About Us</a>
+              <a class="desktop-nav__link" href="#">Our Services</a>
+              <a class="desktop-nav__link" href="#">Pricing</a>
+              <a class="desktop-nav__link" href="#">FAQ</a>
+              <a class="desktop-nav__link" href="#">Contact</a>
+            </nav>
+            <a href="#" class="desktop-nav__cta">
+              <span class="desktop-nav__cta-icon" aria-hidden="true">
+                <img src="./solar_phone-linear.svg" alt="" />
+              </span>
+              Contact Us
+            </a>
+          </div>
+        </header>
+        <div class="desktop-hero-crop">
+        <img
+          class="desktop-svg"
+          src="./Hero Section1.svg"
+          alt="Compliance hero section desktop"
+          width="1440"
+          height="829"
+        />
+          <div class="desktop-hero-actions-mask" aria-hidden="true"></div>
+          <div class="desktop-hero-actions">
+            <a href="#" class="outline-fill-btn outline-fill-btn--primary">
+              <span class="outline-fill-btn__icon" aria-hidden="true">
+                <img src="./solar_phone-linear.svg" alt="" />
+              </span>
+              Get Started
+            </a>
+            <a href="#" class="outline-fill-btn">Book A Consultation</a>
+          </div>
+        </div>
+        <img
+          class="desktop-svg"
+          src="./Frame 1162.svg"
+          alt="Section below hero desktop"
+          width="1440"
+          height="870"
+        />
+      </section>
+
+      <section class="mobile-layout" aria-label="Mobile layout">
+        <div class="mobile-canvas">
+          <img
+            class="mobile-svg mobile-nav-closed"
+            src="./Frame 580.svg"
+            alt="Mobile navbar"
+            width="375"
+            height="60"
+          />
+          <button
+            id="mobileMenuToggle"
+            class="hamburger-hitbox"
+            type="button"
+            aria-label="Open menu"
+            aria-expanded="false"
+          ></button>
+          <img
+            id="mobileMenuOverlay"
+            class="mobile-menu-overlay"
+            src="./Navbar Mobile Menu.svg"
+            alt="Mobile menu"
+            width="375"
+            height="717"
+          />
+          <img
+            class="mobile-svg"
+            src="./Frame 582.svg"
+            alt="Mobile hero section"
+            width="375"
+            height="1008"
+          />
+          <a href="#" class="mobile-get-started-hitbox" aria-label="Get Started">
+            <span class="mobile-get-started-hitbox__icon" aria-hidden="true">
+              <img src="./solar_phone-linear.svg" alt="" />
+            </span>
+          </a>
+        </div>
+      </section>
+    </main>
+    <script src="./script.js"></script>
+  </body>
+</html>
