@@ -1,14 +1,11 @@
-<!-- Closures -->
-
-function outer() {
-  let count = 0;
-
-  return inner() {
-    count++;
-    console.log(count);
-  }
-}
-
-const counter = outer();
-counter();
-counter();
+DAY-1
+Topics Studied - 
+● Closures
+● Scope
+● Hoisting
+● Event Loop
+● Promise
+● Async/Await
+● JavaScript Execution Context
+● Memory Management
+● ES6+ Features
