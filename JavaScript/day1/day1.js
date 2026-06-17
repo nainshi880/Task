@@ -1,48 +1,48 @@
 //  Closures 
-// function outer() {
-//   let count = 0;
+function outer() {
+  let count = 0;
 
-//   return function inner(){
-//     count++;
-//     console.log(count);
-//   };
-// }
+  return function inner(){
+    count++;
+    console.log(count);
+  };
+}
 
-// outer();
-// outer();
+outer();
+outer();
 
 
 // Scope
-// let global = "global Variable"
+let global = "global Variable"
 
-// function test() {
-//   let local = "local Variable";
-//   console.log(local);
-//   console.log(global);
-// }
+function test() {
+  let local = "local Variable";
+  console.log(local);
+  console.log(global);
+}
 
-// test();
+test();
 
-// function myName() {
-//   var name = "Nainshi";
-//   function showName() {
-//     console.log(name);
-//   }
-//   showName();
-// }
+function myName() {
+  var name = "Nainshi";
+  function showName() {
+    console.log(name);
+  }
+  showName();
+}
 
-// myName();
+myName();
 
 
  // Hoisting
-// console.log(num);
-// var num = 10;
+console.log(num);
+var num = 10;
 
-// const x = 5;
-// {
-//   console.log(x);
-//   const x = 9;
-// }
+const x = 5;
+{
+  console.log(x);
+  const x = 9;
+}
 
 
 // Event Loop
