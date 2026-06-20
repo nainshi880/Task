@@ -1,5 +1,5 @@
 DAY-1
-Topics Studied - 
+Topics Studied: 
 ● Closures
 ● Scope
 ● Hoisting
@@ -18,3 +18,11 @@ Create Employee Data Utility Features:
 ● Group By Department 
 ● Average Salary 
 ● Highest Paid Employee
+
+DAY-3
+Git Workflow:
+● Create Repository
+● Create Branches
+● Merge Branches
+● Resolve Merge Conflict
+● Create Pull Request
