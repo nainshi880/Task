@@ -26,3 +26,14 @@ Git Workflow:
 ● Merge Branches
 ● Resolve Merge Conflict
 ● Create Pull Request
+
+Day 4
+API Service Layer
+Create reusable services
+api.js
+authService.js
+userService.js
+employeeService.js
+
+Day 5
+Refactor an existing React project into a professional folder structure.

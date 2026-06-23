@@ -1,9 +1,13 @@
 import React from 'react'
 import Employees from "./pages/Employees"
+import MainLayout from "./layouts/MainLayout"
 
 const App = () => {
   return (
-    <div><Employees/></div>
+    <MainLayout>
+      <Employees/>
+    </MainLayout>
+  
   );
 }
 

@@ -13,7 +13,7 @@ function searchEmployee(name) {
   return employees.filter(emp => 
     emp.name.toLowerCase().includes(name.toLowerCase())
   );
-}
+} 
 
 console.log(searchEmployee("Kun"));
 
@@ -32,7 +32,7 @@ console.log(ascendingSalary);
 
 const descendingSalary = [...employees].sort((a,b) => b.salary - a.salary);
 console.log(descendingSalary);
-
+  
 
 function groupByDepartment() {
   return employees.reduce((groups, employee) => {
