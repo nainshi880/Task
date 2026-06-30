@@ -1,13 +1,19 @@
-import AddEmployeeForm from "./components/AddEmployeeForm";
+import EmployeeForm from "./components/EmployeeForm";
 import EmployeeList from "./components/EmployeeList";
 
 function App() {
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial" }}>
-      <h1>Week 2 - Day 4: React Query API Calls</h1>
+    <div
+      style={{
+        width: "700px",
+        margin: "40px auto",
+        fontFamily: "Arial",
+      }}
+    >
+      <h1>Employee Registration Module</h1>
 
-      <AddEmployeeForm />
-      <hr />
+      <EmployeeForm />
+
       <EmployeeList />
     </div>
   );
