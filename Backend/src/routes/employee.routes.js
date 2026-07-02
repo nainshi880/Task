@@ -8,15 +8,17 @@ import {
   deleteEmployee,
 } from "../controllers/employee.controller.js";
 
+import { validateEmployee } from "../middleware/validation.middleware.js";
+
 const router = express.Router();
 
-router.post("/", createEmployee);
+router.post("/",  validateEmployee,createEmployee);
 
 router.get("/", getEmployees);
 
 router.get("/:id", getEmployeeById);
 
-router.put("/:id", updateEmployee);
+router.put("/:id", validateEmployee, updateEmployee);
 
 router.delete("/:id", deleteEmployee);
 
