@@ -22,4 +22,10 @@ router.put("/:id", validateEmployee, updateEmployee);
 
 router.delete("/:id", deleteEmployee);
 
+router.post(
+  "/upload",
+  upload.single("image"),
+  uploadProfileImage
+);
+
 export default router;
