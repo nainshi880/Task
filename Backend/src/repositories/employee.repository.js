@@ -11,7 +11,7 @@ export const getEmployees = async () => {
 export const getEmployeeById = async (id) => {
   return await Employee.findById(id);
 };
-
+ 
 export const updateEmployee = async (id, employeeData) => {
   return await Employee.findByIdAndUpdate(id, employeeData, {
     new: true,
@@ -20,4 +20,19 @@ export const updateEmployee = async (id, employeeData) => {
 
 export const deleteEmployee = async (id) => {
   return await Employee.findByIdAndDelete(id);
+};
+
+export const updateProfileImage = async (
+  id,
+  imageUrl
+) => {
+  return await Employee.findByIdAndUpdate(
+    id,
+    {
+      profileImage: imageUrl,
+    },
+    {
+      new: true,
+    }
+  );
 };

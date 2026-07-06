@@ -1,7 +1,8 @@
 import express from "express";
 import employeeRoutes from "./routes/employee.routes.js"
 import helmet from "helmet";
-import errorHandler from "./middlewares/errorHandler.js";
+import errorHandler from "./middlewares/error.middleware.js";
+
 import cors from "cors";
 import rateLimit from "express-rate-limit"
 
@@ -26,6 +27,10 @@ app.use(limiter);
 app.use(express.json());
 
 app.use("./api/employees", employeeRoutes);
+app.use(
+    "/api/employees",
+    employeeRoutes
+);  
 
 app.use(errorHandler);
 
