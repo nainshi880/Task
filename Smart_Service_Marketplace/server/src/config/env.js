@@ -9,6 +9,22 @@ const env = {
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || "",
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || "",
+  RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+  EMAIL_HOST: process.env.EMAIL_HOST || "",
+  EMAIL_PORT: Number(process.env.EMAIL_PORT) || 587,
+  EMAIL_USER: process.env.EMAIL_USER || "",
+  EMAIL_PASS: process.env.EMAIL_PASS || "",
+  COMPANY_NAME: process.env.COMPANY_NAME || "Smart Service Marketplace",
+  COMPANY_GSTIN: process.env.COMPANY_GSTIN || "",
+  COMPANY_ADDRESS: process.env.COMPANY_ADDRESS || "",
+  COMPANY_CITY: process.env.COMPANY_CITY || "",
+  COMPANY_STATE: process.env.COMPANY_STATE || "",
+  COMPANY_POSTAL_CODE: process.env.COMPANY_POSTAL_CODE || "",
+  COMPANY_EMAIL: process.env.COMPANY_EMAIL || "",
+  COMPANY_PHONE: process.env.COMPANY_PHONE || "",
+  DEFAULT_GST_RATE: Number(process.env.DEFAULT_GST_RATE) || 18,
 };
 
 export default env;

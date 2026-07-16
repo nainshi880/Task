@@ -80,6 +80,68 @@ export const startWork = asyncHandler(async (req, res) => {
   );
 });
 
+export const pauseWork = asyncHandler(async (req, res) => {
+  const booking = await bookingWorkflowService.pauseWork(
+    req.user._id,
+    req.params.bookingId,
+    req.body.reason
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      "Work paused successfully.",
+      booking
+    )
+  );
+});
+
+export const resumeWork = asyncHandler(async (req, res) => {
+  const booking = await bookingWorkflowService.resumeWork(
+    req.user._id,
+    req.params.bookingId
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      "Work resumed successfully.",
+      booking
+    )
+  );
+});
+
+export const addWorkNotes = asyncHandler(async (req, res) => {
+  const booking = await bookingWorkflowService.addWorkNotes(
+    req.user._id,
+    req.params.bookingId,
+    req.body.note
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      "Work note added successfully.",
+      booking
+    )
+  );
+});
+
+export const getAssignedJobById = asyncHandler(async (req, res) => {
+  const booking = await bookingWorkflowService.getAssignedJobById(
+    req.user._id,
+    req.params.bookingId
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      "Job fetched successfully.",
+      booking
+    )
+  );
+});
+
 // ======================================
 // Upload Completion Images
 // ======================================

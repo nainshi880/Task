@@ -126,6 +126,22 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
+    referralCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+
+    referredBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+
     // Technician fields
     availability: {
       type: Boolean,

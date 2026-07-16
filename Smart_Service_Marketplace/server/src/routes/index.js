@@ -9,6 +9,10 @@ import technicianRoutes from "./technician.routes.js";
 import bookingWorkflowRoutes from "./bookingWorkflow.routes.js";
 import bookingAnalyticsRoutes from "./bookingAnalytics.routes.js";
 import bookingTimelineRoutes from "./bookingTimeline.routes.js";
+import paymentRoutes from "./payment.routes.js";
+import walletRoutes from "./wallet.routes.js";
+import invoiceRoutes from "./invoice.routes.js";
+import couponRoutes from "./coupon.routes.js";
 
 const router = express.Router();
 
@@ -39,5 +43,13 @@ router.use("/bookings", bookingTimelineRoutes);
 router.use("/bookings", bookingRoutes);
 
 router.use("/technicians", technicianRoutes);
+
+router.use("/payments", paymentRoutes);
+
+router.use("/wallet", walletRoutes);
+
+router.use("/invoices", invoiceRoutes);
+
+router.use("/coupons", couponRoutes);
 
 export default router;

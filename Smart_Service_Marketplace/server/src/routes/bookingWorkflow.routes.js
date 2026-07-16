@@ -2,11 +2,15 @@ import express from "express";
 
 import {
   getTechnicianBookings,
+  getAssignedJobById,
   acceptJob,
   rejectJob,
   startWork,
+  pauseWork,
+  resumeWork,
   uploadCompletionImages,
   completeWork,
+  addWorkNotes,
   confirmCompletion,
   closeBooking,
 } from "../controllers/bookingWorkflow.controller.js";
@@ -16,6 +20,8 @@ import {
   rejectJobValidation,
   completeJobValidation,
   technicianBookingsValidation,
+  pauseJobValidation,
+  workNotesValidation,
 } from "../validations/bookingWorkflow.validation.js";
 
 import { uploadIssueImages } from "../middlewares/upload.middleware.js";
@@ -76,6 +82,36 @@ router.patch(
   workflowBookingIdValidation,
   validate,
   startWork
+);
+
+router.patch(
+  "/:bookingId/pause",
+  authenticate,
+  authorize(ROLES.TECHNICIAN),
+  bookingWriteLimiter,
+  pauseJobValidation,
+  validate,
+  pauseWork
+);
+
+router.patch(
+  "/:bookingId/resume",
+  authenticate,
+  authorize(ROLES.TECHNICIAN),
+  bookingWriteLimiter,
+  workflowBookingIdValidation,
+  validate,
+  resumeWork
+);
+
+router.post(
+  "/:bookingId/work-notes",
+  authenticate,
+  authorize(ROLES.TECHNICIAN),
+  bookingWriteLimiter,
+  workNotesValidation,
+  validate,
+  addWorkNotes
 );
 
 router.post(

@@ -15,6 +15,7 @@ export const ACTIVE_WORKLOAD_STATUSES = [
   "Assigned",
   "Accepted",
   "In Progress",
+  "Paused",
 ];
 
 export default ASSIGNMENT_METHOD;

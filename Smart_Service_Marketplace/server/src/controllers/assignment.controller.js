@@ -114,7 +114,7 @@ export const updateMyAvailability = asyncHandler(async (req, res) => {
   );
 
   if (!technician) {
-    throw new ApiError(HTTP_STATUS.NOT_FOUND, "Technician profile not found.");
+    throw new ApiError(HTTP_STATUS.NOT_FOUND, "Technician not found.");
   }
 
   res.status(HTTP_STATUS.OK).json(

@@ -102,12 +102,20 @@ export const CACHE_KEYS = {
   BOOKING_ANALYTICS: "bookings:analytics:dashboard",
   BOOKING_LIST_PREFIX: "bookings:list:",
   BOOKING_DETAIL_PREFIX: "bookings:detail:",
+  TECH_JOBS_PREFIX: "technicians:jobs:",
+  TECH_REPORT_PREFIX: "technicians:reports:",
+  TECH_DASHBOARD_PREFIX: "technicians:dashboard:",
+  PAYMENT_ANALYTICS: "payments:analytics:dashboard",
+  PAYMENT_STATUS_PREFIX: "payments:status:",
+  PAYMENT_LIST_PREFIX: "payments:list:",
+  PAYMENT_ADMIN_LIST_PREFIX: "payments:admin:list:",
 };
 
 export const CACHE_TTL = {
   ANALYTICS: 60,
   LIST: 30,
   DETAIL: 45,
+  REPORT: 90,
 };
 
 export default new CacheService();

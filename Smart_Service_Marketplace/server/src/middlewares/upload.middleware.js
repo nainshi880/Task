@@ -50,6 +50,15 @@ export const uploadIssueImages = multer({
   fileFilter: imageFilter,
 }).array("issueImages", 5);
 
+export const uploadProfilePhoto = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+  },
+  fileFilter: imageFilter,
+}).single("profilePhoto");
+
 export const optionalIssueImagesUpload = (req, res, next) => {
   const contentType = req.headers["content-type"] || "";
 

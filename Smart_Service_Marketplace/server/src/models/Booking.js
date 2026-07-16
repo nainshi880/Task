@@ -78,6 +78,31 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
     },
 
+    originalAmount: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    coupon: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Coupon",
+      default: null,
+    },
+
+    couponCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: null,
+    },
+
     paymentStatus: {
       type: String,
       enum: ["Pending", "Paid", "Refunded"],
@@ -92,6 +117,28 @@ const bookingSchema = new mongoose.Schema(
     workNotes: {
       type: String,
       trim: true,
+    },
+
+    workNotesLog: [
+      {
+        note: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    pausedAt: {
+      type: Date,
+    },
+
+    resumedAt: {
+      type: Date,
     },
 
     cancelledBy: {
@@ -148,6 +195,13 @@ bookingSchema.index({
   technician: 1,
   status: 1,
 });
+
+// Technician job search / filter / sort optimization
+bookingSchema.index({ technician: 1, status: 1, bookingDate: -1 });
+bookingSchema.index({ technician: 1, serviceCategory: 1, createdAt: -1 });
+bookingSchema.index({ technician: 1, createdAt: -1 });
+bookingSchema.index({ technician: 1, completedAt: -1 });
+bookingSchema.index({ technician: 1, paymentStatus: 1 });
 
 bookingSchema.index({ serviceName: "text", description: "text" });
 bookingSchema.index({ serviceCategory: 1 });

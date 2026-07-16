@@ -64,6 +64,9 @@ class BookingEventService {
       cacheService.del(CACHE_KEYS.BOOKING_ANALYTICS),
       cacheService.del(`${CACHE_KEYS.BOOKING_DETAIL_PREFIX}${bookingId}`),
       cacheService.invalidatePrefix(CACHE_KEYS.BOOKING_LIST_PREFIX),
+      cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX),
+      cacheService.invalidatePrefix(CACHE_KEYS.TECH_REPORT_PREFIX),
+      cacheService.invalidatePrefix(CACHE_KEYS.TECH_DASHBOARD_PREFIX),
     ]);
   }
 

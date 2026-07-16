@@ -101,25 +101,191 @@ class BookingRepository {
       );
   }
 
-  async findByTechnician(technicianId, { status, page = 1, limit = 10 } = {}) {
+  async findByTechnician(
+    technicianId,
+    {
+      status,
+      serviceCategory,
+      fromDate,
+      toDate,
+      paymentStatus,
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = {}
+  ) {
     const filter = { technician: technicianId };
 
     if (status) {
       filter.status = status;
     }
 
+    if (serviceCategory) {
+      filter.serviceCategory = serviceCategory;
+    }
+
+    if (paymentStatus) {
+      filter.paymentStatus = paymentStatus;
+    }
+
+    if (fromDate || toDate) {
+      filter.bookingDate = {};
+      if (fromDate) filter.bookingDate.$gte = new Date(fromDate);
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        filter.bookingDate.$lte = end;
+      }
+    }
+
+    const allowedSort = [
+      "createdAt",
+      "updatedAt",
+      "bookingDate",
+      "amount",
+      "status",
+      "serviceCategory",
+      "completedAt",
+    ];
+    const sortField = allowedSort.includes(sortBy) ? sortBy : "createdAt";
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
     const skip = (page - 1) * limit;
 
     const [bookings, total] = await Promise.all([
       Booking.find(filter)
-        .sort({ createdAt: -1 })
+        .sort({ [sortField]: sortDirection })
         .skip(skip)
         .limit(limit)
-        .populate("customer", "name email phone city"),
+        .select(
+          "serviceCategory serviceName description status bookingDate bookingTime amount paymentStatus issueImages completionImages workNotes startedAt completedAt pausedAt createdAt updatedAt customer"
+        )
+        .populate("customer", "name email phone city")
+        .lean(),
       Booking.countDocuments(filter),
     ]);
 
     return { bookings, total };
+  }
+
+  async searchTechnicianJobs({
+    technicianId,
+    search,
+    status,
+    serviceCategory,
+    fromDate,
+    toDate,
+    paymentStatus,
+    page = 1,
+    limit = 10,
+    sortBy = "createdAt",
+    sortOrder = "desc",
+  } = {}) {
+    const match = {
+      technician: new mongoose.Types.ObjectId(technicianId),
+    };
+
+    if (status) match.status = status;
+    if (serviceCategory) match.serviceCategory = serviceCategory;
+    if (paymentStatus) match.paymentStatus = paymentStatus;
+
+    if (fromDate || toDate) {
+      match.bookingDate = {};
+      if (fromDate) match.bookingDate.$gte = new Date(fromDate);
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        match.bookingDate.$lte = end;
+      }
+    }
+
+    const allowedSort = [
+      "createdAt",
+      "updatedAt",
+      "bookingDate",
+      "amount",
+      "status",
+      "serviceCategory",
+      "completedAt",
+    ];
+    const sortField = allowedSort.includes(sortBy) ? sortBy : "createdAt";
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+    const skip = (page - 1) * limit;
+
+    const pipeline = [
+      { $match: match },
+      {
+        $lookup: {
+          from: "users",
+          localField: "customer",
+          foreignField: "_id",
+          as: "customer",
+        },
+      },
+      { $unwind: "$customer" },
+    ];
+
+    if (search?.trim()) {
+      const term = search
+        .trim()
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      pipeline.push({
+        $match: {
+          $or: [
+            { serviceName: { $regex: term, $options: "i" } },
+            { description: { $regex: term, $options: "i" } },
+            { serviceCategory: { $regex: term, $options: "i" } },
+            { "customer.name": { $regex: term, $options: "i" } },
+            { "customer.email": { $regex: term, $options: "i" } },
+            { "customer.phone": { $regex: term, $options: "i" } },
+          ],
+        },
+      });
+    }
+
+    pipeline.push({
+      $facet: {
+        data: [
+          { $sort: { [sortField]: sortDirection } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              serviceCategory: 1,
+              serviceName: 1,
+              description: 1,
+              status: 1,
+              bookingDate: 1,
+              bookingTime: 1,
+              amount: 1,
+              paymentStatus: 1,
+              issueImages: 1,
+              completionImages: 1,
+              workNotes: 1,
+              startedAt: 1,
+              completedAt: 1,
+              pausedAt: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              customer: {
+                _id: "$customer._id",
+                name: "$customer.name",
+                email: "$customer.email",
+                phone: "$customer.phone",
+                city: "$customer.city",
+              },
+            },
+          },
+        ],
+        meta: [{ $count: "total" }],
+      },
+    });
+
+    const [result] = await Booking.aggregate(pipeline);
+    return {
+      bookings: result?.data || [],
+      total: result?.meta?.[0]?.total || 0,
+    };
   }
 
   async addCompletionImages(bookingId, imageUrls) {
@@ -130,6 +296,32 @@ class BookingRepository {
           completionImages: {
             $each: imageUrls,
           },
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    )
+      .populate("customer", "name email phone city")
+      .populate(
+        "technician",
+        "name email phone city availability rating skills maxWorkload"
+      );
+  }
+
+  async addWorkNote(bookingId, note) {
+    return await Booking.findByIdAndUpdate(
+      bookingId,
+      {
+        $push: {
+          workNotesLog: {
+            note,
+            createdAt: new Date(),
+          },
+        },
+        $set: {
+          workNotes: note,
         },
       },
       {

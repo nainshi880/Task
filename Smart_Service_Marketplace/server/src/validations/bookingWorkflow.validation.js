@@ -35,6 +35,31 @@ export const completeJobValidation = [
     .withMessage("Work notes cannot exceed 1000 characters."),
 ];
 
+export const pauseJobValidation = [
+  param("bookingId")
+    .isMongoId()
+    .withMessage("Invalid booking ID."),
+
+  body("reason")
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage("Pause reason cannot exceed 500 characters."),
+];
+
+export const workNotesValidation = [
+  param("bookingId")
+    .isMongoId()
+    .withMessage("Invalid booking ID."),
+
+  body("note")
+    .trim()
+    .notEmpty()
+    .withMessage("Work note is required.")
+    .isLength({ min: 2, max: 1000 })
+    .withMessage("Work note must be between 2 and 1000 characters."),
+];
+
 export const technicianBookingsValidation = [
   query("status")
     .optional()

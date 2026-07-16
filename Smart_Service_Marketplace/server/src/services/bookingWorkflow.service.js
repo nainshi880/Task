@@ -133,6 +133,19 @@ class BookingWorkflowService {
     return this.formatPaginatedResponse(items, page, limit, total);
   }
 
+  async getAssignedJobById(technicianId, bookingId) {
+    const booking = await bookingRepository.findByIdAndTechnician(
+      bookingId,
+      technicianId
+    );
+
+    if (!booking) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Job not found.");
+    }
+
+    return this.enrichBooking(booking);
+  }
+
   // ======================================
   // Accept Job
   // ======================================
@@ -305,13 +318,15 @@ class BookingWorkflowService {
     this.assertAssignedTechnician(booking, technicianId);
 
     if (
-      ![BOOKING_STATUS.IN_PROGRESS, BOOKING_STATUS.COMPLETED].includes(
-        booking.status
-      )
+      ![
+        BOOKING_STATUS.IN_PROGRESS,
+        BOOKING_STATUS.PAUSED,
+        BOOKING_STATUS.COMPLETED,
+      ].includes(booking.status)
     ) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
-        "Completion images can only be uploaded for In Progress or Completed bookings."
+        "Completion images can only be uploaded for In Progress, Paused, or Completed bookings."
       );
     }
 
@@ -391,10 +406,17 @@ class BookingWorkflowService {
       updateData.workNotes = workNotes;
     }
 
-    const updated = await bookingRepository.updateById(
+    let updated = await bookingRepository.updateById(
       bookingId,
       updateData
     );
+
+    if (workNotes?.trim()) {
+      updated = await bookingRepository.addWorkNote(
+        bookingId,
+        workNotes.trim()
+      );
+    }
 
     await bookingEventService.record({
       bookingId,
@@ -405,6 +427,136 @@ class BookingWorkflowService {
       fromStatus: BOOKING_STATUS.IN_PROGRESS,
       toStatus: BOOKING_STATUS.COMPLETED,
       note: workNotes || "Work completed",
+    });
+
+    return this.enrichBooking(updated);
+  }
+
+  // ======================================
+  // Pause Work
+  // ======================================
+
+  async pauseWork(technicianId, bookingId, reason) {
+    const booking = await bookingRepository.findById(bookingId);
+
+    if (!booking) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Booking not found.");
+    }
+
+    this.assertAssignedTechnician(booking, technicianId);
+
+    if (booking.status !== BOOKING_STATUS.IN_PROGRESS) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Only In Progress bookings can be paused."
+      );
+    }
+
+    const updated = await bookingRepository.updateById(bookingId, {
+      status: BOOKING_STATUS.PAUSED,
+      pausedAt: new Date(),
+    });
+
+    await bookingEventService.record({
+      bookingId,
+      event: BOOKING_TIMELINE_EVENT.PAUSED,
+      actorId: technicianId,
+      actorRole: "technician",
+      action: AUDIT_ACTION.UPDATE,
+      fromStatus: BOOKING_STATUS.IN_PROGRESS,
+      toStatus: BOOKING_STATUS.PAUSED,
+      note: reason || "Work paused",
+    });
+
+    return this.enrichBooking(updated);
+  }
+
+  // ======================================
+  // Resume Work
+  // ======================================
+
+  async resumeWork(technicianId, bookingId) {
+    const booking = await bookingRepository.findById(bookingId);
+
+    if (!booking) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Booking not found.");
+    }
+
+    this.assertAssignedTechnician(booking, technicianId);
+
+    if (booking.status !== BOOKING_STATUS.PAUSED) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Only Paused bookings can be resumed."
+      );
+    }
+
+    const updated = await bookingRepository.updateById(bookingId, {
+      status: BOOKING_STATUS.IN_PROGRESS,
+      resumedAt: new Date(),
+    });
+
+    await bookingEventService.record({
+      bookingId,
+      event: BOOKING_TIMELINE_EVENT.RESUMED,
+      actorId: technicianId,
+      actorRole: "technician",
+      action: AUDIT_ACTION.UPDATE,
+      fromStatus: BOOKING_STATUS.PAUSED,
+      toStatus: BOOKING_STATUS.IN_PROGRESS,
+      note: "Work resumed",
+    });
+
+    return this.enrichBooking(updated);
+  }
+
+  // ======================================
+  // Add Work Notes
+  // ======================================
+
+  async addWorkNotes(technicianId, bookingId, note) {
+    const booking = await bookingRepository.findById(bookingId);
+
+    if (!booking) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Booking not found.");
+    }
+
+    this.assertAssignedTechnician(booking, technicianId);
+
+    if (
+      ![
+        BOOKING_STATUS.ACCEPTED,
+        BOOKING_STATUS.IN_PROGRESS,
+        BOOKING_STATUS.PAUSED,
+      ].includes(booking.status)
+    ) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Work notes can only be added while job is Accepted, In Progress, or Paused."
+      );
+    }
+
+    if (!note?.trim()) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Work note is required."
+      );
+    }
+
+    const updated = await bookingRepository.addWorkNote(
+      bookingId,
+      note.trim()
+    );
+
+    await bookingEventService.record({
+      bookingId,
+      event: BOOKING_TIMELINE_EVENT.WORK_NOTE_ADDED,
+      actorId: technicianId,
+      actorRole: "technician",
+      action: AUDIT_ACTION.UPDATE,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      note: note.trim(),
     });
 
     return this.enrichBooking(updated);
