@@ -1,0 +1,6 @@
+{
+   userId,
+   token,
+   expiresAt,
+   createdAt
+}

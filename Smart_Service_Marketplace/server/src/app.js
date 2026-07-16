@@ -7,7 +7,10 @@ import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 
 import routes from "./routes/index.js";
-
+import logger from "./middlewares/logger.middleware.js";
+import notFound from "./middlewares/notFound.middleware.js";
+import errorHandler from "./middlewares/error.middleware.js";
+import loggerMiddleware from "./middlewares/logger.middleware.js";
 const app = express();
 
 /* ---------- Security ---------- */
@@ -40,10 +43,14 @@ app.use(cookieParser());
 
 app.use(compression());
 
+
 /* ---------- Logger ---------- */
 
-app.use(morgan("dev"));
 
+app.use(loggerMiddleware);
+
+app.use(logger);
+ 
 /* ---------- Routes ---------- */
 
 app.use("/api/v1", routes);
