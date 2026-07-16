@@ -1,27 +1,28 @@
 const BOOKING_STATUS = {
-
   PENDING: "Pending",
-
   ASSIGNED: "Assigned",
-
   ACCEPTED: "Accepted",
-
   IN_PROGRESS: "In Progress",
-
   COMPLETED: "Completed",
-
   CLOSED: "Closed",
-
   CANCELLED: "Cancelled",
-
-  status: {
-    type: String,
-    enum: Object.values(BOOKING_STATUS),
-    default: BOOKING_STATUS.PENDING,
-}
-
 };
 
+export const EDITABLE_BOOKING_STATUSES = [
+  BOOKING_STATUS.PENDING,
+  BOOKING_STATUS.ASSIGNED,
+];
 
+export const CANCELLABLE_BOOKING_STATUSES = [
+  BOOKING_STATUS.PENDING,
+  BOOKING_STATUS.ASSIGNED,
+];
+
+export const TECHNICIAN_ACTIVE_STATUSES = [
+  BOOKING_STATUS.ASSIGNED,
+  BOOKING_STATUS.ACCEPTED,
+  BOOKING_STATUS.IN_PROGRESS,
+  BOOKING_STATUS.COMPLETED,
+];
 
 export default BOOKING_STATUS;

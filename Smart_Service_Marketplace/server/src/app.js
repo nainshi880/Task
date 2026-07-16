@@ -7,10 +7,12 @@ import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 
 import routes from "./routes/index.js";
-import logger from "./middlewares/logger.middleware.js";
+import loggerMiddleware from "./middlewares/logger.middleware.js";
 import notFound from "./middlewares/notFound.middleware.js";
 import errorHandler from "./middlewares/error.middleware.js";
-import loggerMiddleware from "./middlewares/logger.middleware.js";
+import { setupSwagger } from "./config/swagger.js";
+import getRedisClient from "./config/redis.js";
+
 const app = express();
 
 /* ---------- Security ---------- */
@@ -24,35 +26,44 @@ app.use(
   })
 );
 
-/* ---------- Rate Limiter ---------- */
+/* ---------- Global Rate Limiter ---------- */
 
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
   })
 );
 
 /* ---------- Parsers ---------- */
 
-app.use(express.json());
-
+app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
-
 app.use(cookieParser());
-
 app.use(compression());
-
 
 /* ---------- Logger ---------- */
 
-
 app.use(loggerMiddleware);
+app.use(morgan("dev"));
 
-app.use(logger);
- 
+/* ---------- Cache warm-up ---------- */
+
+getRedisClient();
+
+/* ---------- API Documentation ---------- */
+
+setupSwagger(app);
+
 /* ---------- Routes ---------- */
 
 app.use("/api/v1", routes);
+
+/* ---------- 404 & Errors ---------- */
+
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;

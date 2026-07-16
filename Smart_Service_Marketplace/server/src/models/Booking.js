@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import BOOKING_STATUS from "../constants/bookingStatus.js";
+import SERVICE_CATEGORIES from "../constants/serviceCategory.js";
 
 const bookingSchema = new mongoose.Schema(
   {
@@ -20,18 +22,7 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      enum: [
-        "Plumbing",
-        "Electrical",
-        "Cleaning",
-        "Painting",
-        "Carpentry",
-        "Appliance Repair",
-        "AC Repair",
-        "Pest Control",
-        "Home Shifting",
-        "Other",
-      ],
+      enum: SERVICE_CATEGORIES,
     },
 
     serviceName: {
@@ -51,9 +42,16 @@ const bookingSchema = new mongoose.Schema(
       },
     ],
 
+    completionImages: [
+      {
+        type: String,
+      },
+    ],
+
+    // Stores CustomerProfile.addresses subdocument _id
     address: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "CustomerProfile",
+      required: true,
     },
 
     bookingDate: {
@@ -69,16 +67,8 @@ const bookingSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: [
-        "Pending",
-        "Assigned",
-        "Accepted",
-        "In Progress",
-        "Completed",
-        "Cancelled",
-        "Closed",
-      ],
-      default: "Pending",
+      enum: Object.values(BOOKING_STATUS),
+      default: BOOKING_STATUS.PENDING,
       index: true,
     },
 
@@ -90,11 +80,7 @@ const bookingSchema = new mongoose.Schema(
 
     paymentStatus: {
       type: String,
-      enum: [
-        "Pending",
-        "Paid",
-        "Refunded",
-      ],
+      enum: ["Pending", "Paid", "Refunded"],
       default: "Pending",
     },
 
@@ -103,13 +89,14 @@ const bookingSchema = new mongoose.Schema(
       trim: true,
     },
 
+    workNotes: {
+      type: String,
+      trim: true,
+    },
+
     cancelledBy: {
       type: String,
-      enum: [
-        "Customer",
-        "Technician",
-        "Admin",
-      ],
+      enum: ["Customer", "Technician", "Admin"],
     },
 
     cancellationReason: {
@@ -117,7 +104,33 @@ const bookingSchema = new mongoose.Schema(
       trim: true,
     },
 
+    rejectionReason: {
+      type: String,
+      trim: true,
+    },
+
+    rejectedAt: {
+      type: Date,
+    },
+
+    startedAt: {
+      type: Date,
+    },
+
     completedAt: {
+      type: Date,
+    },
+
+    customerConfirmed: {
+      type: Boolean,
+      default: false,
+    },
+
+    customerConfirmedAt: {
+      type: Date,
+    },
+
+    closedAt: {
       type: Date,
     },
   },
@@ -136,9 +149,12 @@ bookingSchema.index({
   status: 1,
 });
 
-const Booking = mongoose.model(
-  "Booking",
-  bookingSchema
-);
+bookingSchema.index({ serviceName: "text", description: "text" });
+bookingSchema.index({ serviceCategory: 1 });
+bookingSchema.index({ status: 1, bookingDate: -1 });
+bookingSchema.index({ status: 1, createdAt: -1 });
+bookingSchema.index({ createdAt: -1 });
+
+const Booking = mongoose.model("Booking", bookingSchema);
 
 export default Booking;
