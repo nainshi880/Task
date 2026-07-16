@@ -14,6 +14,14 @@ const BOOKING_STATUS = {
 
   CANCELLED: "Cancelled",
 
+  status: {
+    type: String,
+    enum: Object.values(BOOKING_STATUS),
+    default: BOOKING_STATUS.PENDING,
+}
+
 };
+
+
 
 export default BOOKING_STATUS;

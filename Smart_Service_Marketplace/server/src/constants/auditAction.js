@@ -1,0 +1,12 @@
+const AUDIT_ACTION = {
+  CREATE: "CREATE",
+  READ: "READ",
+  UPDATE: "UPDATE",
+  DELETE: "DELETE",
+  SEARCH: "SEARCH",
+  FILTER: "FILTER",
+  LOGIN: "LOGIN",
+  LOGOUT: "LOGOUT",
+};
+
+export default AUDIT_ACTION;

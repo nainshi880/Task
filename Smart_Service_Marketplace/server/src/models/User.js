@@ -64,6 +64,31 @@ const userSchema = new mongoose.Schema(
       default: true,
     },
 
+      isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+
+     deactivatedAt: {
+     type: Date,
+     default: null,
+    },
+
+    deletedAt: {
+  type: Date,
+  default: null,
+},
+
+tokenVersion: {
+  type: Number,
+  default: 0,
+},
+
+lastPasswordChangedAt: {
+  type: Date,
+  default: null,
+},
+
     resetPasswordToken: {
       type: String,
     },
