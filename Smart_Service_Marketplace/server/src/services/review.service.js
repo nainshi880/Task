@@ -99,6 +99,34 @@ class ReviewService {
     });
   }
 
+  async getServiceReviews(query = {}) {
+    const serviceName = query.serviceName || query.name;
+    if (!serviceName?.trim()) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "serviceName is required."
+      );
+    }
+
+    const { page, limit } = parsePagination(query);
+    const { sortBy, sortOrder } = parseSort(query, ["createdAt", "rating"]);
+
+    const result = await reviewRepository.listByServiceName(serviceName, {
+      category: query.category || query.serviceCategory,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+    });
+
+    return formatPaginatedResponse(result.items, page, limit, result.total, {
+      rating: {
+        average: result.averageRating,
+        totalReviews: result.totalReviews,
+      },
+    });
+  }
+
   async updateReview(customerId, reviewId, { rating, title, comment }) {
     const review = await reviewRepository.findActiveById(reviewId);
 

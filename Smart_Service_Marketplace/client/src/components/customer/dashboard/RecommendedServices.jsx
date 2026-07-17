@@ -84,10 +84,10 @@ function RecommendedServices({ favoriteCategory }) {
           </p>
         </div>
         <Link
-          to="/bookings"
+          to="/services"
           className="text-sm font-medium text-indigo-600 hover:underline"
         >
-          Book now
+          Browse all
         </Link>
       </div>
 
@@ -107,7 +107,7 @@ function RecommendedServices({ favoriteCategory }) {
               <h3 className="mt-3 font-semibold text-slate-900">{category}</h3>
               <p className="mt-1 text-sm text-slate-500">{meta.description}</p>
               <Link
-                to="/bookings"
+                to="/services"
                 className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-indigo-600"
               >
                 Explore

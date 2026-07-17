@@ -1,5 +1,8 @@
 import api from "./axios";
 
+export const browseTechnicians = (params) =>
+  api.get("/technicians/browse", { params });
+
 export const getProfile = () => api.get("/technicians/profile");
 
 export const updateProfile = (data) => api.put("/technicians/profile", data);

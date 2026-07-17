@@ -216,69 +216,49 @@ class CustomerService {
     return percentage === 100;
   }
 
-  async addAddress(userId,address){
+  async addAddress(userId, address) {
+    if (address?.isDefault) {
+      await customerRepository.clearDefaultAddresses(userId);
+    }
 
-return await customerRepository.addAddress(
+    return await customerRepository.addAddress(userId, address);
+  }
 
-userId,
+  async getAddresses(userId) {
+    return await customerRepository.getAddresses(userId);
+  }
 
-address
+  async updateAddress(userId, addressId, address) {
+    if (address?.isDefault) {
+      await customerRepository.clearDefaultAddresses(userId);
+    }
 
-);
+    return await customerRepository.updateAddress(
+      userId,
+      addressId,
+      address
+    );
+  }
 
-}
+  async deleteAddress(userId, addressId) {
+    return await customerRepository.deleteAddress(userId, addressId);
+  }
 
-async getAddresses(userId){
+  async setDefaultAddress(userId, addressId) {
+    const profile = await customerRepository.setDefaultAddress(
+      userId,
+      addressId
+    );
 
-return await customerRepository.getAddresses(
+    if (!profile) {
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        "Address not found."
+      );
+    }
 
-userId
-
-);
-
-}
-
-// Update Address
-async updateAddress(
-
-userId,
-
-addressId,
-
-address
-
-){
-
-return await customerRepository.updateAddress(
-
-userId,
-
-addressId,
-
-address
-
-);
-
-}
-
-// Delete Address
-async deleteAddress(
-
-userId,
-
-addressId
-
-){
-
-return await customerRepository.deleteAddress(
-
-userId,
-
-addressId
-
-);
-
-}
+    return profile;
+  }
 
  // =====================================================
   // Dashboard Module

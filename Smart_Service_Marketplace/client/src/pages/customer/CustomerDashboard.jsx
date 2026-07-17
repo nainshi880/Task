@@ -75,7 +75,7 @@ function BookingCard({ booking, variant = "default" }) {
 
       {variant === "upcoming" && (
         <Link
-          to="/bookings"
+          to={`/bookings/${booking._id}`}
           className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:underline"
         >
           View details
@@ -89,12 +89,12 @@ function EmptyBookings({ message }) {
   return (
     <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
       <p className="text-sm text-slate-500">{message}</p>
-      <Link
-        to="/bookings"
-        className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:underline"
-      >
-        Browse services
-      </Link>
+                  <Link
+                to="/services"
+                className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:underline"
+              >
+                Browse services
+              </Link>
     </div>
   );
 }

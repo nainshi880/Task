@@ -8,12 +8,14 @@ import {
   Wallet,
   Users,
   UserCog,
+  Wrench,
 } from "lucide-react";
 import useAuth from "../../hooks/useAuth";
 import { ROLES, isAdminRole, isSuperAdmin } from "../../constants/roles";
 
 const customerLinks = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/services", label: "Services", icon: Wrench },
   { to: "/bookings", label: "Bookings", icon: CalendarCheck },
   { to: "/chat", label: "Chat", icon: MessageSquare },
   { to: "/profile", label: "Profile", icon: UserRound },

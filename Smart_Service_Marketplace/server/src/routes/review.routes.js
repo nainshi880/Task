@@ -3,6 +3,7 @@ import express from "express";
 import {
   submitReview,
   getTechnicianReviews,
+  getServiceReviews,
   updateReview,
   deleteReview,
   reportReview,
@@ -42,6 +43,8 @@ router.get(
   validate,
   getBookingReview
 );
+
+router.get("/service", getServiceReviews);
 
 router.post(
   "/:reviewId/report",

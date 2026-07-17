@@ -230,6 +230,33 @@ new:true
 );
 }
 
+async clearDefaultAddresses(userId) {
+  return await CustomerProfile.findOneAndUpdate(
+    { user: userId, isDeleted: false },
+    { $set: { "addresses.$[].isDefault": false } },
+    { new: true }
+  );
+}
+
+async setDefaultAddress(userId, addressId) {
+  const profile = await CustomerProfile.findOne({
+    user: userId,
+    isDeleted: false,
+  });
+
+  if (!profile) return null;
+
+  const address = profile.addresses.id(addressId);
+  if (!address) return null;
+
+  profile.addresses.forEach((item) => {
+    item.isDefault = String(item._id) === String(addressId);
+  });
+
+  await profile.save();
+  return profile;
+}
+
  // =====================================================
   // Dashboard Methods 
   // =====================================================

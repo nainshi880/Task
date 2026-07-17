@@ -24,6 +24,14 @@ export const getTechnicianReviews = asyncHandler(async (req, res) => {
   );
 });
 
+export const getServiceReviews = asyncHandler(async (req, res) => {
+  const result = await reviewService.getServiceReviews(req.query);
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Service reviews fetched successfully.", result)
+  );
+});
+
 export const updateReview = asyncHandler(async (req, res) => {
   const review = await reviewService.updateReview(
     req.user._id,

@@ -97,7 +97,7 @@ class TechnicianRepository {
     const [technicians, total] = await Promise.all([
       User.find(filter)
         .select(
-          "name email phone city availability rating skills maxWorkload isActive createdAt"
+          "name email phone city availability rating skills maxWorkload isActive avatar createdAt"
         )
         .sort({ [sortField]: sortDirection })
         .skip(skip)

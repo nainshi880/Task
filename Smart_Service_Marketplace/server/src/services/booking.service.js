@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
 import bookingRepository from "../repositories/booking.repository.js";
+import technicianRepository from "../repositories/technician.repository.js";
 import bookingEventService from "./bookingEvent.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
@@ -168,10 +169,37 @@ class BookingService {
 
     const issueImages = await this.uploadFilesToCloudinary(files);
 
+    const preferredTechnicianId =
+      data.technician || data.preferredTechnician || null;
+
+    let technicianId = null;
+    let status = BOOKING_STATUS.PENDING;
+
+    if (preferredTechnicianId) {
+      const technician = await technicianRepository.findById(
+        preferredTechnicianId
+      );
+      if (!technician || technician.role !== "technician") {
+        throw new ApiError(
+          HTTP_STATUS.BAD_REQUEST,
+          "Selected technician is invalid."
+        );
+      }
+      if (technician.availability === false) {
+        throw new ApiError(
+          HTTP_STATUS.BAD_REQUEST,
+          "Selected technician is currently unavailable."
+        );
+      }
+      technicianId = technician._id;
+      status = BOOKING_STATUS.ASSIGNED;
+    }
+
     const booking = await withTransaction(async (session) => {
       return await bookingRepository.create(
         {
           customer: customerId,
+          technician: technicianId,
           serviceCategory: data.serviceCategory,
           serviceName: data.serviceName,
           description: data.description,
@@ -181,7 +209,7 @@ class BookingService {
           notes: data.notes,
           amount: data.amount || 0,
           issueImages,
-          status: BOOKING_STATUS.PENDING,
+          status,
         },
         session
       );
@@ -194,11 +222,14 @@ class BookingService {
       actorRole: "customer",
       action: AUDIT_ACTION.CREATE,
       fromStatus: null,
-      toStatus: BOOKING_STATUS.PENDING,
-      note: "Booking created",
+      toStatus: status,
+      note: technicianId
+        ? "Booking created with preferred technician"
+        : "Booking created",
       metadata: {
         serviceCategory: data.serviceCategory,
         serviceName: data.serviceName,
+        preferredTechnician: technicianId,
       },
       ipAddress: actorMeta.ipAddress,
       userAgent: actorMeta.userAgent,

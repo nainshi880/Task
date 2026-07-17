@@ -21,6 +21,9 @@ export const updateAddress = (addressId, data) =>
 export const deleteAddress = (addressId) =>
   api.delete(`/customer/addresses/${addressId}`);
 
+export const setDefaultAddress = (addressId) =>
+  api.patch(`/customer/addresses/${addressId}/default`);
+
 export const changePassword = (data) =>
   api.put("/customer/change-password", data);
 

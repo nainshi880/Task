@@ -29,6 +29,9 @@ export const updateAddress = async (addressId, data) =>
 export const deleteAddress = async (addressId) =>
   unwrap(await customerApi.deleteAddress(addressId));
 
+export const setDefaultAddress = async (addressId) =>
+  unwrap(await customerApi.setDefaultAddress(addressId));
+
 export const changePassword = async (data) =>
   unwrap(await customerApi.changePassword(data));
 

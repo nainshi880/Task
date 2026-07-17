@@ -1,4 +1,5 @@
 import Review from "../models/Review.js";
+import Booking from "../models/Booking.js";
 import User from "../models/User.js";
 import TechnicianProfile from "../models/TechnicianProfile.js";
 import mongoose from "mongoose";
@@ -47,7 +48,7 @@ class ReviewRepository {
         .sort({ [sortField]: sortDir })
         .skip(skip)
         .limit(limit)
-        .select("rating title comment createdAt customer booking")
+        .select("rating title comment createdAt customer booking technician")
         .populate("customer", "name avatar")
         .populate("booking", "serviceName serviceCategory bookingDate")
         .lean(),
@@ -55,6 +56,67 @@ class ReviewRepository {
     ]);
 
     return { items, total };
+  }
+
+  async listByServiceName(
+    serviceName,
+    {
+      category,
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = {}
+  ) {
+    const bookingMatch = {
+      serviceName: { $regex: `^${serviceName.trim()}$`, $options: "i" },
+    };
+    if (category) bookingMatch.serviceCategory = category;
+
+    const bookingIds = await Booking.find(bookingMatch).distinct("_id");
+
+    const filter = {
+      booking: { $in: bookingIds },
+      status: REVIEW_STATUS.APPROVED,
+      isDeleted: false,
+    };
+
+    const allowedSort = ["createdAt", "rating"];
+    const sortField = allowedSort.includes(sortBy) ? sortBy : "createdAt";
+    const sortDir = sortOrder === "asc" ? 1 : -1;
+    const skip = (page - 1) * limit;
+
+    const [items, total, stats] = await Promise.all([
+      Review.find(filter)
+        .sort({ [sortField]: sortDir })
+        .skip(skip)
+        .limit(limit)
+        .select("rating title comment createdAt customer booking technician")
+        .populate("customer", "name avatar")
+        .populate("technician", "name avatar rating")
+        .populate("booking", "serviceName serviceCategory bookingDate")
+        .lean(),
+      Review.countDocuments(filter),
+      Review.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            averageRating: { $avg: "$rating" },
+            totalReviews: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    return {
+      items,
+      total,
+      averageRating: stats[0]?.averageRating
+        ? Number(stats[0].averageRating.toFixed(1))
+        : 0,
+      totalReviews: stats[0]?.totalReviews || 0,
+    };
   }
 
   async getRatingDistribution(technicianId) {

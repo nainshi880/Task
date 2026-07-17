@@ -133,6 +133,16 @@ router.get(
   getAvailableTechnicians
 );
 
+/* Customer — browse available technicians for booking */
+router.get(
+  "/browse",
+  authenticate,
+  authorize(ROLES.CUSTOMER),
+  availableTechniciansValidation,
+  validate,
+  getAvailableTechnicians
+);
+
 /*
 =====================================
 Technician — Dashboard

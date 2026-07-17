@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MapPin, Pencil, Plus, Trash2 } from "lucide-react";
+import { MapPin, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import clsx from "clsx";
 
@@ -92,8 +92,10 @@ function AddressManager({ addresses = [] }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
-  const invalidate = () =>
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: customerKeys.profile() });
+    queryClient.invalidateQueries({ queryKey: customerKeys.addresses() });
+  };
 
   const addMutation = useMutation({
     mutationFn: customerService.addAddress,
@@ -127,6 +129,17 @@ function AddressManager({ addresses = [] }) {
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || "Could not delete address");
+    },
+  });
+
+  const defaultMutation = useMutation({
+    mutationFn: customerService.setDefaultAddress,
+    onSuccess: () => {
+      toast.success("Default address updated");
+      invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || "Could not set default");
     },
   });
 
@@ -167,7 +180,7 @@ function AddressManager({ addresses = [] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-slate-500">
           Manage delivery and service locations for your bookings.
         </p>
@@ -238,6 +251,19 @@ function AddressManager({ addresses = [] }) {
                   </button>
                 </div>
               </div>
+
+              {!address.isDefault && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-4 w-full"
+                  loading={defaultMutation.isPending}
+                  onClick={() => defaultMutation.mutate(address._id)}
+                >
+                  <Star size={14} />
+                  Set as default
+                </Button>
+              )}
             </div>
           ))}
         </div>
@@ -249,7 +275,19 @@ function AddressManager({ addresses = [] }) {
         title={editing ? "Edit address" : "Add address"}
       >
         <AddressForm
-          defaultValues={editing || EMPTY_ADDRESS}
+          defaultValues={
+            editing
+              ? {
+                  label: editing.label || "Home",
+                  street: editing.street || "",
+                  city: editing.city || "",
+                  state: editing.state || "",
+                  country: editing.country || "India",
+                  postalCode: editing.postalCode || "",
+                  isDefault: Boolean(editing.isDefault),
+                }
+              : EMPTY_ADDRESS
+          }
           onSubmit={handleSave}
           onCancel={closeModal}
           loading={isSaving}

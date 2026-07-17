@@ -2,6 +2,9 @@ import * as technicianApi from "../api/technician.api";
 
 const unwrap = (response) => response.data?.data ?? response.data;
 
+export const browseTechnicians = async (params) =>
+  unwrap(await technicianApi.browseTechnicians(params));
+
 export const getProfile = async () => unwrap(await technicianApi.getProfile());
 
 export const updateProfile = async (data) =>

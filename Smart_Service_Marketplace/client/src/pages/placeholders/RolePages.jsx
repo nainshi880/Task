@@ -11,15 +11,6 @@ function PageShell({ title, description }) {
   );
 }
 
-export function CustomerBookings() {
-  return (
-    <PageShell
-      title="My Bookings"
-      description="Track and manage your service bookings."
-    />
-  );
-}
-
 export function CustomerChat() {
   return (
     <PageShell

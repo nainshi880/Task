@@ -137,7 +137,17 @@ function CustomerProfilePage() {
             <PersonalInfoSection profile={profile} />
           )}
           {activeTab === "addresses" && (
-            <AddressManager addresses={profile.addresses || []} />
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Link
+                  to="/profile/addresses"
+                  className="text-sm font-medium text-indigo-600 hover:underline"
+                >
+                  Open full address manager
+                </Link>
+              </div>
+              <AddressManager addresses={profile.addresses || []} />
+            </div>
           )}
           {activeTab === "emergency" && (
             <EmergencyContactSection profile={profile} />

@@ -207,6 +207,21 @@ profile
 
 });
 
+export const setDefaultAddress = asyncHandler(async (req, res) => {
+  const profile = await customerService.setDefaultAddress(
+    req.user._id,
+    req.params.addressId
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      "Default address updated successfully.",
+      profile
+    )
+  );
+});
+
 // ======================================
 // Upload Avatar
 // ======================================

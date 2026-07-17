@@ -56,6 +56,16 @@ export const createBookingValidation = [
     .isFloat({ min: 0 })
     .withMessage("Amount must be a non-negative number.")
     .toFloat(),
+
+  body("technician")
+    .optional({ values: "falsy" })
+    .isMongoId()
+    .withMessage("Invalid technician ID."),
+
+  body("preferredTechnician")
+    .optional({ values: "falsy" })
+    .isMongoId()
+    .withMessage("Invalid preferred technician ID."),
 ];
 
 export const updateBookingValidation = [

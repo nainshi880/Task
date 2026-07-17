@@ -12,6 +12,7 @@ import {
   getAddresses,
   updateAddress,
   deleteAddress,
+  setDefaultAddress,
   getDashboard,
   getStatistics,
   getRecentBookings,
@@ -172,6 +173,13 @@ router.delete(
   authenticate,
   authorize(ROLES.CUSTOMER),
   deleteAddress
+);
+
+router.patch(
+  "/addresses/:addressId/default",
+  authenticate,
+  authorize(ROLES.CUSTOMER),
+  setDefaultAddress
 );
 
 /*

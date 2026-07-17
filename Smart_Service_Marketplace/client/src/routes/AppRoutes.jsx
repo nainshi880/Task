@@ -25,9 +25,15 @@ import CreateAdminPage from "../pages/admin/CreateAdminPage";
 
 import CustomerDashboard from "../pages/customer/CustomerDashboard";
 import CustomerProfilePage from "../pages/customer/CustomerProfilePage";
+import AddressesPage from "../pages/customer/AddressesPage";
+import ServicesPage from "../pages/customer/ServicesPage";
+import ServiceDetailPage from "../pages/customer/ServiceDetailPage";
+import BookServicePage from "../pages/customer/BookServicePage";
+import BookingConfirmPage from "../pages/customer/BookingConfirmPage";
+import MyBookingsPage from "../pages/customer/MyBookingsPage";
+import BookingDetailPage from "../pages/customer/BookingDetailPage";
 
 import {
-  CustomerBookings,
   CustomerChat,
   TechnicianDashboard,
   TechnicianJobs,
@@ -78,7 +84,13 @@ function AppRoutes() {
       <Route element={<CustomerRoute />}>
         <Route path="/dashboard" element={<CustomerDashboard />} />
         <Route path="/profile" element={<CustomerProfilePage />} />
-        <Route path="/bookings" element={<CustomerBookings />} />
+        <Route path="/profile/addresses" element={<AddressesPage />} />
+        <Route path="/services" element={<ServicesPage />} />
+        <Route path="/services/:serviceId" element={<ServiceDetailPage />} />
+        <Route path="/book-service" element={<BookServicePage />} />
+        <Route path="/booking/confirm" element={<BookingConfirmPage />} />
+        <Route path="/bookings" element={<MyBookingsPage />} />
+        <Route path="/bookings/:bookingId" element={<BookingDetailPage />} />
         <Route path="/chat" element={<CustomerChat />} />
       </Route>
 

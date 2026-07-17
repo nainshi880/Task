@@ -34,6 +34,7 @@ import batchRoutes from "./batch.routes.js";
 import reviewRoutes from "./review.routes.js";
 import favoriteRoutes from "./favorite.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
+import serviceRoutes from "./service.routes.js";
 
 const router = express.Router();
 
@@ -113,5 +114,7 @@ router.use("/reviews", reviewRoutes);
 router.use("/favorites", favoriteRoutes);
 
 router.use("/dashboard", dashboardRoutes);
+
+router.use("/services", serviceRoutes);
 
 export default router;
