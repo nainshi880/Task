@@ -22,6 +22,20 @@ import VerifyOtp from "../pages/auth/VerifyOtp";
 import CustomerProfileSetup from "../pages/onboarding/CustomerProfileSetup";
 import TechnicianProfileSetup from "../pages/onboarding/TechnicianProfileSetup";
 import CreateAdminPage from "../pages/admin/CreateAdminPage";
+import AdminDashboard from "../pages/admin/AdminDashboard";
+import AdminAnalyticsPage from "../pages/admin/AdminAnalyticsPage";
+import AdminCustomersPage from "../pages/admin/AdminCustomersPage";
+import AdminCustomerDetailPage from "../pages/admin/AdminCustomerDetailPage";
+import AdminTechniciansPage from "../pages/admin/AdminTechniciansPage";
+import AdminTechnicianDetailPage from "../pages/admin/AdminTechnicianDetailPage";
+import AdminBookingsPage from "../pages/admin/AdminBookingsPage";
+import AdminBookingDetailPage from "../pages/admin/AdminBookingDetailPage";
+import AdminServicesPage from "../pages/admin/AdminServicesPage";
+import AdminPaymentsPage from "../pages/admin/AdminPaymentsPage";
+import AdminReviewsPage from "../pages/admin/AdminReviewsPage";
+import AdminReportsPage from "../pages/admin/AdminReportsPage";
+import AdminSettingsPage from "../pages/admin/AdminSettingsPage";
+import AdminProfilePage from "../pages/admin/AdminProfilePage";
 
 import CustomerDashboard from "../pages/customer/CustomerDashboard";
 import CustomerProfilePage from "../pages/customer/CustomerProfilePage";
@@ -32,17 +46,19 @@ import BookServicePage from "../pages/customer/BookServicePage";
 import BookingConfirmPage from "../pages/customer/BookingConfirmPage";
 import MyBookingsPage from "../pages/customer/MyBookingsPage";
 import BookingDetailPage from "../pages/customer/BookingDetailPage";
+import TechnicianDashboard from "../pages/technician/TechnicianDashboard";
+import TechnicianProfilePage from "../pages/technician/TechnicianProfilePage";
+import TechnicianProfileEditPage from "../pages/technician/TechnicianProfileEditPage";
+import TechnicianJobsPage from "../pages/technician/TechnicianJobsPage";
+import TechnicianJobDetailPage from "../pages/technician/TechnicianJobDetailPage";
+import TechnicianAvailabilityPage from "../pages/technician/TechnicianAvailabilityPage";
+import TechnicianEarningsPage from "../pages/technician/TechnicianEarningsPage";
+import TechnicianPayoutsPage from "../pages/technician/TechnicianPayoutsPage";
+import TechnicianReviewsPage from "../pages/technician/TechnicianReviewsPage";
+import TechnicianNotificationsPage from "../pages/technician/TechnicianNotificationsPage";
+import TechnicianSettingsPage from "../pages/technician/TechnicianSettingsPage";
 
-import {
-  CustomerChat,
-  TechnicianDashboard,
-  TechnicianJobs,
-  TechnicianEarnings,
-  TechnicianProfile,
-  AdminDashboard,
-  AdminUsers,
-  AdminBookings,
-} from "../pages/placeholders/RolePages";
+import { CustomerChat } from "../pages/placeholders/RolePages";
 
 function AppRoutes() {
   return (
@@ -97,16 +113,73 @@ function AppRoutes() {
       {/* Technician routes */}
       <Route element={<TechnicianRoute />}>
         <Route path="/technician/dashboard" element={<TechnicianDashboard />} />
-        <Route path="/jobs" element={<TechnicianJobs />} />
-        <Route path="/earnings" element={<TechnicianEarnings />} />
-        <Route path="/technician/profile" element={<TechnicianProfile />} />
+        <Route path="/technician/jobs" element={<TechnicianJobsPage />} />
+        <Route
+          path="/technician/jobs/:bookingId"
+          element={<TechnicianJobDetailPage />}
+        />
+        <Route path="/jobs" element={<Navigate to="/technician/jobs" replace />} />
+        <Route
+          path="/technician/availability"
+          element={<TechnicianAvailabilityPage />}
+        />
+        <Route
+          path="/technician/earnings"
+          element={<TechnicianEarningsPage />}
+        />
+        <Route
+          path="/technician/payouts"
+          element={<TechnicianPayoutsPage />}
+        />
+        <Route
+          path="/earnings"
+          element={<Navigate to="/technician/earnings" replace />}
+        />
+        <Route path="/technician/reviews" element={<TechnicianReviewsPage />} />
+        <Route
+          path="/technician/notifications"
+          element={<TechnicianNotificationsPage />}
+        />
+        <Route
+          path="/technician/settings"
+          element={<TechnicianSettingsPage />}
+        />
+        <Route path="/technician/profile" element={<TechnicianProfilePage />} />
+        <Route
+          path="/technician/profile/edit"
+          element={<TechnicianProfileEditPage />}
+        />
       </Route>
 
       {/* Admin routes */}
       <Route element={<AdminRoute />}>
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/bookings" element={<AdminBookings />} />
+        <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+        <Route path="/admin/customers" element={<AdminCustomersPage />} />
+        <Route
+          path="/admin/customers/:id"
+          element={<AdminCustomerDetailPage />}
+        />
+        <Route path="/admin/technicians" element={<AdminTechniciansPage />} />
+        <Route
+          path="/admin/technicians/:id"
+          element={<AdminTechnicianDetailPage />}
+        />
+        <Route
+          path="/admin/users"
+          element={<Navigate to="/admin/customers" replace />}
+        />
+        <Route path="/admin/bookings" element={<AdminBookingsPage />} />
+        <Route
+          path="/admin/bookings/:id"
+          element={<AdminBookingDetailPage />}
+        />
+        <Route path="/admin/services" element={<AdminServicesPage />} />
+        <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+        <Route path="/admin/reviews" element={<AdminReviewsPage />} />
+        <Route path="/admin/reports" element={<AdminReportsPage />} />
+        <Route path="/admin/settings" element={<AdminSettingsPage />} />
+        <Route path="/admin/profile" element={<AdminProfilePage />} />
       </Route>
 
       <Route element={<SuperAdminRoute />}>

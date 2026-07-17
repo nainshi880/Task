@@ -44,4 +44,79 @@ export const technicianBrowseKeys = {
   list: (filters) => [...technicianBrowseKeys.all, filters],
 };
 
+export const technicianKeys = {
+  all: ["technician"],
+  dashboard: () => [...technicianKeys.all, "dashboard"],
+  profile: () => [...technicianKeys.all, "profile"],
+  jobs: (filters) => [...technicianKeys.all, "jobs", filters],
+  job: (id) => [...technicianKeys.all, "job", id],
+  availability: () => [...technicianKeys.all, "availability"],
+  earningsSummary: () => [...technicianKeys.all, "earnings", "summary"],
+  earningsMonthly: (params) => [
+    ...technicianKeys.all,
+    "earnings",
+    "monthly",
+    params,
+  ],
+  payouts: (filters) => [...technicianKeys.all, "payouts", filters],
+  reviews: (filters) => [...technicianKeys.all, "reviews", filters],
+};
+
+export const notificationKeys = {
+  all: ["notifications"],
+  list: (filters) => [...notificationKeys.all, "list", filters],
+  unread: () => [...notificationKeys.all, "unread"],
+  preferences: () => [...notificationKeys.all, "preferences"],
+};
+
+export const adminKeys = {
+  all: ["admin"],
+  dashboard: (params) => [...adminKeys.all, "dashboard", params],
+  growth: (params) => [...adminKeys.all, "growth", params],
+  monthly: (params) => [...adminKeys.all, "monthly", params],
+  revenue: (params) => [...adminKeys.all, "revenue", params],
+  auditLogs: (params) => [...adminKeys.all, "audit-logs", params],
+  customers: (params) => [...adminKeys.all, "customers", params],
+  customer: (id) => [...adminKeys.all, "customer", id],
+  customerBookings: (id, params) => [
+    ...adminKeys.all,
+    "customer",
+    id,
+    "bookings",
+    params,
+  ],
+  technicians: (params) => [...adminKeys.all, "technicians", params],
+  technician: (id) => [...adminKeys.all, "technician", id],
+  technicianEarnings: (id, params) => [
+    ...adminKeys.all,
+    "technician",
+    id,
+    "earnings",
+    params,
+  ],
+  technicianRatings: (id) => [
+    ...adminKeys.all,
+    "technician",
+    id,
+    "ratings",
+  ],
+  bookings: (params) => [...adminKeys.all, "bookings", params],
+  booking: (id) => [...adminKeys.all, "booking", id],
+  bookingTimeline: (id) => [...adminKeys.all, "booking", id, "timeline"],
+  categories: (params) => [...adminKeys.all, "categories", params],
+  payments: (params) => [...adminKeys.all, "payments", params],
+  payment: (id) => [...adminKeys.all, "payment", id],
+  refunds: (params) => [...adminKeys.all, "refunds", params],
+  payouts: (params) => [...adminKeys.all, "payouts", params],
+  paymentReports: (params) => [...adminKeys.all, "payment-reports", params],
+  reviews: (params) => [...adminKeys.all, "reviews", params],
+  review: (id) => [...adminKeys.all, "review", id],
+  reviewAnalytics: (params) => [...adminKeys.all, "review-analytics", params],
+  bookingReports: (params) => [...adminKeys.all, "booking-reports", params],
+  revenueReports: (params) => [...adminKeys.all, "revenue-reports", params],
+  settings: () => [...adminKeys.all, "settings"],
+  banners: (params) => [...adminKeys.all, "banners", params],
+  profile: () => [...adminKeys.all, "profile"],
+};
+
 export default queryClient;

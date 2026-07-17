@@ -5,6 +5,9 @@ const unwrap = (response) => response.data?.data ?? response.data;
 export const browseTechnicians = async (params) =>
   unwrap(await technicianApi.browseTechnicians(params));
 
+export const getDashboard = async () =>
+  unwrap(await technicianApi.getDashboard());
+
 export const getProfile = async () => unwrap(await technicianApi.getProfile());
 
 export const updateProfile = async (data) =>
@@ -15,6 +18,9 @@ export const uploadPhoto = async (file) => {
   formData.append("profilePhoto", file);
   return unwrap(await technicianApi.uploadPhoto(formData));
 };
+
+export const deletePhoto = async () =>
+  unwrap(await technicianApi.deletePhoto());
 
 export const uploadIdentityProof = async (file) => {
   const formData = new FormData();
@@ -30,11 +36,23 @@ export const uploadCertification = async ({ file, name, issuedBy }) => {
   return unwrap(await technicianApi.uploadCertification(formData));
 };
 
+export const deleteCertification = async (certificationId) =>
+  unwrap(await technicianApi.deleteCertification(certificationId));
+
 export const updateServiceCategories = async (serviceCategories) =>
   unwrap(await technicianApi.updateServiceCategories(serviceCategories));
 
 export const updateServiceAreas = async (serviceAreas) =>
   unwrap(await technicianApi.updateServiceAreas(serviceAreas));
+
+export const getAvailability = async () =>
+  unwrap(await technicianApi.getAvailability());
+
+export const setOnlineStatus = async (onlineStatus) =>
+  unwrap(await technicianApi.setOnlineStatus(onlineStatus));
+
+export const setVacationMode = async (data) =>
+  unwrap(await technicianApi.setVacationMode(data));
 
 export const updateAvailability = async (availabilityStatus) =>
   unwrap(await technicianApi.updateAvailability(availabilityStatus));
@@ -44,3 +62,18 @@ export const updateWorkingHours = async (workingHours) =>
 
 export const completeSetup = async (data) =>
   unwrap(await technicianApi.completeSetup(data));
+
+export const changePassword = async (data) =>
+  unwrap(await technicianApi.changePassword(data));
+
+export const getEarningsSummary = async () =>
+  unwrap(await technicianApi.getEarningsSummary());
+
+export const getMonthlyEarnings = async (params) =>
+  unwrap(await technicianApi.getMonthlyEarnings(params));
+
+export const getPayouts = async (params) =>
+  unwrap(await technicianApi.getPayouts(params));
+
+export const requestPayout = async (data) =>
+  unwrap(await technicianApi.requestPayout(data));

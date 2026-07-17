@@ -178,7 +178,15 @@ export const workingHoursBodyValidation = weekDays.flatMap((day) => [
   body(`workingHours.${day}.end`)
     .optional()
     .matches(timeRegex),
+  body(`workingHours.${day}.breakStart`)
+    .optional({ values: "falsy" })
+    .matches(timeRegex),
+  body(`workingHours.${day}.breakEnd`)
+    .optional({ values: "falsy" })
+    .matches(timeRegex),
   body(`${day}.isOff`).optional().isBoolean().toBoolean(),
   body(`${day}.start`).optional().matches(timeRegex),
   body(`${day}.end`).optional().matches(timeRegex),
+  body(`${day}.breakStart`).optional({ values: "falsy" }).matches(timeRegex),
+  body(`${day}.breakEnd`).optional({ values: "falsy" }).matches(timeRegex),
 ]);

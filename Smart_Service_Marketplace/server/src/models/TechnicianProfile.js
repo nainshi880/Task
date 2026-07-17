@@ -17,6 +17,16 @@ const workingDaySchema = new mongoose.Schema(
       default: "18:00",
       trim: true,
     },
+    breakStart: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    breakEnd: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
   { _id: false }
 );
@@ -223,6 +233,21 @@ const technicianProfileSchema = new mongoose.Schema(
     profileCompleted: {
       type: Boolean,
       default: false,
+    },
+
+    privacy: {
+      showPhone: {
+        type: Boolean,
+        default: true,
+      },
+      showEmail: {
+        type: Boolean,
+        default: false,
+      },
+      shareLocation: {
+        type: Boolean,
+        default: true,
+      },
     },
 
     applicationStatus: {

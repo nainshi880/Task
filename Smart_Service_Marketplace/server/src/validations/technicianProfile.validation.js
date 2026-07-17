@@ -1,5 +1,6 @@
 import { body, param } from "express-validator";
 import SERVICE_CATEGORIES from "../constants/serviceCategory.js";
+import { strongPasswordRules } from "./password.validation.js";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const weekDays = [
@@ -28,6 +29,16 @@ const workingDayValidation = (day) => [
     .optional()
     .matches(timeRegex)
     .withMessage(`${day}.end must be HH:mm.`),
+
+  body(`workingHours.${day}.breakStart`)
+    .optional({ values: "falsy" })
+    .matches(timeRegex)
+    .withMessage(`${day}.breakStart must be HH:mm.`),
+
+  body(`workingHours.${day}.breakEnd`)
+    .optional({ values: "falsy" })
+    .matches(timeRegex)
+    .withMessage(`${day}.breakEnd must be HH:mm.`),
 ];
 
 export const createTechnicianProfileValidation = [
@@ -179,6 +190,10 @@ export const updateTechnicianProfileValidation = [
     .withMessage("Availability status must be boolean.")
     .toBoolean(),
 
+  body("privacy.showPhone").optional().isBoolean().toBoolean(),
+  body("privacy.showEmail").optional().isBoolean().toBoolean(),
+  body("privacy.shareLocation").optional().isBoolean().toBoolean(),
+
   ...weekDays.flatMap(workingDayValidation),
 ];
 
@@ -259,4 +274,18 @@ export const certificationIdValidation = [
   param("certificationId")
     .isMongoId()
     .withMessage("Invalid certification ID."),
+];
+
+export const changePasswordValidation = [
+  body("currentPassword")
+    .trim()
+    .notEmpty()
+    .withMessage("Current password is required."),
+
+  strongPasswordRules("newPassword"),
+
+  body("confirmPassword")
+    .trim()
+    .notEmpty()
+    .withMessage("Confirm password is required."),
 ];

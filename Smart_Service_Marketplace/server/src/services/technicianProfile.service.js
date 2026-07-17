@@ -1,6 +1,9 @@
 import fs from "fs/promises";
+import bcrypt from "bcrypt";
 import cloudinary from "../config/cloudinary.js";
+import User from "../models/User.js";
 import technicianProfileRepository from "../repositories/technicianProfile.repository.js";
+import tokenService from "./token.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import withRetry, { isTransientError } from "../utils/retry.js";
@@ -151,6 +154,7 @@ class TechnicianProfileService {
       "workingHours",
       "workingRadius",
       "serviceAreas",
+      "privacy",
     ];
 
     const updateData = {};
@@ -594,6 +598,51 @@ class TechnicianProfileService {
       );
 
     return updated;
+  }
+
+  async changePassword(userId, { currentPassword, newPassword, confirmPassword }) {
+    const user = await User.findById(userId).select("+password");
+
+    if (!user || user.isDeleted) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found.");
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(
+      currentPassword,
+      user.password
+    );
+
+    if (!isPasswordCorrect) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Current password is incorrect."
+      );
+    }
+
+    if (newPassword !== confirmPassword) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Passwords do not match."
+      );
+    }
+
+    if (currentPassword === newPassword) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "New password must be different from current password."
+      );
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    try {
+      await tokenService.revokeAllRefreshTokens(userId);
+    } catch {
+      // non-fatal if token revoke fails
+    }
+
+    return { message: "Password changed successfully." };
   }
 }
 

@@ -23,6 +23,7 @@ import {
   replaceCertifications,
   addCertification,
   removeCertification,
+  changePassword,
 } from "../controllers/technicianProfile.controller.js";
 
 import {
@@ -77,6 +78,7 @@ import {
   certificationValidation,
   certificationsArrayValidation,
   certificationIdValidation,
+  changePasswordValidation,
 } from "../validations/technicianProfile.validation.js";
 
 import {
@@ -348,6 +350,15 @@ router.put(
   updateTechnicianProfileValidation,
   validate,
   updateTechnicianProfile
+);
+
+router.put(
+  "/change-password",
+  authenticate,
+  authorize(ROLES.TECHNICIAN),
+  changePasswordValidation,
+  validate,
+  changePassword
 );
 
 /*

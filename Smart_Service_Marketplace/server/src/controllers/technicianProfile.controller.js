@@ -226,3 +226,18 @@ export const removeCertification = asyncHandler(async (req, res) => {
     )
   );
 });
+
+export const changePassword = asyncHandler(async (req, res) => {
+  const result = await technicianProfileService.changePassword(
+    req.user._id,
+    req.body
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      result.message || "Password changed successfully.",
+      result
+    )
+  );
+});
