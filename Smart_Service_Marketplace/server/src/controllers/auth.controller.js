@@ -89,7 +89,7 @@ export const logout = asyncHandler(async (req, res) => {
 export const getCurrentUser = asyncHandler(async (req, res) => {
 
   const user = await authService.getCurrentUser(
-    req.user.id
+    req.user._id
   );
 
   res

@@ -17,6 +17,17 @@ import notificationRoutes from "./notification.routes.js";
 import chatRoutes from "./chat.routes.js";
 import pushRoutes from "./push.routes.js";
 import messagingRoutes from "./messaging.routes.js";
+import adminRoutes from "./admin.routes.js";
+import adminUserRoutes from "./adminUser.routes.js";
+import adminTechnicianRoutes from "./adminTechnician.routes.js";
+import adminBookingRoutes from "./adminBooking.routes.js";
+import adminPaymentRoutes from "./adminPayment.routes.js";
+import adminReviewRoutes from "./adminReview.routes.js";
+import adminAnalyticsRoutes from "./adminAnalytics.routes.js";
+import adminReportsRoutes from "./adminReports.routes.js";
+import adminSettingsRoutes from "./adminSettings.routes.js";
+import settingsRoutes from "./settings.routes.js";
+import reviewRoutes from "./review.routes.js";
 
 const router = express.Router();
 
@@ -63,5 +74,27 @@ router.use("/chat", chatRoutes);
 router.use("/push", pushRoutes);
 
 router.use("/messaging", messagingRoutes);
+
+router.use("/admin", adminRoutes);
+
+router.use("/admin/users", adminUserRoutes);
+
+router.use("/admin/technicians", adminTechnicianRoutes);
+
+router.use("/admin/bookings", adminBookingRoutes);
+
+router.use("/admin/payments", adminPaymentRoutes);
+
+router.use("/admin/reviews", adminReviewRoutes);
+
+router.use("/admin/analytics", adminAnalyticsRoutes);
+
+router.use("/admin/reports", adminReportsRoutes);
+
+router.use("/admin/settings", adminSettingsRoutes);
+
+router.use("/settings", settingsRoutes);
+
+router.use("/reviews", reviewRoutes);
 
 export default router;

@@ -118,6 +118,80 @@ class PaymentRepository {
     return { items, total };
   }
 
+  async listRefunds({
+    page = 1,
+    limit = 10,
+    from,
+    to,
+    customerId,
+  } = {}) {
+    const filter = {
+      $or: [
+        { status: PAYMENT_STATUS.REFUNDED },
+        { refundedAmount: { $gt: 0 } },
+      ],
+    };
+
+    if (customerId) filter.customer = customerId;
+
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) filter.createdAt.$lte = new Date(to);
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      Payment.find(filter)
+        .sort({ refundedAt: -1, updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("customer", "name email phone")
+        .populate(
+          "booking",
+          "serviceName serviceCategory amount status paymentStatus"
+        ),
+      Payment.countDocuments(filter),
+    ]);
+
+    return { items, total };
+  }
+
+  async listFailed({
+    page = 1,
+    limit = 10,
+    from,
+    to,
+    customerId,
+  } = {}) {
+    const filter = { status: PAYMENT_STATUS.FAILED };
+    if (customerId) filter.customer = customerId;
+
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) filter.createdAt.$lte = new Date(to);
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      Payment.find(filter)
+        .sort({ failedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("customer", "name email phone")
+        .populate(
+          "booking",
+          "serviceName serviceCategory amount status paymentStatus"
+        ),
+      Payment.countDocuments(filter),
+    ]);
+
+    return { items, total };
+  }
+
   async findFailedForRecovery({ olderThanMinutes = 15, limit = 50 } = {}) {
     const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
     return await Payment.find({

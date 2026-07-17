@@ -727,6 +727,126 @@ class BookingRepository {
       recentBookings,
     };
   }
+
+  async getReportSummary({ fromDate, toDate, status, serviceCategory } = {}) {
+    const match = {};
+
+    if (fromDate || toDate) {
+      match.createdAt = {};
+      if (fromDate) {
+        const start = new Date(fromDate);
+        start.setHours(0, 0, 0, 0);
+        match.createdAt.$gte = start;
+      }
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        match.createdAt.$lte = end;
+      }
+    }
+
+    if (status) match.status = status;
+    if (serviceCategory) match.serviceCategory = serviceCategory;
+
+    const [summaryAgg, byStatus, byCategory, byPaymentStatus] =
+      await Promise.all([
+        Booking.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: null,
+              totalBookings: { $sum: 1 },
+              totalRevenue: { $sum: "$amount" },
+              paidRevenue: {
+                $sum: {
+                  $cond: [
+                    { $eq: ["$paymentStatus", "Paid"] },
+                    "$amount",
+                    0,
+                  ],
+                },
+              },
+              cancelledCount: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Cancelled"] }, 1, 0],
+                },
+              },
+              averageAmount: { $avg: "$amount" },
+            },
+          },
+        ]),
+        Booking.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: "$status",
+              count: { $sum: 1 },
+              revenue: { $sum: "$amount" },
+            },
+          },
+          { $sort: { count: -1 } },
+        ]),
+        Booking.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: "$serviceCategory",
+              count: { $sum: 1 },
+              revenue: { $sum: "$amount" },
+            },
+          },
+          { $sort: { count: -1 } },
+        ]),
+        Booking.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: "$paymentStatus",
+              count: { $sum: 1 },
+              revenue: { $sum: "$amount" },
+            },
+          },
+        ]),
+      ]);
+
+    const summary = summaryAgg[0] || {
+      totalBookings: 0,
+      totalRevenue: 0,
+      paidRevenue: 0,
+      cancelledCount: 0,
+      averageAmount: 0,
+    };
+
+    return {
+      period: {
+        fromDate: fromDate || null,
+        toDate: toDate || null,
+      },
+      filters: {
+        status: status || null,
+        serviceCategory: serviceCategory || null,
+      },
+      summary: {
+        ...summary,
+        averageAmount: Number((summary.averageAmount || 0).toFixed(2)),
+      },
+      byStatus: byStatus.map((row) => ({
+        status: row._id,
+        count: row.count,
+        revenue: row.revenue,
+      })),
+      byCategory: byCategory.map((row) => ({
+        category: row._id,
+        count: row.count,
+        revenue: row.revenue,
+      })),
+      byPaymentStatus: byPaymentStatus.map((row) => ({
+        paymentStatus: row._id,
+        count: row.count,
+        revenue: row.revenue,
+      })),
+    };
+  }
 }
 
 export default new BookingRepository();

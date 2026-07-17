@@ -185,6 +185,66 @@ const technicianProfileSchema = new mongoose.Schema(
       default: false,
     },
 
+    applicationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+      index: true,
+    },
+
+    rejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: "",
+    },
+
+    reviewedAt: {
+      type: Date,
+      default: null,
+    },
+
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    isSuspended: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    suspendedAt: {
+      type: Date,
+      default: null,
+    },
+
+    suspendedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    suspensionReason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: "",
+    },
+
     lastProfileUpdated: {
       type: Date,
       default: Date.now,

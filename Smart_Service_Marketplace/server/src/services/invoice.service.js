@@ -9,19 +9,12 @@ import withTransaction from "../utils/transaction.js";
 import invoiceRepository from "../repositories/invoice.repository.js";
 import { getNextInvoiceNumber } from "../models/Counter.js";
 import calculateGstBreakdown from "../utils/gst.js";
+import platformSettingsService from "./platformSettings.service.js";
 
 class InvoiceService {
-  getSellerInfo() {
-    return {
-      name: env.COMPANY_NAME || "Smart Service Marketplace",
-      gstin: env.COMPANY_GSTIN || "",
-      address: env.COMPANY_ADDRESS || "",
-      city: env.COMPANY_CITY || "",
-      state: env.COMPANY_STATE || "",
-      postalCode: env.COMPANY_POSTAL_CODE || "",
-      email: env.COMPANY_EMAIL || env.EMAIL_USER || "",
-      phone: env.COMPANY_PHONE || "",
-    };
+  async getSellerInfo() {
+    const settings = await platformSettingsService.getSettings();
+    return platformSettingsService.getSellerInfo(settings);
   }
 
   resolveAddress(profile, addressId) {
@@ -95,12 +88,13 @@ class InvoiceService {
     const payment =
       await invoiceRepository.findLatestPaidPayment(bookingId);
 
-    const seller = this.getSellerInfo();
+    const seller = await this.getSellerInfo();
+    const settings = await platformSettingsService.getSettings();
     const customerState = address?.state || booking.customer?.city || "";
     const rate =
       gstRate !== undefined && gstRate !== null
         ? Number(gstRate)
-        : Number(env.DEFAULT_GST_RATE || DEFAULT_GST_RATE);
+        : platformSettingsService.getDefaultGstRate(settings);
 
     const gst = calculateGstBreakdown({
       amount: booking.amount,
@@ -320,11 +314,14 @@ class InvoiceService {
   // Tax preview (optional helper)
   // ======================================
 
-  previewGst({ amount, gstRate, customerState }) {
-    const seller = this.getSellerInfo();
+  async previewGst({ amount, gstRate, customerState }) {
+    const seller = await this.getSellerInfo();
+    const settings = await platformSettingsService.getSettings();
+
     return calculateGstBreakdown({
       amount,
-      gstRate: gstRate ?? Number(env.DEFAULT_GST_RATE || DEFAULT_GST_RATE),
+      gstRate:
+        gstRate ?? platformSettingsService.getDefaultGstRate(settings),
       customerState: customerState || "",
       companyState: seller.state,
     });

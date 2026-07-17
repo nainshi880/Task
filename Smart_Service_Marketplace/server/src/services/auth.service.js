@@ -9,6 +9,7 @@ import emailService from "./email.service.js";
 import crypto from "crypto";
 import generateVerificationToken
 from "../utils/generateVerificationToken.js";
+import ROLES from "../constants/roles.js";
 
 
 class AuthService {
@@ -17,7 +18,7 @@ class AuthService {
 
   async register(userData) {
 
-    const { name, email, password, phone, role } = userData;
+    const { name, email, password, phone } = userData;
 
     const existingUser = await authRepository.findByEmail(email);
 
@@ -33,7 +34,7 @@ class AuthService {
       email,
       password,
       phone,
-      role,
+      role: ROLES.CUSTOMER,
     });
 
     const token = generateToken({

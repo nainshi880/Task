@@ -87,6 +87,7 @@ class TechnicianProfileService {
           : true,
       workingHours: data.workingHours || defaultWorkingHours(),
       profileCompleted: false,
+      applicationStatus: "pending",
     };
 
     profilePayload.profileCompleted =

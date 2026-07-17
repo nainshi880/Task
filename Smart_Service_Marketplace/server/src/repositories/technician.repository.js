@@ -1,9 +1,22 @@
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
+import TechnicianProfile from "../models/TechnicianProfile.js";
 import ROLES from "../constants/roles.js";
 import { ACTIVE_WORKLOAD_STATUSES } from "../constants/assignment.js";
+import TECHNICIAN_APPLICATION_STATUS from "../constants/technicianApplication.js";
 
 class TechnicianRepository {
+  async getApprovedTechnicianIds() {
+    return await TechnicianProfile.find({
+      isDeleted: false,
+      isSuspended: { $ne: true },
+      $or: [
+        { applicationStatus: TECHNICIAN_APPLICATION_STATUS.APPROVED },
+        { applicationStatus: { $exists: false } },
+      ],
+    }).distinct("user");
+  }
+
   async findById(technicianId) {
     return await User.findOne({
       _id: technicianId,
@@ -15,11 +28,14 @@ class TechnicianRepository {
   }
 
   async findEligibleTechnicians({ city, skill } = {}) {
+    const approvedIds = await this.getApprovedTechnicianIds();
+
     const filter = {
       role: ROLES.TECHNICIAN,
       isDeleted: false,
       isActive: true,
       availability: true,
+      _id: { $in: approvedIds },
     };
 
     if (city) {
@@ -38,11 +54,14 @@ class TechnicianRepository {
   }
 
   async findAvailableTechnicians({ city, skill } = {}) {
+    const approvedIds = await this.getApprovedTechnicianIds();
+
     const filter = {
       role: ROLES.TECHNICIAN,
       isDeleted: false,
       isActive: true,
       availability: true,
+      _id: { $in: approvedIds },
     };
 
     if (city) {

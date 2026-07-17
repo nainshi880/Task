@@ -109,6 +109,11 @@ export const CACHE_KEYS = {
   PAYMENT_STATUS_PREFIX: "payments:status:",
   PAYMENT_LIST_PREFIX: "payments:list:",
   PAYMENT_ADMIN_LIST_PREFIX: "payments:admin:list:",
+  ADMIN_ANALYTICS_DASHBOARD: "admin:analytics:dashboard",
+  ADMIN_ANALYTICS_GROWTH: "admin:analytics:growth",
+  ADMIN_ANALYTICS_MONTHLY: "admin:analytics:monthly",
+  PLATFORM_SETTINGS: "platform:settings",
+  PLATFORM_PUBLIC_PREFIX: "platform:public",
 };
 
 export const CACHE_TTL = {
@@ -116,6 +121,7 @@ export const CACHE_TTL = {
   LIST: 30,
   DETAIL: 45,
   REPORT: 90,
+  SETTINGS: 120,
 };
 
 export default new CacheService();

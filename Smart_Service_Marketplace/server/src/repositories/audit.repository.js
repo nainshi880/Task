@@ -42,11 +42,10 @@ class AuditRepository {
     return { logs, total };
   }
 
-  async findAll({ page = 1, limit = 10, action, resource } = {}) {
-    const filter = {};
-
-    if (action) filter.action = action;
-    if (resource) filter.resource = resource;
+  async findByUserActivity(userId, { page = 1, limit = 20 } = {}) {
+    const filter = {
+      $or: [{ actor: userId }, { resourceId: userId }],
+    };
 
     const skip = (page - 1) * limit;
 

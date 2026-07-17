@@ -12,6 +12,7 @@ import notFound from "./middlewares/notFound.middleware.js";
 import errorHandler from "./middlewares/error.middleware.js";
 import { setupSwagger } from "./config/swagger.js";
 import getRedisClient from "./config/redis.js";
+import maintenanceMiddleware from "./middlewares/maintenance.middleware.js";
 
 const app = express();
 
@@ -79,6 +80,8 @@ app.get("/", (_req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+app.use(maintenanceMiddleware);
 
 app.use("/api/v1", routes);
 
