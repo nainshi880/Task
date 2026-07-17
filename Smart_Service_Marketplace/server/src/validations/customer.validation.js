@@ -1,5 +1,6 @@
 import { body, query } from "express-validator";
 import PAGINATION from "../constants/pagination.js";
+import { strongPasswordRules } from "./password.validation.js";
 
 // Create / Update Customer Profile
 
@@ -52,26 +53,17 @@ export const customerProfileValidation = [
 // ============================================
 
 export const changePasswordValidation = [
-
   body("currentPassword")
     .trim()
     .notEmpty()
     .withMessage("Current password is required."),
 
-  body("newPassword")
-    .trim()
-    .isLength({ min: 8 })
-    .withMessage("Password must be at least 8 characters.")
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
-    .withMessage(
-      "Password must contain uppercase, lowercase, number and special character."
-    ),
+  strongPasswordRules("newPassword"),
 
   body("confirmPassword")
     .trim()
     .notEmpty()
-    .withMessage("Confirm password is required.")
-
+    .withMessage("Confirm password is required."),
 ];
 
 export const preferencesValidation = [

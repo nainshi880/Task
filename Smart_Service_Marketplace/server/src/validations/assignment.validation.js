@@ -41,6 +41,22 @@ export const availableTechniciansValidation = [
     .optional()
     .isIn(SERVICE_CATEGORIES)
     .withMessage("Invalid service category."),
+
+  query("q").optional().trim().isLength({ min: 1, max: 100 }),
+  query("search").optional().trim().isLength({ min: 1, max: 100 }),
+
+  query("sortBy")
+    .optional()
+    .isIn(["rating", "name", "city", "createdAt"]),
+
+  query("sortOrder").optional().isIn(["asc", "desc"]),
+
+  query("page").optional().isInt({ min: 1 }).toInt(),
+
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .toInt(),
 ];
 
 export const updateAvailabilityValidation = [

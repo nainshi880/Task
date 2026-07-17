@@ -23,6 +23,70 @@ class ReviewRepository {
     return await Review.findOne({ booking: bookingId, isDeleted: false });
   }
 
+  async findActiveById(reviewId) {
+    return await Review.findOne({ _id: reviewId, isDeleted: false });
+  }
+
+  async listByTechnician(
+    technicianId,
+    { page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc" } = {}
+  ) {
+    const filter = {
+      technician: technicianId,
+      status: REVIEW_STATUS.APPROVED,
+      isDeleted: false,
+    };
+
+    const allowedSort = ["createdAt", "rating"];
+    const sortField = allowedSort.includes(sortBy) ? sortBy : "createdAt";
+    const sortDir = sortOrder === "asc" ? 1 : -1;
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      Review.find(filter)
+        .sort({ [sortField]: sortDir })
+        .skip(skip)
+        .limit(limit)
+        .select("rating title comment createdAt customer booking")
+        .populate("customer", "name avatar")
+        .populate("booking", "serviceName serviceCategory bookingDate")
+        .lean(),
+      Review.countDocuments(filter),
+    ]);
+
+    return { items, total };
+  }
+
+  async getRatingDistribution(technicianId) {
+    const rows = await Review.aggregate([
+      {
+        $match: {
+          technician: new mongoose.Types.ObjectId(String(technicianId)),
+          status: REVIEW_STATUS.APPROVED,
+          isDeleted: false,
+        },
+      },
+      { $group: { _id: "$rating", count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const row of rows) {
+      distribution[row._id] = row.count;
+    }
+
+    return distribution;
+  }
+
+  async customerSoftDelete(reviewId, customerId) {
+    return await this.update(reviewId, {
+      isDeleted: true,
+      deletedAt: new Date(),
+      deletedBy: customerId,
+      status: REVIEW_STATUS.HIDDEN,
+    });
+  }
+
   async list({
     page = 1,
     limit = 10,
@@ -66,9 +130,13 @@ class ReviewRepository {
         .sort({ [sortField]: sortDir })
         .skip(skip)
         .limit(limit)
+        .select(
+          "rating title comment status reportCount createdAt customer technician booking"
+        )
         .populate("customer", "name email avatar")
         .populate("technician", "name email avatar rating")
-        .populate("booking", "serviceName serviceCategory status"),
+        .populate("booking", "serviceName serviceCategory status")
+        .lean(),
       Review.countDocuments(filter),
     ]);
 

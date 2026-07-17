@@ -23,7 +23,7 @@ class TechnicianRepository {
       role: ROLES.TECHNICIAN,
       isDeleted: false,
     }).select(
-      "name email phone city role availability rating skills maxWorkload isActive isVerified"
+      "name email phone city role availability rating skills maxWorkload isActive isVerified avatar"
     );
   }
 
@@ -53,7 +53,15 @@ class TechnicianRepository {
       .sort({ rating: -1 });
   }
 
-  async findAvailableTechnicians({ city, skill } = {}) {
+  async findAvailableTechnicians({
+    city,
+    skill,
+    search,
+    page = 1,
+    limit = 10,
+    sortBy = "rating",
+    sortOrder = "desc",
+  } = {}) {
     const approvedIds = await this.getApprovedTechnicianIds();
 
     const filter = {
@@ -72,11 +80,33 @@ class TechnicianRepository {
       filter.skills = skill;
     }
 
-    return await User.find(filter)
-      .select(
-        "name email phone city availability rating skills maxWorkload isActive"
-      )
-      .sort({ rating: -1, createdAt: 1 });
+    if (search?.trim()) {
+      const term = search.trim();
+      filter.$or = [
+        { name: { $regex: term, $options: "i" } },
+        { city: { $regex: term, $options: "i" } },
+        { skills: { $regex: term, $options: "i" } },
+      ];
+    }
+
+    const allowedSort = ["rating", "name", "city", "createdAt"];
+    const sortField = allowedSort.includes(sortBy) ? sortBy : "rating";
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+    const skip = (page - 1) * limit;
+
+    const [technicians, total] = await Promise.all([
+      User.find(filter)
+        .select(
+          "name email phone city availability rating skills maxWorkload isActive createdAt"
+        )
+        .sort({ [sortField]: sortDirection })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(filter),
+    ]);
+
+    return { technicians, total };
   }
 
   async getWorkload(technicianId) {

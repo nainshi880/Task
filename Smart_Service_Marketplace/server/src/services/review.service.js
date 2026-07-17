@@ -1,10 +1,16 @@
 import reviewRepository from "../repositories/review.repository.js";
 import bookingRepository from "../repositories/booking.repository.js";
+import technicianRepository from "../repositories/technician.repository.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import BOOKING_STATUS from "../constants/bookingStatus.js";
 import { REVIEW_STATUS } from "../constants/review.js";
 import ROLES from "../constants/roles.js";
+import {
+  parsePagination,
+  parseSort,
+  formatPaginatedResponse,
+} from "../utils/pagination.js";
 
 const REVIEWABLE_STATUSES = [
   BOOKING_STATUS.COMPLETED,
@@ -56,6 +62,98 @@ class ReviewService {
     });
 
     return await reviewRepository.findById(review._id);
+  }
+
+  async getTechnicianReviews(technicianId, query = {}) {
+    const technician = await technicianRepository.findById(technicianId);
+    if (!technician) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Technician not found.");
+    }
+
+    const { page, limit } = parsePagination(query);
+    const { sortBy, sortOrder } = parseSort(query, ["createdAt", "rating"]);
+
+    const [{ items, total }, rating, distribution] = await Promise.all([
+      reviewRepository.listByTechnician(technicianId, {
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+      }),
+      reviewRepository.getTechnicianRatingStats(technicianId),
+      reviewRepository.getRatingDistribution(technicianId),
+    ]);
+
+    return formatPaginatedResponse(items, page, limit, total, {
+      technician: {
+        _id: technician._id,
+        name: technician.name,
+        avatar: technician.avatar,
+        rating: rating.averageRating,
+      },
+      rating: {
+        average: rating.averageRating,
+        totalReviews: rating.totalReviews,
+        distribution,
+      },
+    });
+  }
+
+  async updateReview(customerId, reviewId, { rating, title, comment }) {
+    const review = await reviewRepository.findActiveById(reviewId);
+
+    if (!review) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Review not found.");
+    }
+
+    if (review.customer.toString() !== customerId.toString()) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, "Access denied.");
+    }
+
+    const wasApproved = review.status === REVIEW_STATUS.APPROVED;
+    const update = {};
+
+    if (rating !== undefined) update.rating = rating;
+    if (title !== undefined) update.title = title;
+    if (comment !== undefined) update.comment = comment;
+
+    if (wasApproved) {
+      update.status = REVIEW_STATUS.PENDING;
+      update.moderatedBy = null;
+      update.moderatedAt = null;
+      update.moderationNote = "";
+    }
+
+    const updated = await reviewRepository.update(reviewId, update);
+
+    if (wasApproved) {
+      await reviewRepository.recalculateTechnicianRating(review.technician);
+    }
+
+    return updated;
+  }
+
+  async deleteReview(customerId, reviewId) {
+    const review = await reviewRepository.findActiveById(reviewId);
+
+    if (!review) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Review not found.");
+    }
+
+    if (review.customer.toString() !== customerId.toString()) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, "Access denied.");
+    }
+
+    const wasApproved = review.status === REVIEW_STATUS.APPROVED;
+    const technicianId = review.technician;
+
+    const updated = await reviewRepository.customerSoftDelete(reviewId, customerId);
+
+    if (wasApproved) {
+      await reviewRepository.recalculateTechnicianRating(technicianId);
+    }
+
+    return updated;
   }
 
   async reportReview(userId, reviewId, { reason }) {

@@ -40,6 +40,40 @@ export const bookingReviewParamValidation = [
   param("bookingId").isMongoId().withMessage("Invalid booking ID."),
 ];
 
+export const technicianReviewsValidation = [
+  param("technicianId").isMongoId().withMessage("Invalid technician ID."),
+  ...paginationQuery,
+  query("sortBy").optional().isIn(["createdAt", "rating"]),
+  query("sortOrder").optional().isIn(["asc", "desc"]),
+];
+
+export const reviewIdValidation = [
+  param("id").isMongoId().withMessage("Invalid review ID."),
+];
+
+export const updateReviewValidation = [
+  ...reviewIdValidation,
+  body("rating")
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage("Rating must be between 1 and 5."),
+  body("title").optional().trim().isLength({ max: 150 }),
+  body("comment").optional().trim().isLength({ max: 2000 }),
+  body().custom((_value, { req }) => {
+    const { rating, title, comment } = req.body;
+    if (
+      rating === undefined &&
+      title === undefined &&
+      comment === undefined
+    ) {
+      throw new Error("At least one of rating, title, or comment is required.");
+    }
+    return true;
+  }),
+];
+
+export const deleteReviewValidation = [...reviewIdValidation];
+
 export const adminReviewListValidation = [
   ...paginationQuery,
   query("status")

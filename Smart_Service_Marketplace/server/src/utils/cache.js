@@ -85,16 +85,43 @@ class CacheService {
     try {
       const redis = getRedisClient();
       if (redis && isRedisReady()) {
-        const keys = await redis.keys(`${prefix}*`);
-        if (keys.length) {
-          await redis.del(...keys);
-        }
+        await this.scanDelete(redis, `${prefix}*`);
       }
     } catch {
       // ignore
     }
 
     memoryDelByPrefix(prefix);
+  }
+
+  async scanDelete(redis, pattern) {
+    let cursor = "0";
+
+    do {
+      const [nextCursor, keys] = await redis.scan(
+        cursor,
+        "MATCH",
+        pattern,
+        "COUNT",
+        100
+      );
+      cursor = nextCursor;
+
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    } while (cursor !== "0");
+  }
+
+  async getOrSet(key, ttlSeconds, fetchFn) {
+    const cached = await this.get(key);
+    if (cached !== null && cached !== undefined) {
+      return { value: cached, cached: true };
+    }
+
+    const value = await fetchFn();
+    await this.set(key, value, ttlSeconds);
+    return { value, cached: false };
   }
 }
 

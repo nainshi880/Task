@@ -1,4 +1,5 @@
 import { body } from "express-validator";
+import { strongPasswordRules } from "./password.validation.js";
 
 export const adminLoginValidation = [
   body("email").isEmail().withMessage("Valid email is required."),
@@ -38,14 +39,7 @@ export const adminChangePasswordValidation = [
     .trim()
     .notEmpty()
     .withMessage("Current password is required."),
-  body("newPassword")
-    .trim()
-    .isLength({ min: 8 })
-    .withMessage("Password must be at least 8 characters.")
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
-    .withMessage(
-      "Password must contain uppercase, lowercase, number and special character."
-    ),
+  strongPasswordRules("newPassword"),
   body("confirmPassword")
     .trim()
     .notEmpty()

@@ -129,6 +129,15 @@ export const listAdminPaymentsValidation = [
     .optional()
     .isISO8601(),
 
+  query("q").optional().trim().isLength({ min: 1, max: 100 }),
+  query("search").optional().trim().isLength({ min: 1, max: 100 }),
+
+  query("sortBy")
+    .optional()
+    .isIn(["createdAt", "amount", "status", "updatedAt"]),
+
+  query("sortOrder").optional().isIn(["asc", "desc"]),
+
   query("page")
     .optional()
     .isInt({ min: 1 })

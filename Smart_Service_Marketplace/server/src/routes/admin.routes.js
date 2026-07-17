@@ -2,6 +2,7 @@ import express from "express";
 
 import {
   adminLogin,
+  adminRefresh,
   getAdminProfile,
   updateAdminProfile,
   changeAdminPassword,
@@ -15,18 +16,18 @@ import {
   adminProfileValidation,
   adminChangePasswordValidation,
 } from "../validations/admin.validation.js";
+import { refreshTokenValidation } from "../validations/auth.validation.js";
 
 import validate from "../middlewares/validation.middleware.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import authorize from "../middlewares/role.middleware.js";
+import csrfProtection from "../middlewares/csrf.middleware.js";
 import { adminLoginLimiter } from "../middlewares/adminRateLimit.middleware.js";
+import { refreshTokenLimiter } from "../middlewares/rateLimit.middleware.js";
 import ROLES from "../constants/roles.js";
 
 const router = express.Router();
 
-/*
-Public — Admin Login
-*/
 router.post(
   "/login",
   adminLoginLimiter,
@@ -35,9 +36,15 @@ router.post(
   adminLogin
 );
 
-/*
-Protected — Admin only (JWT + RBAC)
-*/
+router.post(
+  "/refresh",
+  refreshTokenLimiter,
+  csrfProtection,
+  refreshTokenValidation,
+  validate,
+  adminRefresh
+);
+
 router.use(authenticate, authorize(ROLES.ADMIN));
 
 router.get("/profile", getAdminProfile);
@@ -50,8 +57,8 @@ router.put(
   changeAdminPassword
 );
 
-router.post("/logout", adminLogout);
-router.post("/logout-all", adminLogoutAllDevices);
+router.post("/logout", csrfProtection, adminLogout);
+router.post("/logout-all", csrfProtection, adminLogoutAllDevices);
 router.get("/sessions", getAdminSessions);
 
 export default router;

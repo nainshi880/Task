@@ -136,6 +136,42 @@ export const getCustomerBookingsValidation = [
     .isIn(Object.values(BOOKING_STATUS))
     .withMessage("Invalid booking status."),
 
+  query("serviceCategory")
+    .optional()
+    .isIn(SERVICE_CATEGORIES)
+    .withMessage("Invalid service category."),
+
+  query("category").optional().isIn(SERVICE_CATEGORIES),
+
+  query("paymentStatus")
+    .optional()
+    .isIn(["Pending", "Paid", "Refunded"]),
+
+  query("q").optional().trim().isLength({ min: 1, max: 100 }),
+  query("search").optional().trim().isLength({ min: 1, max: 100 }),
+
+  query("from").optional().isISO8601(),
+  query("to").optional().isISO8601(),
+  query("fromDate").optional().isISO8601(),
+  query("toDate").optional().isISO8601(),
+
+  query("sortBy")
+    .optional()
+    .isIn([
+      "createdAt",
+      "updatedAt",
+      "bookingDate",
+      "amount",
+      "status",
+      "serviceCategory",
+      "completedAt",
+    ]),
+
+  query("sortOrder").optional().isIn(["asc", "desc"]),
+
+  query("lazy").optional().isBoolean().toBoolean(),
+  query("enrich").optional().isBoolean().toBoolean(),
+
   query("page")
     .optional()
     .isInt({ min: 1 })

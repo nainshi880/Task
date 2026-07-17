@@ -32,24 +32,72 @@ class BookingRepository {
       );
   }
 
-  async findByCustomer(customerId, { status, page = 1, limit = 10 } = {}) {
+  async findByCustomer(
+    customerId,
+    {
+      status,
+      serviceCategory,
+      paymentStatus,
+      search,
+      fromDate,
+      toDate,
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = {}
+  ) {
     const filter = { customer: customerId };
 
-    if (status) {
-      filter.status = status;
+    if (status) filter.status = status;
+    if (serviceCategory) filter.serviceCategory = serviceCategory;
+    if (paymentStatus) filter.paymentStatus = paymentStatus;
+
+    if (fromDate || toDate) {
+      filter.bookingDate = {};
+      if (fromDate) filter.bookingDate.$gte = new Date(fromDate);
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        filter.bookingDate.$lte = end;
+      }
     }
 
+    if (search?.trim()) {
+      const term = search.trim();
+      filter.$or = [
+        { serviceName: { $regex: term, $options: "i" } },
+        { serviceCategory: { $regex: term, $options: "i" } },
+        { description: { $regex: term, $options: "i" } },
+      ];
+    }
+
+    const allowedSort = [
+      "createdAt",
+      "updatedAt",
+      "bookingDate",
+      "amount",
+      "status",
+      "serviceCategory",
+      "completedAt",
+    ];
+    const sortField = allowedSort.includes(sortBy) ? sortBy : "createdAt";
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
     const skip = (page - 1) * limit;
 
     const [bookings, total] = await Promise.all([
       Booking.find(filter)
-        .sort({ createdAt: -1 })
+        .sort({ [sortField]: sortDirection })
         .skip(skip)
         .limit(limit)
+        .select(
+          "serviceCategory serviceName description status bookingDate bookingTime amount paymentStatus address issueImages createdAt updatedAt technician"
+        )
         .populate(
           "technician",
           "name email phone city availability rating skills maxWorkload"
-        ),
+        )
+        .lean(),
       Booking.countDocuments(filter),
     ]);
 
@@ -846,6 +894,41 @@ class BookingRepository {
         revenue: row.revenue,
       })),
     };
+  }
+
+  async listForReportExport({
+    fromDate,
+    toDate,
+    status,
+    serviceCategory,
+    limit = 5000,
+  } = {}) {
+    const filter = {};
+
+    if (fromDate || toDate) {
+      filter.createdAt = {};
+      if (fromDate) {
+        const start = new Date(fromDate);
+        start.setHours(0, 0, 0, 0);
+        filter.createdAt.$gte = start;
+      }
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+
+    if (status) filter.status = status;
+    if (serviceCategory) filter.serviceCategory = serviceCategory;
+
+    return await Booking.find(filter)
+      .select(
+        "serviceName serviceCategory status amount paymentStatus bookingDate createdAt"
+      )
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
   }
 }
 

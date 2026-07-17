@@ -107,6 +107,14 @@ async findByVerificationToken(token) {
 
 }
 
+async incrementTokenVersion(userId) {
+    return await User.findByIdAndUpdate(
+        userId,
+        { $inc: { tokenVersion: 1 } },
+        { new: true }
+    );
+}
+
 }
 
 export default new AuthRepository();

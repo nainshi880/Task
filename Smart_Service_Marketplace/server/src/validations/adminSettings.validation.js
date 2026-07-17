@@ -93,6 +93,10 @@ export const deleteCategoryValidation = [...categoryIdParam];
 
 export const listCategoriesValidation = [
   query("includeInactive").optional().isBoolean().toBoolean(),
+  query("q").optional().trim().isLength({ min: 1, max: 100 }),
+  query("search").optional().trim().isLength({ min: 1, max: 100 }),
+  query("page").optional().isInt({ min: 1 }).toInt(),
+  query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
 ];
 
 export const createBannerValidation = [
@@ -140,6 +144,10 @@ export const listBannersValidation = [
   query("audience")
     .optional()
     .isIn(Object.values(BANNER_AUDIENCE)),
+  query("q").optional().trim().isLength({ min: 1, max: 100 }),
+  query("search").optional().trim().isLength({ min: 1, max: 100 }),
+  query("page").optional().isInt({ min: 1 }).toInt(),
+  query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
 ];
 
 export const publicSettingsValidation = [

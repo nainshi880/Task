@@ -139,7 +139,8 @@ const reviewSchema = new mongoose.Schema(
 
 reviewSchema.index({ technician: 1, status: 1, createdAt: -1 });
 reviewSchema.index({ status: 1, reportCount: -1 });
-reviewSchema.index({ createdAt: -1 });
+reviewSchema.index({ customer: 1, createdAt: -1 });
+reviewSchema.index({ booking: 1 }, { unique: true });
 
 const Review = mongoose.model("Review", reviewSchema);
 

@@ -62,6 +62,8 @@ const serviceCategorySchema = new mongoose.Schema(
   }
 );
 
+serviceCategorySchema.index({ isActive: 1, sortOrder: 1, name: 1 });
+
 const ServiceCategory = mongoose.model("ServiceCategory", serviceCategorySchema);
 
 export default ServiceCategory;

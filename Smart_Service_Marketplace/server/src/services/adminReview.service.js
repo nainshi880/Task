@@ -5,6 +5,7 @@ import HTTP_STATUS from "../constants/httpStatus.js";
 import PAGINATION from "../constants/pagination.js";
 import AUDIT_ACTION from "../constants/auditAction.js";
 import { REVIEW_STATUS, REPORT_STATUS } from "../constants/review.js";
+import { invalidateAdminAnalytics } from "../utils/cacheInvalidation.js";
 
 class AdminReviewService {
   parsePagination(query = {}) {
@@ -120,6 +121,8 @@ class AdminReviewService {
       review.technician._id || review.technician
     );
 
+    await invalidateAdminAnalytics();
+
     const action =
       status === REVIEW_STATUS.APPROVED
         ? AUDIT_ACTION.APPROVE
@@ -171,6 +174,8 @@ class AdminReviewService {
     const updated = await reviewRepository.softDelete(reviewId, adminId);
 
     await reviewRepository.recalculateTechnicianRating(technicianId);
+
+    await invalidateAdminAnalytics();
 
     await this.writeAudit({
       actorId: adminId,

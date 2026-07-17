@@ -74,11 +74,12 @@ export const updateAdminPrivacy = asyncHandler(async (req, res) => {
 });
 
 export const listAdminCategories = asyncHandler(async (req, res) => {
-  const categories = await adminSettingsService.listCategories(req.query);
+  const result = await adminSettingsService.listCategories(req.query);
 
   res.status(HTTP_STATUS.OK).json(
     new ApiResponse(HTTP_STATUS.OK, "Service categories fetched.", {
-      categories,
+      categories: result.items || result,
+      pagination: result.pagination,
     })
   );
 });
@@ -125,10 +126,13 @@ export const deleteAdminCategory = asyncHandler(async (req, res) => {
 });
 
 export const listAdminBanners = asyncHandler(async (req, res) => {
-  const banners = await adminSettingsService.listBanners(req.query);
+  const result = await adminSettingsService.listBanners(req.query);
 
   res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, "Banners fetched.", { banners })
+    new ApiResponse(HTTP_STATUS.OK, "Banners fetched.", {
+      banners: result.items || result,
+      pagination: result.pagination,
+    })
   );
 });
 
@@ -170,7 +174,7 @@ export const deleteAdminBanner = asyncHandler(async (req, res) => {
 });
 
 export const getPublicSettings = asyncHandler(async (req, res) => {
-  const [publicSettings, categories, banners] = await Promise.all([
+  const [publicSettings, categoryResult, bannerResult] = await Promise.all([
     platformSettingsService.getPublicSettings(),
     serviceCategoryRepository.list({ includeInactive: false }),
     bannerRepository.list({
@@ -182,8 +186,8 @@ export const getPublicSettings = asyncHandler(async (req, res) => {
   res.status(HTTP_STATUS.OK).json(
     new ApiResponse(HTTP_STATUS.OK, "Public settings fetched.", {
       ...publicSettings,
-      categories,
-      banners,
+      categories: categoryResult.items,
+      banners: bannerResult.items,
     })
   );
 });

@@ -20,7 +20,14 @@ class BannerRepository {
     return filter;
   }
 
-  async list({ includeInactive = false, position, audience } = {}) {
+  async list({
+    includeInactive = false,
+    position,
+    audience,
+    page,
+    limit,
+    search,
+  } = {}) {
     const filter = includeInactive ? {} : this.buildActiveFilter({ position, audience });
 
     if (position && includeInactive) filter.position = position;
@@ -28,9 +35,39 @@ class BannerRepository {
       filter.targetAudience = audience;
     }
 
-    return await Banner.find(filter)
-      .sort({ sortOrder: 1, createdAt: -1 })
-      .populate("createdBy", "name email");
+    if (search?.trim()) {
+      const term = search.trim();
+      filter.$or = [
+        { title: { $regex: term, $options: "i" } },
+        { subtitle: { $regex: term, $options: "i" } },
+      ];
+    }
+
+    const sort = { sortOrder: 1, createdAt: -1 };
+
+    if (page && limit) {
+      const skip = (page - 1) * limit;
+      const [items, total] = await Promise.all([
+        Banner.find(filter)
+          .sort(sort)
+          .skip(skip)
+          .limit(limit)
+          .select(
+            "title subtitle imageUrl linkUrl position targetAudience isActive sortOrder startsAt endsAt createdAt"
+          )
+          .populate("createdBy", "name email")
+          .lean(),
+        Banner.countDocuments(filter),
+      ]);
+      return { items, total };
+    }
+
+    const items = await Banner.find(filter)
+      .sort(sort)
+      .populate("createdBy", "name email")
+      .lean();
+
+    return { items, total: items.length };
   }
 
   async findById(bannerId) {

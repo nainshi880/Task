@@ -4,7 +4,11 @@ const env = {
   MONGODB_URI: process.env.MONGODB_URI,
   JWT_SECRET: process.env.JWT_SECRET,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN,
+  JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
+  JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
   CLIENT_URL: process.env.CLIENT_URL,
+  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || "",
+  COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || "",
   REDIS_URL: process.env.REDIS_URL || "",
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
@@ -49,6 +53,10 @@ const env = {
     process.env.CHAT_SOCKET_ALLOW_QUERY_TOKEN === "true",
   NOTIFICATION_WORKER_CONCURRENCY:
     Number(process.env.NOTIFICATION_WORKER_CONCURRENCY) || 5,
+  LOG_LEVEL: process.env.LOG_LEVEL || "info",
+  LOG_DIR: process.env.LOG_DIR || "logs",
+  LOG_MAX_FILES: process.env.LOG_MAX_FILES || "14d",
+  LOG_MAX_SIZE: process.env.LOG_MAX_SIZE || "20m",
 };
 
 export default env;

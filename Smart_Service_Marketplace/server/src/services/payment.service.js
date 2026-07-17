@@ -12,6 +12,7 @@ import {
   writePaymentAudit,
   invalidatePaymentCache,
 } from "../utils/paymentAudit.js";
+import { stableQueryKey } from "../utils/pagination.js";
 import auditRepository from "../repositories/audit.repository.js";
 import env from "../config/env.js";
 import logger from "../utils/logger.js";
@@ -521,38 +522,51 @@ class PaymentService {
   }
 
   async listAdminPayments(query = {}) {
-    let page = parseInt(query.page, 10);
-    let limit = parseInt(query.limit, 10);
+    const cacheKey = `${CACHE_KEYS.PAYMENT_ADMIN_LIST_PREFIX}${stableQueryKey(query)}`;
 
-    if (Number.isNaN(page) || page < 1) page = PAGINATION.DEFAULT_PAGE;
-    if (Number.isNaN(limit) || limit < PAGINATION.MIN_LIMIT) {
-      limit = PAGINATION.DEFAULT_LIMIT;
-    }
-    if (limit > PAGINATION.MAX_LIMIT) limit = PAGINATION.MAX_LIMIT;
+    const { value, cached } = await cacheService.getOrSet(
+      cacheKey,
+      CACHE_TTL.LIST,
+      async () => {
+        let page = parseInt(query.page, 10);
+        let limit = parseInt(query.limit, 10);
 
-    const { items, total } = await paymentRepository.listAdmin({
-      page,
-      limit,
-      status: query.status,
-      purpose: query.purpose,
-      customerId: query.customerId,
-      from: query.from,
-      to: query.to,
-    });
+        if (Number.isNaN(page) || page < 1) page = PAGINATION.DEFAULT_PAGE;
+        if (Number.isNaN(limit) || limit < PAGINATION.MIN_LIMIT) {
+          limit = PAGINATION.DEFAULT_LIMIT;
+        }
+        if (limit > PAGINATION.MAX_LIMIT) limit = PAGINATION.MAX_LIMIT;
 
-    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+        const { items, total } = await paymentRepository.listAdmin({
+          page,
+          limit,
+          status: query.status,
+          purpose: query.purpose,
+          customerId: query.customerId,
+          from: query.from,
+          to: query.to,
+          search: query.q || query.search,
+          sortBy: query.sortBy,
+          sortOrder: query.sortOrder,
+        });
 
-    return {
-      items,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
-      },
-    };
+        const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+        return {
+          items,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+          },
+        };
+      }
+    );
+
+    return { ...value, cached };
   }
 
   // ======================================

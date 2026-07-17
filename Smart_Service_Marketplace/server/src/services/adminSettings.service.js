@@ -6,6 +6,10 @@ import auditRepository from "../repositories/audit.repository.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import AUDIT_ACTION from "../constants/auditAction.js";
+import {
+  parsePagination,
+  formatPaginatedResponse,
+} from "../utils/pagination.js";
 
 class AdminSettingsService {
   async writeAudit({
@@ -33,7 +37,7 @@ class AdminSettingsService {
   }
 
   async getAllSettings() {
-    const [settings, categories, banners] = await Promise.all([
+    const [settings, categoryResult, bannerResult] = await Promise.all([
       platformSettingsService.getSettings(),
       serviceCategoryRepository.list({ includeInactive: true }),
       bannerRepository.list({ includeInactive: true }),
@@ -41,8 +45,8 @@ class AdminSettingsService {
 
     return {
       settings,
-      categories,
-      banners,
+      categories: categoryResult.items,
+      banners: bannerResult.items,
     };
   }
 
@@ -165,7 +169,25 @@ class AdminSettingsService {
   async listCategories(query = {}) {
     const includeInactive =
       query.includeInactive === true || query.includeInactive === "true";
-    return await serviceCategoryRepository.list({ includeInactive });
+    const { page, limit } = parsePagination(query);
+
+    const result = await serviceCategoryRepository.list({
+      includeInactive,
+      page: query.page ? page : undefined,
+      limit: query.limit ? limit : undefined,
+      search: query.q || query.search,
+    });
+
+    if (!query.page) {
+      return result.items;
+    }
+
+    return formatPaginatedResponse(
+      result.items,
+      page,
+      limit,
+      result.total
+    );
   }
 
   async createCategory(adminId, body, actor = {}) {
@@ -247,11 +269,27 @@ class AdminSettingsService {
   async listBanners(query = {}) {
     const includeInactive =
       query.includeInactive === true || query.includeInactive === "true";
-    return await bannerRepository.list({
+    const { page, limit } = parsePagination(query);
+
+    const result = await bannerRepository.list({
       includeInactive,
       position: query.position,
       audience: query.audience,
+      page: query.page ? page : undefined,
+      limit: query.limit ? limit : undefined,
+      search: query.q || query.search,
     });
+
+    if (!query.page) {
+      return result.items;
+    }
+
+    return formatPaginatedResponse(
+      result.items,
+      page,
+      limit,
+      result.total
+    );
   }
 
   async createBanner(adminId, body, actor = {}) {

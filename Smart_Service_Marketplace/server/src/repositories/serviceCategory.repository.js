@@ -24,13 +24,31 @@ class ServiceCategoryRepository {
     await ServiceCategory.insertMany(docs, { ordered: false }).catch(() => {});
   }
 
-  async list({ includeInactive = false } = {}) {
+  async list({ includeInactive = false, page, limit, search } = {}) {
     await this.seedDefaults();
     const filter = includeInactive ? {} : { isActive: true };
-    return await ServiceCategory.find(filter).sort({
-      sortOrder: 1,
-      name: 1,
-    });
+
+    if (search?.trim()) {
+      const term = search.trim();
+      filter.$or = [
+        { name: { $regex: term, $options: "i" } },
+        { description: { $regex: term, $options: "i" } },
+      ];
+    }
+
+    const sort = { sortOrder: 1, name: 1 };
+
+    if (page && limit) {
+      const skip = (page - 1) * limit;
+      const [items, total] = await Promise.all([
+        ServiceCategory.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+        ServiceCategory.countDocuments(filter),
+      ]);
+      return { items, total };
+    }
+
+    const items = await ServiceCategory.find(filter).sort(sort).lean();
+    return { items, total: items.length };
   }
 
   async findById(categoryId) {
@@ -42,8 +60,8 @@ class ServiceCategoryRepository {
   }
 
   async getActiveNames() {
-    const categories = await this.list({ includeInactive: false });
-    return categories.map((c) => c.name);
+    const { items } = await this.list({ includeInactive: false });
+    return items.map((c) => c.name);
   }
 
   async create(data) {

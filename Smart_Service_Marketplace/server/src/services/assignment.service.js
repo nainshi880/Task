@@ -4,6 +4,10 @@ import assignmentRepository from "../repositories/assignment.repository.js";
 import bookingEventService from "./bookingEvent.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
+import {
+  parsePagination,
+  formatPaginatedResponse,
+} from "../utils/pagination.js";
 import BOOKING_STATUS from "../constants/bookingStatus.js";
 import ASSIGNMENT_METHOD, {
   ASSIGNMENT_PRIORITY_WEIGHTS,
@@ -425,30 +429,39 @@ class AssignmentService {
   // ======================================
 
   async getAvailableTechnicians(query = {}) {
-    const technicians =
+    const { page, limit } = parsePagination(query);
+
+    const { technicians, total } =
       await technicianRepository.findAvailableTechnicians({
         city: query.city,
         skill: query.skill || query.serviceCategory,
+        search: query.q || query.search,
+        page,
+        limit,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
       });
 
     const workloads = await technicianRepository.getWorkloads(
       technicians.map((t) => t._id)
     );
 
-    return technicians
+    const items = technicians
       .map((technician) => {
         const workload =
           workloads[technician._id.toString()] || 0;
         const maxWorkload = technician.maxWorkload || 5;
 
         return {
-          ...technician.toObject(),
+          ...technician,
           currentWorkload: workload,
           remainingCapacity: Math.max(maxWorkload - workload, 0),
           hasCapacity: workload < maxWorkload,
         };
       })
       .filter((t) => t.hasCapacity);
+
+    return formatPaginatedResponse(items, page, limit, total);
   }
 
   // ======================================

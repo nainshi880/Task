@@ -1,23 +1,24 @@
 import authRepository from "../repositories/auth.repository.js";
 
 import ApiError from "../utils/ApiError.js";
-import generateToken from "../utils/generateToken.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 
+import generateVerificationToken from "../utils/generateVerificationToken.js";
 import generateResetToken from "../utils/generateResetToken.js";
+import tokenService from "./token.service.js";
 import emailService from "./email.service.js";
 import crypto from "crypto";
-import generateVerificationToken
-from "../utils/generateVerificationToken.js";
 import ROLES from "../constants/roles.js";
 
-
 class AuthService {
+  sessionMeta(meta = {}) {
+    return {
+      ipAddress: meta.ipAddress || meta.ip || "",
+      userAgent: meta.userAgent || "",
+    };
+  }
 
-  // Register User
-
-  async register(userData) {
-
+  async register(userData, meta = {}) {
     const { name, email, password, phone } = userData;
 
     const existingUser = await authRepository.findByEmail(email);
@@ -37,25 +38,20 @@ class AuthService {
       role: ROLES.CUSTOMER,
     });
 
-    const token = generateToken({
-      id: user._id,
-      role: user.role,
-      tokenVersion: user.tokenVersion ?? 0,
-    });
+    const tokens = await tokenService.issueTokenPair(
+      user,
+      this.sessionMeta(meta)
+    );
 
-    // Non-blocking welcome email
     emailService.sendWelcome({ user }).catch(() => {});
 
     return {
       user,
-      token,
+      ...tokens,
     };
   }
 
-  // Login User
-
-  async login(email, password) {
-
+  async login(email, password, meta = {}) {
     const user = await authRepository.findByEmail(email);
 
     if (!user) {
@@ -65,8 +61,7 @@ class AuthService {
       );
     }
 
-    const isPasswordMatched =
-      await user.comparePassword(password);
+    const isPasswordMatched = await user.comparePassword(password);
 
     if (!isPasswordMatched) {
       throw new ApiError(
@@ -83,47 +78,39 @@ class AuthService {
     }
 
     user.lastLogin = new Date();
-
     await user.save();
 
-    const token = generateToken({
-      id: user._id,
-      role: user.role,
-      tokenVersion: user.tokenVersion ?? 0,
-    });
+    const tokens = await tokenService.issueTokenPair(
+      user,
+      this.sessionMeta(meta)
+    );
 
     return {
       user,
-      token,
+      ...tokens,
     };
   }
 
-  // forgot password
-  async forgotPassword(email) {
+  async refresh(refreshTokenPlain, meta = {}) {
+    return await tokenService.rotateRefreshToken(
+      refreshTokenPlain,
+      this.sessionMeta(meta)
+    );
+  }
 
+  async forgotPassword(email) {
     const user = await authRepository.findByEmail(email);
 
     if (!user) {
-        throw new ApiError(
-            HTTP_STATUS.NOT_FOUND,
-            "User not found."
-        );
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found.");
     }
 
-    const { resetToken, hashedToken } =
-        generateResetToken();
+    const { resetToken, hashedToken } = generateResetToken();
+    const expiry = new Date(Date.now() + 15 * 60 * 1000);
 
-    const expiry =
-        new Date(Date.now() + 15 * 60 * 1000);
+    await authRepository.saveResetToken(user._id, hashedToken, expiry);
 
-    await authRepository.saveResetToken(
-        user._id,
-        hashedToken,
-        expiry
-    );
-
-    const resetURL =
-`${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    const resetURL = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
 
     const result = await emailService.sendPasswordReset({
       user,
@@ -145,125 +132,88 @@ class AuthService {
     }
 
     return {
-        message:
-            "Password reset email sent successfully.",
+      message: "Password reset email sent successfully.",
     };
+  }
 
-}
-
-  // Get Current User
- 
   async getCurrentUser(userId) {
-
-    const user =
-      await authRepository.findById(userId);
+    const user = await authRepository.findById(userId);
 
     if (!user) {
-      throw new ApiError(
-        HTTP_STATUS.NOT_FOUND,
-        "User not found."
-      );
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found.");
     }
 
     return user;
   }
 
-  // Logout
-  
-
-  async logout() {
+  async logout(refreshTokenPlain) {
+    await tokenService.revokeRefreshToken(refreshTokenPlain);
 
     return {
       message: "Logout successful.",
     };
-
   }
-  // Reset Password
+
+  async logoutAll(userId) {
+    await tokenService.revokeAllRefreshTokens(userId);
+    await authRepository.incrementTokenVersion(userId);
+
+    return {
+      message: "Logged out from all devices successfully.",
+    };
+  }
+
   async resetPassword(token, newPassword) {
-
     const hashedToken = crypto
-        .createHash("sha256")
-        .update(token)
-        .digest("hex");
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
 
-    const user =
-        await authRepository.findByResetToken(
-            hashedToken
-        );
+    const user = await authRepository.findByResetToken(hashedToken);
 
     if (!user) {
-
-        throw new ApiError(
-            HTTP_STATUS.BAD_REQUEST,
-            "Invalid or expired reset token."
-        );
-
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Invalid or expired reset token."
+      );
     }
 
     user.password = newPassword;
-
     user.resetPasswordToken = undefined;
-
     user.resetPasswordExpires = undefined;
-
     user.tokenVersion = (user.tokenVersion || 0) + 1;
 
     await user.save();
+    await tokenService.revokeAllRefreshTokens(user._id);
 
-    const jwtToken = generateToken({
-        id: user._id,
-        role: user.role,
-        tokenVersion: user.tokenVersion ?? 0,
-    });
+    const tokens = await tokenService.issueTokenPair(user);
 
     return {
-        user,
-        token: jwtToken,
+      user,
+      ...tokens,
     };
+  }
 
-}
-
-// Send Verification Email
-
-async sendVerificationEmail(userId) {
-
-    const user =
-        await authRepository.findById(userId);
+  async sendVerificationEmail(userId) {
+    const user = await authRepository.findById(userId);
 
     if (!user) {
-
-        throw new ApiError(
-            HTTP_STATUS.NOT_FOUND,
-            "User not found."
-        );
-
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found.");
     }
 
     if (user.isVerified) {
-
-        throw new ApiError(
-            HTTP_STATUS.BAD_REQUEST,
-            "Email already verified."
-        );
-
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Email already verified."
+      );
     }
 
-    const {
-        verificationToken,
-        hashedToken,
-    } = generateVerificationToken();
+    const { verificationToken, hashedToken } = generateVerificationToken();
+    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const expiry =
-        new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await authRepository.saveVerificationToken(userId, hashedToken, expiry);
 
-    await authRepository.saveVerificationToken(
-        user._id,
-        hashedToken,
-        expiry
-    );
-
-    const verifyURL =
-`${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
+    const verifyURL = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
 
     const result = await emailService.sendEmailVerification({
       user,
@@ -285,50 +235,35 @@ async sendVerificationEmail(userId) {
     }
 
     return {
-        message:
-            "Verification email sent successfully.",
+      message: "Verification email sent successfully.",
     };
-}
+  }
 
-// Verify Email
+  async verifyEmail(token) {
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
 
-async verifyEmail(token) {
-
-    const hashedToken =
-        crypto
-        .createHash("sha256")
-        .update(token)
-        .digest("hex");
-
-    const user =
-        await authRepository.findByVerificationToken(
-            hashedToken
-        );
+    const user = await authRepository.findByVerificationToken(hashedToken);
 
     if (!user) {
-
-        throw new ApiError(
-            HTTP_STATUS.BAD_REQUEST,
-            "Invalid or expired verification token."
-        );
-
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Invalid or expired verification token."
+      );
     }
 
     user.isVerified = true;
-
     user.emailVerificationToken = undefined;
-
     user.emailVerificationExpires = undefined;
 
     await user.save();
 
     return {
-        message:
-            "Email verified successfully."
+      message: "Email verified successfully.",
     };
-
-}
-
+  }
 }
 
 export default new AuthService();

@@ -2,17 +2,56 @@ import adminService from "../services/admin.service.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
+import { setAuthCookies, clearAuthCookies } from "../utils/cookies.js";
+import { COOKIE_NAMES } from "../constants/security.js";
+
+function sessionMeta(req) {
+  return {
+    ip: req.ip,
+    userAgent: req.get("user-agent"),
+  };
+}
+
+function getRefreshToken(req) {
+  return (
+    req.cookies?.[COOKIE_NAMES.REFRESH] ||
+    req.body?.refreshToken ||
+    null
+  );
+}
 
 export const adminLogin = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  const result = await adminService.login(email, password, {
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
-  });
+  const result = await adminService.login(email, password, sessionMeta(req));
+
+  setAuthCookies(res, { refreshToken: result.refreshToken });
 
   res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, "Admin login successful.", result)
+    new ApiResponse(HTTP_STATUS.OK, "Admin login successful.", {
+      user: result.user,
+      profile: result.profile,
+      token: result.token,
+      accessToken: result.accessToken,
+    })
+  );
+});
+
+export const adminRefresh = asyncHandler(async (req, res) => {
+  const result = await adminService.refresh(
+    getRefreshToken(req),
+    sessionMeta(req)
+  );
+
+  setAuthCookies(res, { refreshToken: result.refreshToken });
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Admin token refreshed.", {
+      user: result.user,
+      profile: result.profile,
+      token: result.token,
+      accessToken: result.accessToken,
+    })
   );
 });
 
@@ -35,23 +74,28 @@ export const updateAdminProfile = asyncHandler(async (req, res) => {
 export const changeAdminPassword = asyncHandler(async (req, res) => {
   const result = await adminService.changePassword(req.user._id, req.body);
 
+  setAuthCookies(res, { refreshToken: result.refreshToken });
+
   res.status(HTTP_STATUS.OK).json(
     new ApiResponse(HTTP_STATUS.OK, result.message, {
       token: result.token,
+      accessToken: result.accessToken,
     })
   );
 });
 
 export const adminLogout = asyncHandler(async (req, res) => {
-  const result = await adminService.logout();
+  await adminService.logout(getRefreshToken(req));
+  clearAuthCookies(res);
 
   res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result.message)
+    new ApiResponse(HTTP_STATUS.OK, "Logout successful.")
   );
 });
 
 export const adminLogoutAllDevices = asyncHandler(async (req, res) => {
   const result = await adminService.logoutAllDevices(req.user._id);
+  clearAuthCookies(res);
 
   res.status(HTTP_STATUS.OK).json(
     new ApiResponse(HTTP_STATUS.OK, result.message, {

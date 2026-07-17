@@ -207,7 +207,8 @@ bookingSchema.index({ serviceName: "text", description: "text" });
 bookingSchema.index({ serviceCategory: 1 });
 bookingSchema.index({ status: 1, bookingDate: -1 });
 bookingSchema.index({ status: 1, createdAt: -1 });
-bookingSchema.index({ createdAt: -1 });
+bookingSchema.index({ customer: 1, createdAt: -1 });
+bookingSchema.index({ customer: 1, status: 1, createdAt: -1 });
 
 const Booking = mongoose.model("Booking", bookingSchema);
 

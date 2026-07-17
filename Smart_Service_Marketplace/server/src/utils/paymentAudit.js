@@ -1,6 +1,7 @@
 import auditRepository from "../repositories/audit.repository.js";
-import cacheService, { CACHE_KEYS } from "../utils/cache.js";
-import logger from "../utils/logger.js";
+import cacheService, { CACHE_KEYS } from "./cache.js";
+import { invalidateAdminAnalytics } from "./cacheInvalidation.js";
+import logger from "./logger.js";
 
 export async function writePaymentAudit({
   actorId = null,
@@ -34,6 +35,7 @@ export async function invalidatePaymentCache(paymentId = null, customerId = null
     cacheService.invalidatePrefix(CACHE_KEYS.PAYMENT_LIST_PREFIX),
     cacheService.invalidatePrefix(CACHE_KEYS.PAYMENT_ADMIN_LIST_PREFIX),
     cacheService.del(CACHE_KEYS.BOOKING_ANALYTICS),
+    invalidateAdminAnalytics(),
   ];
 
   if (paymentId) {

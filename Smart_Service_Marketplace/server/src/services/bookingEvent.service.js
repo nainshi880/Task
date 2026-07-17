@@ -2,6 +2,7 @@ import auditRepository from "../repositories/audit.repository.js";
 import bookingTimelineRepository from "../repositories/bookingTimeline.repository.js";
 import Booking from "../models/Booking.js";
 import cacheService, { CACHE_KEYS } from "../utils/cache.js";
+import { invalidateAdminAnalytics } from "../utils/cacheInvalidation.js";
 import notificationService from "./notification.service.js";
 import pushService from "./push.service.js";
 import emailService from "./email.service.js";
@@ -351,6 +352,7 @@ class BookingEventService {
       cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX),
       cacheService.invalidatePrefix(CACHE_KEYS.TECH_REPORT_PREFIX),
       cacheService.invalidatePrefix(CACHE_KEYS.TECH_DASHBOARD_PREFIX),
+      invalidateAdminAnalytics(),
     ]);
   }
 

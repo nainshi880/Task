@@ -4,6 +4,7 @@ import authRepository from "../repositories/auth.repository.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import generateToken from "../utils/generateToken.js";
+import tokenService from "./token.service.js";
 import ADMIN_AUTH from "../constants/adminAuth.js";
 import ROLES from "../constants/roles.js";
 
@@ -106,16 +107,36 @@ class AdminService {
 
     const freshUser = await adminRepository.findAdminById(user._id);
 
-    const token = generateToken({
-      id: freshUser._id,
-      role: freshUser.role,
-      tokenVersion: freshUser.tokenVersion ?? 0,
+    const tokens = await tokenService.issueTokenPair(freshUser, {
+      ipAddress: meta.ip,
+      userAgent: meta.userAgent,
     });
 
     return {
       user: freshUser,
       profile: this.formatProfile(profile, freshUser),
-      token,
+      token: tokens.token,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
+  async refresh(refreshTokenPlain, meta = {}) {
+    const result = await tokenService.rotateRefreshToken(refreshTokenPlain, {
+      ipAddress: meta.ip,
+      userAgent: meta.userAgent,
+    });
+
+    this.assertAdmin(result.user);
+
+    const profile = await this.ensureProfile(result.user);
+
+    return {
+      user: result.user,
+      profile: this.formatProfile(profile, result.user),
+      token: result.token,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
     };
   }
 
@@ -205,19 +226,20 @@ class AdminService {
       hashedPassword
     );
 
-    const token = generateToken({
-      id: updatedUser._id,
-      role: updatedUser.role,
-      tokenVersion: updatedUser.tokenVersion ?? 0,
-    });
+    await tokenService.revokeAllRefreshTokens(userId);
+
+    const tokens = await tokenService.issueTokenPair(updatedUser);
 
     return {
       message: "Password changed successfully. Other sessions have been revoked.",
-      token,
+      token: tokens.token,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     };
   }
 
-  async logout() {
+  async logout(refreshTokenPlain) {
+    await tokenService.revokeRefreshToken(refreshTokenPlain);
     return { message: "Logout successful." };
   }
 
@@ -226,6 +248,8 @@ class AdminService {
     if (!user) {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Admin not found.");
     }
+
+    await tokenService.revokeAllRefreshTokens(userId);
 
     return {
       message: "Logged out from all devices successfully.",

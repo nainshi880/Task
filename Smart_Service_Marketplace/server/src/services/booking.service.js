@@ -17,6 +17,12 @@ import cacheService, {
   CACHE_KEYS,
   CACHE_TTL,
 } from "../utils/cache.js";
+import {
+  parsePagination,
+  formatPaginatedResponse,
+  stableQueryKey,
+  shouldLazyLoad,
+} from "../utils/pagination.js";
 
 class BookingService {
   async resolveAddressDetails(userId, addressId) {
@@ -229,22 +235,45 @@ class BookingService {
   // ======================================
 
   async getCustomerBookings(customerId, query = {}) {
-    const { page, limit } = this.parsePagination(query);
+    const { page, limit } = parsePagination(query);
+    const cacheKey = `${CACHE_KEYS.BOOKING_LIST_PREFIX}${customerId}:${stableQueryKey(query)}`;
 
-    const { bookings, total } = await bookingRepository.findByCustomer(
-      customerId,
-      {
-        status: query.status,
-        page,
-        limit,
+    const { value, cached: fromCache } = await cacheService.getOrSet(
+      cacheKey,
+      CACHE_TTL.LIST,
+      async () => {
+        const { bookings, total } = await bookingRepository.findByCustomer(
+          customerId,
+          {
+            status: query.status,
+            serviceCategory: query.serviceCategory || query.category,
+            paymentStatus: query.paymentStatus,
+            search: query.q || query.search,
+            fromDate: query.fromDate || query.from,
+            toDate: query.toDate || query.to,
+            page,
+            limit,
+            sortBy: query.sortBy,
+            sortOrder: query.sortOrder,
+          }
+        );
+
+        const lazy = shouldLazyLoad(query);
+        const items = lazy
+          ? bookings
+          : await Promise.all(
+              bookings.map((booking) =>
+                this.enrichBooking(booking, customerId)
+              )
+            );
+
+        return formatPaginatedResponse(items, page, limit, total, {
+          lazy,
+        });
       }
     );
 
-    const items = await Promise.all(
-      bookings.map((booking) => this.enrichBooking(booking, customerId))
-    );
-
-    return this.formatPaginatedResponse(items, page, limit, total);
+    return { ...value, cached: fromCache };
   }
 
   // ======================================

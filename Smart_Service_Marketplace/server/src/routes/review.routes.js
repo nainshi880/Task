@@ -2,12 +2,18 @@ import express from "express";
 
 import {
   submitReview,
+  getTechnicianReviews,
+  updateReview,
+  deleteReview,
   reportReview,
   getBookingReview,
 } from "../controllers/review.controller.js";
 
 import {
   submitReviewValidation,
+  technicianReviewsValidation,
+  updateReviewValidation,
+  deleteReviewValidation,
   reportReviewValidation,
   bookingReviewParamValidation,
 } from "../validations/review.validation.js";
@@ -28,6 +34,15 @@ router.post(
   submitReview
 );
 
+router.get(
+  "/booking/:bookingId",
+  authenticate,
+  authorize(ROLES.CUSTOMER, ROLES.TECHNICIAN, ROLES.ADMIN),
+  bookingReviewParamValidation,
+  validate,
+  getBookingReview
+);
+
 router.post(
   "/:reviewId/report",
   authenticate,
@@ -38,12 +53,28 @@ router.post(
 );
 
 router.get(
-  "/booking/:bookingId",
-  authenticate,
-  authorize(ROLES.CUSTOMER, ROLES.TECHNICIAN, ROLES.ADMIN),
-  bookingReviewParamValidation,
+  "/:technicianId",
+  technicianReviewsValidation,
   validate,
-  getBookingReview
+  getTechnicianReviews
+);
+
+router.patch(
+  "/:id",
+  authenticate,
+  authorize(ROLES.CUSTOMER),
+  updateReviewValidation,
+  validate,
+  updateReview
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  authorize(ROLES.CUSTOMER),
+  deleteReviewValidation,
+  validate,
+  deleteReview
 );
 
 export default router;

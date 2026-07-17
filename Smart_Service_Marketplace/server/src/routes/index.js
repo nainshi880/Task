@@ -1,6 +1,7 @@
 import express from "express";
 
 import healthRoutes from "./health.routes.js";
+import { getReadiness, getMetrics } from "../controllers/health.controller.js";
 import customerRoutes from "./customer.routes.js";
 import authRoutes from "./auth.routes.js";
 import bookingRoutes from "./booking.routes.js";
@@ -25,20 +26,26 @@ import adminPaymentRoutes from "./adminPayment.routes.js";
 import adminReviewRoutes from "./adminReview.routes.js";
 import adminAnalyticsRoutes from "./adminAnalytics.routes.js";
 import adminReportsRoutes from "./adminReports.routes.js";
+import adminAuditRoutes from "./adminAudit.routes.js";
 import adminSettingsRoutes from "./adminSettings.routes.js";
+import adminApiKeyRoutes from "./adminApiKey.routes.js";
 import settingsRoutes from "./settings.routes.js";
+import batchRoutes from "./batch.routes.js";
 import reviewRoutes from "./review.routes.js";
+import favoriteRoutes from "./favorite.routes.js";
+import dashboardRoutes from "./dashboard.routes.js";
 
 const router = express.Router();
 
 /*
-Health
+Health & Monitoring
 */
 
-router.use(
-  "/health",
-  healthRoutes
-);
+router.use("/health", healthRoutes);
+
+router.get("/ready", getReadiness);
+
+router.get("/metrics", getMetrics);
 
 /*
 Authentication
@@ -91,10 +98,20 @@ router.use("/admin/analytics", adminAnalyticsRoutes);
 
 router.use("/admin/reports", adminReportsRoutes);
 
+router.use("/admin/audit-logs", adminAuditRoutes);
+
 router.use("/admin/settings", adminSettingsRoutes);
+
+router.use("/admin/api-keys", adminApiKeyRoutes);
 
 router.use("/settings", settingsRoutes);
 
+router.use("/batch", batchRoutes);
+
 router.use("/reviews", reviewRoutes);
+
+router.use("/favorites", favoriteRoutes);
+
+router.use("/dashboard", dashboardRoutes);
 
 export default router;

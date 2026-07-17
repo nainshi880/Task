@@ -3,10 +3,14 @@ import HTTP_STATUS from "../constants/httpStatus.js";
 
 const BYPASS_PREFIXES = [
   "/api/v1/health",
+  "/api/v1/ready",
+  "/api/v1/metrics",
   "/api/v1/auth",
   "/api/v1/admin",
   "/api/v1/settings",
   "/api/docs",
+  "/api/docs.json",
+  "/api/openapi.json",
 ];
 
 function shouldBypass(path) {

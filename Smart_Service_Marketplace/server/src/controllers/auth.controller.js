@@ -1,187 +1,134 @@
 import authService from "../services/auth.service.js";
-
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
-
 import HTTP_STATUS from "../constants/httpStatus.js";
+import { setAuthCookies, clearAuthCookies } from "../utils/cookies.js";
+import { COOKIE_NAMES } from "../constants/security.js";
 
-// Register User   
+function sessionMeta(req) {
+  return {
+    ipAddress: req.ip,
+    userAgent: req.get("user-agent"),
+  };
+}
+
+function getRefreshToken(req) {
+  return (
+    req.cookies?.[COOKIE_NAMES.REFRESH] ||
+    req.body?.refreshToken ||
+    null
+  );
+}
 
 export const register = asyncHandler(async (req, res) => {
+  const result = await authService.register(req.body, sessionMeta(req));
 
-  const result = await authService.register(req.body);
+  setAuthCookies(res, { refreshToken: result.refreshToken });
 
-  res
-    .status(HTTP_STATUS.CREATED)
-    .json(
-      new ApiResponse(
-        HTTP_STATUS.CREATED,
-        "User registered successfully.",
-        result
-      )
-    );
-
+  res.status(HTTP_STATUS.CREATED).json(
+    new ApiResponse(HTTP_STATUS.CREATED, "User registered successfully.", {
+      user: result.user,
+      token: result.token,
+      accessToken: result.accessToken,
+    })
+  );
 });
-
-// Login User
 
 export const login = asyncHandler(async (req, res) => {
-
   const { email, password } = req.body;
 
-  const result = await authService.login(
-    email,
-    password
+  const result = await authService.login(email, password, sessionMeta(req));
+
+  setAuthCookies(res, { refreshToken: result.refreshToken });
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Login successful.", {
+      user: result.user,
+      token: result.token,
+      accessToken: result.accessToken,
+    })
   );
-
-  res
-    .status(HTTP_STATUS.OK)
-    .json(
-      new ApiResponse(
-        HTTP_STATUS.OK,
-        "Login successful.",
-        result
-      )
-    );
-
 });
 
-// Forgot Password
+export const refresh = asyncHandler(async (req, res) => {
+  const refreshToken = getRefreshToken(req);
 
-export const forgotPassword =
-asyncHandler(async (req, res) => {
+  const result = await authService.refresh(refreshToken, sessionMeta(req));
 
-    const result =
-        await authService.forgotPassword(
-            req.body.email
-        );
+  setAuthCookies(res, { refreshToken: result.refreshToken });
 
-    res.status(HTTP_STATUS.OK).json(
-
-        new ApiResponse(
-            HTTP_STATUS.OK,
-            result.message
-        )
-
-    );
-
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Token refreshed successfully.", {
+      user: result.user,
+      token: result.token,
+      accessToken: result.accessToken,
+    })
+  );
 });
 
-// Logout User
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const result = await authService.forgotPassword(req.body.email);
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, result.message)
+  );
+});
 
 export const logout = asyncHandler(async (req, res) => {
+  await authService.logout(getRefreshToken(req));
+  clearAuthCookies(res);
 
-  const result = await authService.logout();
-
-  res
-    .status(HTTP_STATUS.OK)
-    .json(
-      new ApiResponse(
-        HTTP_STATUS.OK,
-        result.message
-      )
-    );
-
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Logout successful.")
+  );
 });
 
-// Get Current User
+export const logoutAll = asyncHandler(async (req, res) => {
+  await authService.logoutAll(req.user._id);
+  clearAuthCookies(res);
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Logged out from all devices successfully.")
+  );
+});
 
 export const getCurrentUser = asyncHandler(async (req, res) => {
+  const user = await authService.getCurrentUser(req.user._id);
 
-  const user = await authService.getCurrentUser(
-    req.user._id
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Current user fetched successfully.", user)
   );
-
-  res
-    .status(HTTP_STATUS.OK)
-    .json(
-      new ApiResponse(
-        HTTP_STATUS.OK,
-        "Current user fetched successfully.",
-        user
-      )
-    );
-
 });
-
-// Reset Password
 
 export const resetPassword = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
 
-    const { token } = req.params;
+  const result = await authService.resetPassword(token, password);
 
-    const { password } = req.body;
+  setAuthCookies(res, { refreshToken: result.refreshToken });
 
-    const result =
-        await authService.resetPassword(
-            token,
-            password
-        );
-
-    res.status(HTTP_STATUS.OK).json(
-
-        new ApiResponse(
-
-            HTTP_STATUS.OK,
-
-            "Password reset successfully.",
-
-            result
-
-        )
-
-    );
-
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Password reset successfully.", {
+      user: result.user,
+      token: result.token,
+      accessToken: result.accessToken,
+    })
+  );
 });
 
-// Send Verification Email
+export const sendVerificationEmail = asyncHandler(async (req, res) => {
+  const result = await authService.sendVerificationEmail(req.user._id);
 
-export const sendVerificationEmail =
-asyncHandler(async(req,res)=>{
-
-const result=
-await authService.sendVerificationEmail(
-req.user._id
-);
-
-res.status(
-HTTP_STATUS.OK
-).json(
-
-new ApiResponse(
-
-HTTP_STATUS.OK,
-
-result.message
-
-)
-
-);
-
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, result.message)
+  );
 });
 
-// Verify Email
+export const verifyEmail = asyncHandler(async (req, res) => {
+  const result = await authService.verifyEmail(req.params.token);
 
-export const verifyEmail =
-asyncHandler(async(req,res)=>{
-
-const result=
-await authService.verifyEmail(
-req.params.token
-);
-
-res.status(
-HTTP_STATUS.OK
-).json(
-
-new ApiResponse(
-
-HTTP_STATUS.OK,
-
-result.message
-
-)
-
-);
-
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, result.message)
+  );
 });

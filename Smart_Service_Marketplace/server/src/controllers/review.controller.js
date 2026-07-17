@@ -13,6 +13,37 @@ export const submitReview = asyncHandler(async (req, res) => {
   );
 });
 
+export const getTechnicianReviews = asyncHandler(async (req, res) => {
+  const result = await reviewService.getTechnicianReviews(
+    req.params.technicianId,
+    req.query
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Technician reviews fetched successfully.", result)
+  );
+});
+
+export const updateReview = asyncHandler(async (req, res) => {
+  const review = await reviewService.updateReview(
+    req.user._id,
+    req.params.id,
+    req.body
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Review updated successfully.", { review })
+  );
+});
+
+export const deleteReview = asyncHandler(async (req, res) => {
+  await reviewService.deleteReview(req.user._id, req.params.id);
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Review deleted successfully.")
+  );
+});
+
 export const reportReview = asyncHandler(async (req, res) => {
   const review = await reviewService.reportReview(
     req.user._id,

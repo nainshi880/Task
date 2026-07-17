@@ -90,6 +90,9 @@ class PaymentRepository {
     customerId,
     from,
     to,
+    search,
+    sortBy = "createdAt",
+    sortOrder = "desc",
   } = {}) {
     const filter = {};
     if (status) filter.status = status;
@@ -101,17 +104,34 @@ class PaymentRepository {
       if (to) filter.createdAt.$lte = new Date(to);
     }
 
+    if (search?.trim()) {
+      const term = search.trim();
+      filter.$or = [
+        { razorpayOrderId: { $regex: term, $options: "i" } },
+        { razorpayPaymentId: { $regex: term, $options: "i" } },
+        { transactionId: { $regex: term, $options: "i" } },
+      ];
+    }
+
+    const allowedSort = ["createdAt", "amount", "status", "updatedAt"];
+    const sortField = allowedSort.includes(sortBy) ? sortBy : "createdAt";
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+
     const skip = (page - 1) * limit;
     const [items, total] = await Promise.all([
       Payment.find(filter)
-        .sort({ createdAt: -1 })
+        .sort({ [sortField]: sortDirection })
         .skip(skip)
         .limit(limit)
+        .select(
+          "amount status purpose method currency razorpayOrderId razorpayPaymentId transactionId refundedAmount createdAt updatedAt customer booking"
+        )
         .populate("customer", "name email phone")
         .populate(
           "booking",
           "serviceName serviceCategory amount status paymentStatus"
-        ),
+        )
+        .lean(),
       Payment.countDocuments(filter),
     ]);
 
@@ -606,6 +626,23 @@ class PaymentRepository {
         failedCount: d.failedCount,
       })),
     };
+  }
+
+  async listForReportExport({ from, to, limit = 5000 } = {}) {
+    const filter = {};
+
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) filter.createdAt.$lte = new Date(to);
+    }
+
+    return await Payment.find(filter)
+      .select("amount status purpose method customer createdAt razorpayOrderId")
+      .populate("customer", "name email")
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
   }
 }
 
