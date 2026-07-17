@@ -1,15 +1,14 @@
-import invoiceRepository from "../repositories/invoice.repository.js";
-import { getNextInvoiceNumber } from "../models/Counter.js";
-import calculateGstBreakdown from "../utils/gst.js";
 import buildInvoicePdfBuffer from "../utils/invoicePdf.js";
-import sendEmail from "../utils/sendEmail.js";
+import emailService from "./email.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import PAGINATION from "../constants/pagination.js";
 import { INVOICE_STATUS, DEFAULT_GST_RATE } from "../constants/invoice.js";
 import env from "../config/env.js";
 import withTransaction from "../utils/transaction.js";
-import logger from "../utils/logger.js";
+import invoiceRepository from "../repositories/invoice.repository.js";
+import { getNextInvoiceNumber } from "../models/Counter.js";
+import calculateGstBreakdown from "../utils/gst.js";
 
 class InvoiceService {
   getSellerInfo() {
@@ -284,39 +283,21 @@ class InvoiceService {
     }
 
     const pdfBuffer = await buildInvoicePdfBuffer(invoice.toObject());
-    const sellerName = invoice.seller?.name || "Smart Service Marketplace";
 
-    try {
-      await sendEmail({
-        to: recipient,
-        subject: `Invoice ${invoice.invoiceNumber} — ${sellerName}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; color: #111827;">
-            <h2 style="margin-bottom: 8px;">Tax Invoice</h2>
-            <p>Dear ${invoice.billTo?.name || "Customer"},</p>
-            <p>
-              Please find attached your invoice
-              <strong>${invoice.invoiceNumber}</strong>
-              for <strong>${invoice.serviceDetails?.serviceName || "service"}</strong>.
-            </p>
-            <p>
-              <strong>Total Amount:</strong>
-              ₹${Number(invoice.totalAmount).toFixed(2)}
-              (includes GST ₹${Number(invoice.totalTax).toFixed(2)})
-            </p>
-            <p>Thank you for choosing ${sellerName}.</p>
-          </div>
-        `,
-        attachments: [
-          {
-            filename: `${invoice.invoiceNumber}.pdf`,
-            content: pdfBuffer,
-            contentType: "application/pdf",
-          },
-        ],
-      });
-    } catch (error) {
-      logger.error(`Failed to email invoice ${invoice.invoiceNumber}: ${error.message}`);
+    const result = await emailService.sendInvoice({
+      user: invoice.customer,
+      invoice,
+      pdfBuffer,
+      to: recipient,
+    });
+
+    if (!result.sent) {
+      if (result.reason === "not_configured") {
+        throw new ApiError(
+          HTTP_STATUS.SERVICE_UNAVAILABLE,
+          "Email is not configured. Set EMAIL_HOST and EMAIL_USER."
+        );
+      }
       throw new ApiError(
         HTTP_STATUS.BAD_GATEWAY,
         "Failed to send invoice email. Please try again later."

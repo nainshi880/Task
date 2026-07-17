@@ -417,11 +417,14 @@ addressId
   // =====================================================
 
   async getNotifications(userId) {
+    const notificationService = (
+      await import("./notification.service.js")
+    ).default;
 
-    return await customerRepository.getRecentNotifications(
-      userId
-    );
-
+    return await notificationService.list(userId, {
+      page: 1,
+      limit: 20,
+    });
   }
 
   // =====================================================

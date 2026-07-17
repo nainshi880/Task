@@ -25,6 +25,30 @@ const env = {
   COMPANY_EMAIL: process.env.COMPANY_EMAIL || "",
   COMPANY_PHONE: process.env.COMPANY_PHONE || "",
   DEFAULT_GST_RATE: Number(process.env.DEFAULT_GST_RATE) || 18,
+  // Firebase Cloud Messaging
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "",
+  FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || "",
+  FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY || "",
+  FIREBASE_SERVICE_ACCOUNT_JSON: process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "",
+  // OneSignal (optional)
+  ONESIGNAL_APP_ID: process.env.ONESIGNAL_APP_ID || "",
+  ONESIGNAL_REST_API_KEY: process.env.ONESIGNAL_REST_API_KEY || "",
+  // SMS — Twilio
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID || "",
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN || "",
+  TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER || "",
+  // SMS — MSG91
+  MSG91_AUTH_KEY: process.env.MSG91_AUTH_KEY || "",
+  MSG91_SENDER_ID: process.env.MSG91_SENDER_ID || "",
+  MSG91_ROUTE: process.env.MSG91_ROUTE || "4",
+  SMS_PROVIDER: process.env.SMS_PROVIDER || "",
+  SMS_DEFAULT_COUNTRY_CODE: process.env.SMS_DEFAULT_COUNTRY_CODE || "91",
+  // Chat production
+  CHAT_ENCRYPTION_KEY: process.env.CHAT_ENCRYPTION_KEY || "",
+  CHAT_SOCKET_ALLOW_QUERY_TOKEN:
+    process.env.CHAT_SOCKET_ALLOW_QUERY_TOKEN === "true",
+  NOTIFICATION_WORKER_CONCURRENCY:
+    Number(process.env.NOTIFICATION_WORKER_CONCURRENCY) || 5,
 };
 
 export default env;

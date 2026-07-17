@@ -62,6 +62,16 @@ export const authenticate = async (
       );
     }
 
+    const tokenVersion = decoded.tokenVersion ?? 0;
+    if (tokenVersion !== (user.tokenVersion ?? 0)) {
+      return next(
+        new ApiError(
+          HTTP_STATUS.UNAUTHORIZED,
+          "Token has been revoked. Please log in again."
+        )
+      );
+    }
+
     req.user = user;
 
     next();

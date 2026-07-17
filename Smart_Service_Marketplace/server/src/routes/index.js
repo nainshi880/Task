@@ -13,6 +13,10 @@ import paymentRoutes from "./payment.routes.js";
 import walletRoutes from "./wallet.routes.js";
 import invoiceRoutes from "./invoice.routes.js";
 import couponRoutes from "./coupon.routes.js";
+import notificationRoutes from "./notification.routes.js";
+import chatRoutes from "./chat.routes.js";
+import pushRoutes from "./push.routes.js";
+import messagingRoutes from "./messaging.routes.js";
 
 const router = express.Router();
 
@@ -51,5 +55,13 @@ router.use("/wallet", walletRoutes);
 router.use("/invoices", invoiceRoutes);
 
 router.use("/coupons", couponRoutes);
+
+router.use("/notifications", notificationRoutes);
+
+router.use("/chat", chatRoutes);
+
+router.use("/push", pushRoutes);
+
+router.use("/messaging", messagingRoutes);
 
 export default router;

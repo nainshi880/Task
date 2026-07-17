@@ -5,6 +5,7 @@ import {
   getAssignedJobById,
   acceptJob,
   rejectJob,
+  markArriving,
   startWork,
   pauseWork,
   resumeWork,
@@ -72,6 +73,16 @@ router.patch(
   rejectJobValidation,
   validate,
   rejectJob
+);
+
+router.patch(
+  "/:bookingId/arriving",
+  authenticate,
+  authorize(ROLES.TECHNICIAN),
+  bookingWriteLimiter,
+  workflowBookingIdValidation,
+  validate,
+  markArriving
 );
 
 router.patch(

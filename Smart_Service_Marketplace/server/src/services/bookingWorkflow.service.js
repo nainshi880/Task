@@ -185,6 +185,40 @@ class BookingWorkflowService {
   }
 
   // ======================================
+  // Technician Arriving
+  // ======================================
+
+  async markArriving(technicianId, bookingId) {
+    const booking = await bookingRepository.findById(bookingId);
+
+    if (!booking) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Booking not found.");
+    }
+
+    this.assertAssignedTechnician(booking, technicianId);
+
+    if (booking.status !== BOOKING_STATUS.ACCEPTED) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Only Accepted bookings can mark arriving."
+      );
+    }
+
+    await bookingEventService.record({
+      bookingId,
+      event: BOOKING_TIMELINE_EVENT.ARRIVING,
+      actorId: technicianId,
+      actorRole: "technician",
+      action: AUDIT_ACTION.UPDATE,
+      fromStatus: BOOKING_STATUS.ACCEPTED,
+      toStatus: BOOKING_STATUS.ACCEPTED,
+      note: "Technician is arriving / on the way",
+    });
+
+    return this.enrichBooking(booking);
+  }
+
+  // ======================================
   // Reject Job → back to Pending for reassignment
   // ======================================
 

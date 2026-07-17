@@ -16,6 +16,11 @@ import {
 import couponService from "./coupon.service.js";
 import { writePaymentAudit, invalidatePaymentCache } from "../utils/paymentAudit.js";
 import AUDIT_ACTION from "../constants/auditAction.js";
+import notificationService from "./notification.service.js";
+import pushService from "./push.service.js";
+import emailService from "./email.service.js";
+import smsService from "./sms.service.js";
+import authRepository from "../repositories/auth.repository.js";
 
 class WalletService {
   ensureRazorpay() {
@@ -486,6 +491,42 @@ class WalletService {
 
     try {
       await couponService.markRedeemedForBooking(booking._id);
+    } catch {
+      // non-blocking
+    }
+
+    await notificationService.notifyPayment(customerId, {
+      title: "Booking paid with wallet",
+      message: `₹${payAmount} was paid from your wallet for ${booking.serviceName || "your booking"}.`,
+      paymentId: result.payment._id,
+      bookingId: booking._id,
+      metadata: { paymentMethod: "wallet" },
+    });
+
+    await pushService.notifyPaymentSuccess(customerId, {
+      amount: payAmount,
+      paymentId: result.payment._id,
+      bookingId: booking._id,
+    });
+
+    try {
+      const user = await authRepository.findById(customerId);
+      if (user) {
+        await Promise.allSettled([
+          emailService.sendPaymentReceipt({
+            user,
+            payment: result.payment,
+            booking,
+          }),
+          user.phone
+            ? smsService.sendPaymentConfirmation({
+                phone: user.phone,
+                amount: payAmount,
+                userId: user._id,
+              })
+            : Promise.resolve(),
+        ]);
+      }
     } catch {
       // non-blocking
     }

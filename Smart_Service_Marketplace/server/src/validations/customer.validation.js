@@ -92,6 +92,26 @@ export const preferencesValidation = [
     .optional()
     .isBoolean(),
 
+  body("inAppNotification")
+    .optional()
+    .isBoolean(),
+
+  body("bookingNotifications")
+    .optional()
+    .isBoolean(),
+
+  body("paymentNotifications")
+    .optional()
+    .isBoolean(),
+
+  body("systemNotifications")
+    .optional()
+    .isBoolean(),
+
+  body("promotionalNotifications")
+    .optional()
+    .isBoolean(),
+
 ];
 
 export const privacyValidation = [

@@ -41,6 +41,21 @@ export const acceptJob = asyncHandler(async (req, res) => {
   );
 });
 
+export const markArriving = asyncHandler(async (req, res) => {
+  const booking = await bookingWorkflowService.markArriving(
+    req.user._id,
+    req.params.bookingId
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      "Technician arriving notification sent.",
+      booking
+    )
+  );
+});
+
 // ======================================
 // Reject Job
 // ======================================

@@ -69,4 +69,37 @@ export const optionalIssueImagesUpload = (req, res, next) => {
   return next();
 };
 
+const chatFileFilter = (_req, file, cb) => {
+  const allowedExt =
+    /jpeg|jpg|png|webp|gif|pdf|doc|docx|txt|xls|xlsx|zip|rar/;
+  const ext = path.extname(file.originalname).toLowerCase().replace(".", "");
+  const mime = file.mimetype || "";
+
+  const mimeOk =
+    mime.startsWith("image/") ||
+    mime.startsWith("application/") ||
+    mime.startsWith("text/");
+
+  if (allowedExt.test(ext) && mimeOk) {
+    cb(null, true);
+  } else {
+    cb(
+      new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Unsupported file type. Allowed: images, PDF, DOC, TXT, XLS, ZIP."
+      ),
+      false
+    );
+  }
+};
+
+export const uploadChatAttachments = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 5,
+  },
+  fileFilter: chatFileFilter,
+}).array("files", 5);
+
 export default uploadIssueImages;

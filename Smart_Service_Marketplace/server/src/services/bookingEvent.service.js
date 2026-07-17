@@ -1,6 +1,101 @@
 import auditRepository from "../repositories/audit.repository.js";
 import bookingTimelineRepository from "../repositories/bookingTimeline.repository.js";
+import Booking from "../models/Booking.js";
 import cacheService, { CACHE_KEYS } from "../utils/cache.js";
+import notificationService from "./notification.service.js";
+import pushService from "./push.service.js";
+import emailService from "./email.service.js";
+import smsService from "./sms.service.js";
+import BOOKING_TIMELINE_EVENT from "../constants/bookingTimelineEvent.js";
+import logger from "../utils/logger.js";
+import User from "../models/User.js";
+
+const BOOKING_NOTIFY_COPY = {
+  CREATED: {
+    title: "Booking created",
+    message: (b) =>
+      `Your booking for ${b.serviceName} has been created successfully.`,
+    notify: ["customer"],
+  },
+  ASSIGNED: {
+    title: "Technician assigned",
+    message: (b) =>
+      `A technician has been assigned to your ${b.serviceName} booking.`,
+    notify: ["customer", "technician"],
+    techTitle: "New job assigned",
+    techMessage: (b) =>
+      `You have been assigned to a ${b.serviceName} booking.`,
+  },
+  REASSIGNED: {
+    title: "Technician reassigned",
+    message: (b) =>
+      `Your ${b.serviceName} booking has been reassigned to another technician.`,
+    notify: ["customer", "technician"],
+    techTitle: "Job reassigned to you",
+    techMessage: (b) =>
+      `You have been reassigned to a ${b.serviceName} booking.`,
+  },
+  ACCEPTED: {
+    title: "Booking accepted",
+    message: (b) =>
+      `Your ${b.serviceName} booking was accepted by the technician.`,
+    notify: ["customer"],
+  },
+  REJECTED: {
+    title: "Booking rejected",
+    message: (b) =>
+      `Your ${b.serviceName} booking was rejected. We will reassign shortly.`,
+    notify: ["customer"],
+  },
+  ARRIVING: {
+    title: "Technician arriving",
+    message: (b) =>
+      `Your technician is on the way for ${b.serviceName}.`,
+    notify: ["customer"],
+  },
+  STARTED: {
+    title: "Work started",
+    message: (b) => `Work has started on your ${b.serviceName} booking.`,
+    notify: ["customer"],
+  },
+  COMPLETED: {
+    title: "Work completed",
+    message: (b) =>
+      `Your ${b.serviceName} booking has been marked as completed.`,
+    notify: ["customer"],
+  },
+  CUSTOMER_CONFIRMED: {
+    title: "Booking confirmed",
+    message: (b) => `You confirmed completion of ${b.serviceName}.`,
+    notify: ["customer", "technician"],
+    techTitle: "Customer confirmed job",
+    techMessage: (b) =>
+      `Customer confirmed completion of ${b.serviceName}.`,
+  },
+  CLOSED: {
+    title: "Booking closed",
+    message: (b) => `Your ${b.serviceName} booking has been closed.`,
+    notify: ["customer"],
+  },
+  CANCELLED: {
+    title: "Booking cancelled",
+    message: (b) => `Your ${b.serviceName} booking was cancelled.`,
+    notify: ["customer", "technician"],
+    techTitle: "Job cancelled",
+    techMessage: (b) =>
+      `A ${b.serviceName} job assigned to you was cancelled.`,
+  },
+  PAUSED: {
+    title: "Work paused",
+    message: (b) => `Work on your ${b.serviceName} booking was paused.`,
+    notify: ["customer"],
+  },
+  RESUMED: {
+    title: "Work resumed",
+    message: (b) => `Work on your ${b.serviceName} booking has resumed.`,
+    notify: ["customer"],
+  },
+};
 
 class BookingEventService {
   async record({
@@ -57,6 +152,195 @@ class BookingEventService {
 
     await Promise.allSettled(tasks);
     await this.invalidateBookingCache(bookingId);
+    await this.emitBookingNotifications(bookingId, event, metadata);
+  }
+
+  async emitBookingNotifications(bookingId, event, metadata = {}) {
+    try {
+      const copy = BOOKING_NOTIFY_COPY[event];
+      if (!copy) return;
+
+      const booking = await Booking.findById(bookingId).select(
+        "customer technician serviceName status"
+      );
+      if (!booking) return;
+
+      const jobs = [];
+
+      if (copy.notify.includes("customer") && booking.customer) {
+        jobs.push(
+          notificationService.notifyBooking(booking.customer, {
+            title: copy.title,
+            message: copy.message(booking),
+            bookingId: booking._id,
+            metadata: { event, ...metadata },
+          })
+        );
+      }
+
+      if (copy.notify.includes("technician") && booking.technician) {
+        jobs.push(
+          notificationService.notifyBooking(booking.technician, {
+            title: copy.techTitle || copy.title,
+            message: (copy.techMessage || copy.message)(booking),
+            bookingId: booking._id,
+            metadata: { event, ...metadata },
+          })
+        );
+      }
+
+      jobs.push(this.emitPushForEvent(event, booking));
+      jobs.push(this.emitEmailSmsForEvent(event, booking, metadata));
+
+      await Promise.allSettled(jobs);
+    } catch (error) {
+      logger.warn(`Booking notification failed: ${error.message}`);
+    }
+  }
+
+  async emitEmailSmsForEvent(event, booking, metadata = {}) {
+    try {
+      const customer = await User.findById(booking.customer).select(
+        "name email phone"
+      );
+      if (!customer) return null;
+
+      switch (event) {
+        case BOOKING_TIMELINE_EVENT.CREATED:
+          return Promise.allSettled([
+            emailService.sendBookingConfirmation({
+              user: customer,
+              booking,
+            }),
+            customer.phone
+              ? smsService.sendBookingUpdate({
+                  phone: customer.phone,
+                  booking,
+                  updateMessage: "Your booking has been confirmed.",
+                  userId: customer._id,
+                })
+              : Promise.resolve(),
+          ]);
+
+        case BOOKING_TIMELINE_EVENT.CANCELLED:
+          return Promise.allSettled([
+            emailService.sendBookingCancelled({
+              user: customer,
+              booking,
+              reason: metadata.reason || metadata.note || "",
+            }),
+            customer.phone
+              ? smsService.sendBookingUpdate({
+                  phone: customer.phone,
+                  booking,
+                  updateMessage: "Your booking was cancelled.",
+                  userId: customer._id,
+                })
+              : Promise.resolve(),
+          ]);
+
+        case BOOKING_TIMELINE_EVENT.ARRIVING:
+          return Promise.allSettled([
+            emailService.sendBookingUpdate({
+              user: customer,
+              booking,
+              updateTitle: "Technician Arriving",
+              updateMessage: `Your technician is on the way for ${booking.serviceName}.`,
+            }),
+            customer.phone
+              ? smsService.sendTechnicianArrival({
+                  phone: customer.phone,
+                  booking,
+                  userId: customer._id,
+                })
+              : Promise.resolve(),
+          ]);
+
+        case BOOKING_TIMELINE_EVENT.ASSIGNED:
+        case BOOKING_TIMELINE_EVENT.ACCEPTED:
+        case BOOKING_TIMELINE_EVENT.STARTED:
+        case BOOKING_TIMELINE_EVENT.COMPLETED:
+        case BOOKING_TIMELINE_EVENT.PAUSED:
+        case BOOKING_TIMELINE_EVENT.RESUMED: {
+          const copy = {
+            [BOOKING_TIMELINE_EVENT.ASSIGNED]:
+              "A technician has been assigned to your booking.",
+            [BOOKING_TIMELINE_EVENT.ACCEPTED]:
+              "Your booking was accepted by the technician.",
+            [BOOKING_TIMELINE_EVENT.STARTED]:
+              "Work has started on your booking.",
+            [BOOKING_TIMELINE_EVENT.COMPLETED]:
+              "Work on your booking has been completed.",
+            [BOOKING_TIMELINE_EVENT.PAUSED]: "Work on your booking was paused.",
+            [BOOKING_TIMELINE_EVENT.RESUMED]:
+              "Work on your booking has resumed.",
+          };
+          return Promise.allSettled([
+            emailService.sendBookingUpdate({
+              user: customer,
+              booking,
+              updateTitle: "Booking Update",
+              updateMessage: copy[event],
+            }),
+            customer.phone
+              ? smsService.sendBookingUpdate({
+                  phone: customer.phone,
+                  booking,
+                  updateMessage: copy[event],
+                  userId: customer._id,
+                })
+              : Promise.resolve(),
+          ]);
+        }
+
+        default:
+          return null;
+      }
+    } catch (error) {
+      logger.warn(`Booking email/SMS failed: ${error.message}`);
+      return null;
+    }
+  }
+
+  async emitPushForEvent(event, booking) {
+    try {
+      switch (event) {
+        case BOOKING_TIMELINE_EVENT.ACCEPTED:
+          return pushService.notifyBookingAccepted(booking.customer, booking);
+
+        case BOOKING_TIMELINE_EVENT.ASSIGNED:
+        case BOOKING_TIMELINE_EVENT.REASSIGNED:
+          return Promise.allSettled([
+            pushService.notifyBookingAssigned(booking.customer, booking),
+            booking.technician
+              ? pushService.notifyBookingAssigned(booking.technician, booking, {
+                  forTechnician: true,
+                })
+              : Promise.resolve(),
+          ]);
+
+        case BOOKING_TIMELINE_EVENT.ARRIVING:
+          return pushService.notifyTechnicianArriving(
+            booking.customer,
+            booking
+          );
+
+        case BOOKING_TIMELINE_EVENT.STARTED:
+          return pushService.notifyWorkStarted(booking.customer, booking);
+
+        case BOOKING_TIMELINE_EVENT.COMPLETED:
+          return Promise.allSettled([
+            pushService.notifyWorkCompleted(booking.customer, booking),
+            pushService.notifyReviewReminder(booking.customer, booking),
+          ]);
+
+        default:
+          return null;
+      }
+    } catch (error) {
+      logger.warn(`Booking push failed: ${error.message}`);
+      return null;
+    }
   }
 
   async invalidateBookingCache(bookingId) {

@@ -372,17 +372,19 @@ new:true
     return await Notification.countDocuments({
       user: userId,
       isRead: false,
+      isDeleted: false,
     });
   }
 
   async getRecentNotifications(userId) {
     return await Notification.find({
       user: userId,
+      isDeleted: false,
     })
       .sort({
         createdAt: -1,
       })
-      .limit(5);
+      .limit(10);
   }
 
   async getFavoriteService(userId) {
@@ -588,6 +590,16 @@ async updatePreferences(
 
 ) {
 
+    const setFields = {};
+
+    for (const [key, value] of Object.entries(preferences || {})) {
+      if (value !== undefined) {
+        setFields[`preferences.${key}`] = value;
+      }
+    }
+
+    setFields.lastProfileUpdated = new Date();
+
     return await CustomerProfile.findOneAndUpdate(
 
         {
@@ -600,9 +612,7 @@ async updatePreferences(
 
         {
 
-            preferences,
-
-            lastProfileUpdated: new Date(),
+            $set: setFields,
 
         },
 

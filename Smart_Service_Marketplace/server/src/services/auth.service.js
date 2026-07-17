@@ -5,7 +5,7 @@ import generateToken from "../utils/generateToken.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 
 import generateResetToken from "../utils/generateResetToken.js";
-import sendEmail from "../utils/sendEmail.js";
+import emailService from "./email.service.js";
 import crypto from "crypto";
 import generateVerificationToken
 from "../utils/generateVerificationToken.js";
@@ -39,7 +39,11 @@ class AuthService {
     const token = generateToken({
       id: user._id,
       role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
     });
+
+    // Non-blocking welcome email
+    emailService.sendWelcome({ user }).catch(() => {});
 
     return {
       user,
@@ -84,6 +88,7 @@ class AuthService {
     const token = generateToken({
       id: user._id,
       role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
     });
 
     return {
@@ -119,23 +124,24 @@ class AuthService {
     const resetURL =
 `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
 
-    const html = `
-        <h2>Password Reset</h2>
-
-        <p>Click below to reset your password.</p>
-
-        <a href="${resetURL}">
-            Reset Password
-        </a>
-
-        <p>This link expires in 15 minutes.</p>
-    `;
-
-    await sendEmail({
-        to: user.email,
-        subject: "Password Reset",
-        html,
+    const result = await emailService.sendPasswordReset({
+      user,
+      resetURL,
     });
+
+    if (!result.sent && result.reason === "not_configured") {
+      throw new ApiError(
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        "Email is not configured. Set EMAIL_HOST and EMAIL_USER."
+      );
+    }
+
+    if (!result.sent) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_GATEWAY,
+        "Failed to send password reset email."
+      );
+    }
 
     return {
         message:
@@ -199,11 +205,14 @@ class AuthService {
 
     user.resetPasswordExpires = undefined;
 
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+
     await user.save();
 
     const jwtToken = generateToken({
         id: user._id,
         role: user.role,
+        tokenVersion: user.tokenVersion ?? 0,
     });
 
     return {
@@ -255,35 +264,29 @@ async sendVerificationEmail(userId) {
     const verifyURL =
 `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
 
-    await sendEmail({
-
-        to: user.email,
-
-        subject: "Verify Email",
-
-        html: `
-        <h2>Email Verification</h2>
-
-        <p>
-        Click below to verify your email.
-        </p>
-
-        <a href="${verifyURL}">
-        Verify Email
-        </a>
-
-        <p>
-        Link expires in 24 hours.
-        </p>
-        `
-
+    const result = await emailService.sendEmailVerification({
+      user,
+      verifyURL,
     });
+
+    if (!result.sent && result.reason === "not_configured") {
+      throw new ApiError(
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        "Email is not configured. Set EMAIL_HOST and EMAIL_USER."
+      );
+    }
+
+    if (!result.sent) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_GATEWAY,
+        "Failed to send verification email."
+      );
+    }
 
     return {
         message:
-        "Verification email sent successfully."
+            "Verification email sent successfully.",
     };
-
 }
 
 // Verify Email

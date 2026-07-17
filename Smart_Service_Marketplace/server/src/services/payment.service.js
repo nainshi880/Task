@@ -1,6 +1,3 @@
-import crypto from "crypto";
-import paymentRepository from "../repositories/payment.repository.js";
-import walletService from "./wallet.service.js";
 import couponService from "./coupon.service.js";
 import { getRazorpay, getRazorpayConfig } from "../config/razorpay.js";
 import ApiError from "../utils/ApiError.js";
@@ -19,6 +16,14 @@ import auditRepository from "../repositories/audit.repository.js";
 import env from "../config/env.js";
 import logger from "../utils/logger.js";
 import { WALLET_TX_CATEGORY } from "../constants/walletTransaction.js";
+import notificationService from "./notification.service.js";
+import pushService from "./push.service.js";
+import emailService from "./email.service.js";
+import smsService from "./sms.service.js";
+import authRepository from "../repositories/auth.repository.js";
+import crypto from "crypto";
+import paymentRepository from "../repositories/payment.repository.js";
+import walletService from "./wallet.service.js";
 
 const MAX_PAYMENT_RETRIES = 5;
 
@@ -299,6 +304,37 @@ class PaymentService {
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
       });
+      await notificationService.notifyPayment(customerId, {
+        title: "Wallet recharged",
+        message: `₹${payment.amount} has been added to your wallet.`,
+        paymentId: payment._id,
+        metadata: { purpose: "wallet_recharge" },
+      });
+      await pushService.notifyPaymentSuccess(customerId, {
+        amount: payment.amount,
+        paymentId: payment._id,
+      });
+      try {
+        const user = await authRepository.findById(customerId);
+        if (user) {
+          await Promise.allSettled([
+            emailService.sendPaymentReceipt({
+              user,
+              payment: updated || payment,
+              booking: null,
+            }),
+            user.phone
+              ? smsService.sendPaymentConfirmation({
+                  phone: user.phone,
+                  amount: payment.amount,
+                  userId: user._id,
+                })
+              : Promise.resolve(),
+          ]);
+        }
+      } catch {
+        // non-blocking
+      }
       await invalidatePaymentCache(payment._id, customerId);
       return {
         alreadyPaid: false,
@@ -330,6 +366,46 @@ class PaymentService {
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });
+
+    await notificationService.notifyPayment(customerId, {
+      title: "Payment successful",
+      message: `Your payment of ₹${payment.amount} was successful.`,
+      paymentId: payment._id,
+      bookingId,
+      metadata: { method, status: "Paid" },
+    });
+
+    await pushService.notifyPaymentSuccess(customerId, {
+      amount: payment.amount,
+      paymentId: payment._id,
+      bookingId,
+    });
+
+    // Email receipt + SMS confirmation (non-blocking)
+    try {
+      const user = await authRepository.findById(customerId);
+      if (user) {
+        const bookingDoc = bookingId
+          ? await paymentRepository.findBookingById(bookingId)
+          : null;
+        await Promise.allSettled([
+          emailService.sendPaymentReceipt({
+            user,
+            payment: updated || payment,
+            booking: bookingDoc,
+          }),
+          user.phone
+            ? smsService.sendPaymentConfirmation({
+                phone: user.phone,
+                amount: payment.amount,
+                userId: user._id,
+              })
+            : Promise.resolve(),
+        ]);
+      }
+    } catch {
+      // non-blocking
+    }
 
     await invalidatePaymentCache(payment._id, customerId);
 
@@ -532,6 +608,25 @@ class PaymentService {
       },
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
+    });
+
+    await notificationService.notifyPayment(customerId, {
+      title: "Payment failed",
+      message:
+        updated.failureReason ||
+        "Your payment could not be completed. Please try again.",
+      paymentId: payment._id,
+      bookingId: payment.booking?._id || payment.booking,
+      metadata: {
+        failureCode: updated.failureCode,
+        status: "Failed",
+      },
+    });
+
+    await pushService.notifyPaymentFailed(customerId, {
+      reason: updated.failureReason,
+      paymentId: payment._id,
+      bookingId: payment.booking?._id || payment.booking,
     });
 
     await invalidatePaymentCache(payment._id, customerId);
@@ -868,6 +963,21 @@ class PaymentService {
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });
+
+    await notificationService.notifyPayment(
+      payment.customer?._id || payment.customer,
+      {
+        title: "Refund processed",
+        message: `A refund of ₹${refundAmount} has been processed for your payment.`,
+        paymentId: payment._id,
+        bookingId: payment.booking?._id || payment.booking,
+        metadata: {
+          refundAmount,
+          method: refundMethod,
+          totalRefunded: newRefundedTotal,
+        },
+      }
+    );
 
     await invalidatePaymentCache(
       payment._id,

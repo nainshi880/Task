@@ -86,28 +86,43 @@ const customerProfileSchema = new mongoose.Schema(
     },
 
     preferences: {
-
-  emailNotification: {
-    type: Boolean,
-    default: true,
-  },
-
-  smsNotification: {
-    type: Boolean,
-    default: true,
-  },
-
-  pushNotification: {
-    type: Boolean,
-    default: true,
-  },
-
-  whatsappNotification: {
-    type: Boolean,
-    default: true,
-  },
-
+      emailNotification: {
+        type: Boolean,
+        default: true,
       },
+      smsNotification: {
+        type: Boolean,
+        default: true,
+      },
+      pushNotification: {
+        type: Boolean,
+        default: true,
+      },
+      whatsappNotification: {
+        type: Boolean,
+        default: true,
+      },
+      inAppNotification: {
+        type: Boolean,
+        default: true,
+      },
+      bookingNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      paymentNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      systemNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      promotionalNotifications: {
+        type: Boolean,
+        default: true,
+      },
+    },
 
       privacy: {
 

@@ -69,6 +69,17 @@ setupSwagger(app);
 
 /* ---------- Routes ---------- */
 
+app.get("/", (_req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Smart Service Marketplace API is running.",
+    apiBase: "/api/v1",
+    docs: "/api/docs",
+    health: "/api/v1/health",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.use("/api/v1", routes);
 
 /* ---------- 404 & Errors ---------- */
