@@ -133,10 +133,11 @@ class EmailService {
     });
   }
 
-  async sendPasswordReset({ user, resetURL }) {
+  async sendPasswordReset({ user, resetURL, otpCode }) {
     const tpl = passwordResetEmailTemplate({
       name: user.name,
       resetURL,
+      otpCode,
     });
     // Always send password reset even if prefs disabled
     if (!this.isConfigured()) {

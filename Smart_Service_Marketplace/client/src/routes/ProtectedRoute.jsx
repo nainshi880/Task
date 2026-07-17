@@ -1,34 +1,131 @@
-import { Navigate } from "react-router-dom";
-
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import Loader from "../components/ui/Loader";
-
 import useAuth from "../hooks/useAuth";
+import {
+  getProfileSetupPath,
+  getRoleHome,
+  needsProfileSetup,
+  ROLES,
+} from "../constants/roles";
 
-function ProtectedRoute({ children }) {
+/**
+ * Requires any authenticated user.
+ */
+export function ProtectedRoute({ children, redirectTo = "/login" }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
 
-  const {
-    token,
-    loading,
-  } = useAuth();
-
-  if (loading) {
-    return (
-      <Loader
-        text="Checking Authentication..."
-      />
-    );
+  if (isLoading) {
+    return <Loader text="Checking authentication..." />;
   }
 
-  if (!token) {
+  if (!isAuthenticated) {
+    return <Navigate to={redirectTo} replace state={{ from: location }} />;
+  }
+
+  return children ? children : <Outlet />;
+}
+
+/**
+ * Requires one of the allowed roles.
+ * Redirects incomplete profiles to the setup wizard (except when already on setup).
+ */
+export function RoleRoute({
+  roles = [],
+  children,
+  fallbackPath,
+  requireCompleteProfile = true,
+}) {
+  const { isAuthenticated, isLoading, role, user } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return <Loader text="Checking authorization..." />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (roles.length && !roles.includes(role)) {
     return (
       <Navigate
-        to="/login"
+        to={fallbackPath || getRoleHome(role)}
         replace
       />
     );
   }
 
-  return children;
+  if (requireCompleteProfile && needsProfileSetup(user)) {
+    const setupPath = getProfileSetupPath(role);
+    if (setupPath && !location.pathname.startsWith("/setup")) {
+      return <Navigate to={setupPath} replace />;
+    }
+  }
+
+  return children ? children : <Outlet />;
+}
+
+/**
+ * Authenticated route for the profile setup wizard.
+ * Sends users with completed profiles to their role home.
+ */
+export function ProfileSetupRoute({ role, children }) {
+  const { isAuthenticated, isLoading, role: userRole, user } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return <Loader text="Checking authorization..." />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (userRole !== role) {
+    return <Navigate to={getRoleHome(userRole)} replace />;
+  }
+
+  if (!needsProfileSetup(user)) {
+    return <Navigate to={getRoleHome(userRole)} replace />;
+  }
+
+  return children ? children : <Outlet />;
+}
+
+export function CustomerRoute({ children }) {
+  return (
+    <RoleRoute roles={[ROLES.CUSTOMER]}>
+      {children}
+    </RoleRoute>
+  );
+}
+
+export function TechnicianRoute({ children }) {
+  return (
+    <RoleRoute roles={[ROLES.TECHNICIAN]}>
+      {children}
+    </RoleRoute>
+  );
+}
+
+export function AdminRoute({ children }) {
+  return (
+    <RoleRoute
+      roles={[ROLES.ADMIN, ROLES.SUPER_ADMIN]}
+      requireCompleteProfile={false}
+    >
+      {children}
+    </RoleRoute>
+  );
+}
+
+export function SuperAdminRoute({ children }) {
+  return (
+    <RoleRoute roles={[ROLES.SUPER_ADMIN]} requireCompleteProfile={false}>
+      {children}
+    </RoleRoute>
+  );
 }
 
 export default ProtectedRoute;

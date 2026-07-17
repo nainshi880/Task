@@ -1,27 +1,47 @@
 import User from "../models/User.js";
 import AdminProfile from "../models/AdminProfile.js";
-import ROLES from "../constants/roles.js";
+import ROLES, { ADMIN_ROLES } from "../constants/roles.js";
 
 class AdminRepository {
   async findAdminByEmail(email) {
     return await User.findOne({
       email: email.toLowerCase().trim(),
-      role: ROLES.ADMIN,
+      role: { $in: ADMIN_ROLES },
     }).select("+password");
   }
 
   async findAdminById(userId) {
     return await User.findOne({
       _id: userId,
-      role: ROLES.ADMIN,
+      role: { $in: ADMIN_ROLES },
     });
   }
 
   async findAdminWithPassword(userId) {
     return await User.findOne({
       _id: userId,
-      role: ROLES.ADMIN,
+      role: { $in: ADMIN_ROLES },
     }).select("+password");
+  }
+
+  async findSuperAdmin() {
+    return await User.findOne({ role: ROLES.SUPER_ADMIN });
+  }
+
+  async findByEmailAnyRole(email) {
+    return await User.findOne({
+      email: email.toLowerCase().trim(),
+    });
+  }
+
+  async listAdmins() {
+    return await User.find({ role: { $in: ADMIN_ROLES } })
+      .select("name email role phone isActive isVerified lastLogin createdAt")
+      .sort({ role: -1, createdAt: 1 });
+  }
+
+  async createAdminUser(data) {
+    return await User.create(data);
   }
 
   async findProfileByUserId(userId) {
@@ -39,7 +59,10 @@ class AdminRepository {
     return await AdminProfile.findOneAndUpdate({ user: userId }, update, {
       new: true,
       runValidators: true,
-    }).populate("user", "name email role isActive isVerified lastLogin createdAt");
+    }).populate(
+      "user",
+      "name email role isActive isVerified lastLogin createdAt"
+    );
   }
 
   async recordLoginAttempt(userId, { success, ip, userAgent }) {

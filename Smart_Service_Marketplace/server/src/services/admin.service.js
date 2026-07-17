@@ -6,11 +6,11 @@ import HTTP_STATUS from "../constants/httpStatus.js";
 import generateToken from "../utils/generateToken.js";
 import tokenService from "./token.service.js";
 import ADMIN_AUTH from "../constants/adminAuth.js";
-import ROLES from "../constants/roles.js";
+import ROLES, { isAdminRole } from "../constants/roles.js";
 
 class AdminService {
   assertAdmin(user) {
-    if (!user || user.role !== ROLES.ADMIN) {
+    if (!user || !isAdminRole(user.role)) {
       throw new ApiError(
         HTTP_STATUS.FORBIDDEN,
         "Admin access required."
@@ -272,6 +272,71 @@ class AdminService {
       tokenVersion: user.tokenVersion ?? 0,
       sessions,
     };
+  }
+
+  async createAdmin(actorUserId, data) {
+    const actor = await adminRepository.findAdminById(actorUserId);
+
+    if (!actor || actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ApiError(
+        HTTP_STATUS.FORBIDDEN,
+        "Only the Super Admin can create additional admins."
+      );
+    }
+
+    const email = data.email.toLowerCase().trim();
+    const existing = await adminRepository.findByEmailAnyRole(email);
+
+    if (existing) {
+      throw new ApiError(
+        HTTP_STATUS.CONFLICT,
+        "An account with this email already exists."
+      );
+    }
+
+    const name =
+      data.name?.trim() ||
+      `${data.firstName || ""} ${data.lastName || ""}`.trim() ||
+      "Administrator";
+
+    const user = await adminRepository.createAdminUser({
+      name,
+      email,
+      password: data.password,
+      phone: data.phone?.trim() || "",
+      role: ROLES.ADMIN,
+      isVerified: true,
+      profileCompleted: true,
+      isActive: true,
+    });
+
+    const profile = await adminRepository.createProfile({
+      user: user._id,
+      fullName: name,
+      phone: data.phone?.trim() || "",
+      department: data.department?.trim() || "",
+      designation: data.designation?.trim() || "Administrator",
+    });
+
+    const safeUser = await adminRepository.findAdminById(user._id);
+
+    return {
+      user: safeUser,
+      profile: this.formatProfile(profile, safeUser),
+    };
+  }
+
+  async listAdmins(actorUserId) {
+    const actor = await adminRepository.findAdminById(actorUserId);
+
+    if (!actor || actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ApiError(
+        HTTP_STATUS.FORBIDDEN,
+        "Only the Super Admin can list admin accounts."
+      );
+    }
+
+    return await adminRepository.listAdmins();
   }
 }
 

@@ -167,6 +167,12 @@ export const updateTechnicianProfileValidation = [
     .withMessage("Experience years must be between 0 and 50.")
     .toFloat(),
 
+  body("workingRadius")
+    .optional()
+    .isFloat({ min: 1, max: 100 })
+    .withMessage("Working radius must be between 1 and 100 km.")
+    .toFloat(),
+
   body("availabilityStatus")
     .optional()
     .isBoolean()

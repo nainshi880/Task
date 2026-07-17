@@ -94,6 +94,39 @@ const technicianProfileSchema = new mongoose.Schema(
       index: true,
     },
 
+    address: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 300,
+    },
+
+    state: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 100,
+    },
+
+    pincode: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 12,
+    },
+
+    identityProofUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    profession: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     skills: {
       type: [String],
       enum: SERVICE_CATEGORIES,
@@ -155,6 +188,13 @@ const technicianProfileSchema = new mongoose.Schema(
     serviceAreas: {
       type: [String],
       default: [],
+    },
+
+    workingRadius: {
+      type: Number,
+      default: 10,
+      min: 1,
+      max: 100,
     },
 
     workingHours: {

@@ -74,6 +74,52 @@ export const deleteTechnicianPhoto = asyncHandler(async (req, res) => {
   );
 });
 
+export const uploadTechnicianIdentityProof = asyncHandler(async (req, res) => {
+  const profile = await technicianProfileService.uploadIdentityProof(
+    req.user._id,
+    req.file
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      "Identity proof uploaded successfully.",
+      profile
+    )
+  );
+});
+
+export const uploadTechnicianCertification = asyncHandler(async (req, res) => {
+  const profile = await technicianProfileService.uploadCertificationDocument(
+    req.user._id,
+    req.file,
+    req.body
+  );
+
+  res.status(HTTP_STATUS.CREATED).json(
+    new ApiResponse(
+      HTTP_STATUS.CREATED,
+      "Certification uploaded successfully.",
+      profile
+    )
+  );
+});
+
+export const completeTechnicianProfileSetup = asyncHandler(async (req, res) => {
+  const profile = await technicianProfileService.completeProfileSetup(
+    req.user._id,
+    req.body
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      "Profile setup completed successfully.",
+      profile
+    )
+  );
+});
+
 export const updateTechnicianSkills = asyncHandler(async (req, res) => {
   const profile = await technicianProfileService.updateSkills(
     req.user._id,

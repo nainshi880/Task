@@ -1,6 +1,7 @@
 function PasswordStrength({ password = "" }) {
   const checks = {
     length: password.length >= 8,
+    lowercase: /[a-z]/.test(password),
     uppercase: /[A-Z]/.test(password),
     number: /[0-9]/.test(password),
     special: /[^A-Za-z0-9]/.test(password),
@@ -12,63 +13,51 @@ function PasswordStrength({ password = "" }) {
     "bg-red-500",
     "bg-orange-500",
     "bg-yellow-500",
+    "bg-lime-500",
     "bg-green-500",
   ];
 
-  const labels = [
-    "Weak",
-    "Fair",
-    "Good",
-    "Strong",
-  ];
+  const labels = ["Weak", "Fair", "Good", "Strong", "Excellent"];
 
   return (
     <div className="mt-3">
-
       <div className="flex gap-2">
-
-        {[0, 1, 2, 3].map((index) => (
+        {[0, 1, 2, 3, 4].map((index) => (
           <div
             key={index}
             className={`h-2 flex-1 rounded-full transition-all duration-300 ${
-              index < score
-                ? colors[score - 1]
-                : "bg-slate-200"
+              index < score ? colors[score - 1] : "bg-slate-200"
             }`}
           />
         ))}
-
       </div>
 
       {password && (
         <p className="mt-2 text-sm text-slate-600">
           Password Strength:
-          <span className="font-semibold ml-1">
+          <span className="ml-1 font-semibold">
             {labels[score - 1] || "Very Weak"}
           </span>
         </p>
       )}
 
       <ul className="mt-3 space-y-1 text-sm">
-
         <li className={checks.length ? "text-green-600" : "text-slate-500"}>
-          ✓ Minimum 8 characters
+          Minimum 8 characters
         </li>
-
+        <li className={checks.lowercase ? "text-green-600" : "text-slate-500"}>
+          One lowercase letter
+        </li>
         <li className={checks.uppercase ? "text-green-600" : "text-slate-500"}>
-          ✓ One uppercase letter
+          One uppercase letter
         </li>
-
         <li className={checks.number ? "text-green-600" : "text-slate-500"}>
-          ✓ One number
+          One number
         </li>
-
         <li className={checks.special ? "text-green-600" : "text-slate-500"}>
-          ✓ One special character
+          One special character
         </li>
-
       </ul>
-
     </div>
   );
 }

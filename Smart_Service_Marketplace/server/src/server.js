@@ -9,12 +9,14 @@ import { initChatSocket } from "./sockets/chat.socket.js";
 import { startNotificationWorker } from "./workers/notification.worker.js";
 import { startCronJobs } from "./jobs/index.js";
 import { getRedisClient } from "./config/redis.js";
+import { seedSuperAdmin } from "./seeds/seedSuperAdmin.js";
 import logger, { errorLogger } from "./utils/logger.js";
 
 const PORT = process.env.PORT || 5000;
 
 await connectDB();
 await ensureIndexes();
+await seedSuperAdmin();
 
 initFirebase();
 getRedisClient();

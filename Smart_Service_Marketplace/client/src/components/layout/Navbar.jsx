@@ -1,26 +1,34 @@
-import { Bell, UserCircle } from "lucide-react";
+import { Bell, LogOut, UserCircle } from "lucide-react";
+import useAuth from "../../hooks/useAuth";
 
 function Navbar() {
-  return (
-    <header className="h-16 bg-white shadow flex items-center justify-between px-6 sticky top-0 z-50">
+  const { user, logout } = useAuth();
 
+  return (
+    <header className="sticky top-0 z-50 flex h-16 items-center justify-between bg-white px-6 shadow">
       <h1 className="text-2xl font-bold text-indigo-600">
         Smart Service Marketplace
       </h1>
 
       <div className="flex items-center gap-5">
-
-        <button className="relative">
+        <button type="button" className="relative" aria-label="Notifications">
           <Bell size={22} />
-          <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
-            2
-          </span>
         </button>
 
-        <UserCircle size={35} />
+        <div className="flex items-center gap-2 text-sm text-slate-700">
+          <UserCircle size={28} />
+          <span className="hidden sm:inline">{user?.name || "Account"}</span>
+        </div>
 
+        <button
+          type="button"
+          onClick={logout}
+          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
+        >
+          <LogOut size={16} />
+          Logout
+        </button>
       </div>
-
     </header>
   );
 }

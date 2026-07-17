@@ -111,3 +111,23 @@ export const getAdminSessions = asyncHandler(async (req, res) => {
     new ApiResponse(HTTP_STATUS.OK, "Admin sessions fetched.", result)
   );
 });
+
+export const createAdminAccount = asyncHandler(async (req, res) => {
+  const result = await adminService.createAdmin(req.user._id, req.body);
+
+  res.status(HTTP_STATUS.CREATED).json(
+    new ApiResponse(
+      HTTP_STATUS.CREATED,
+      "Admin account created successfully.",
+      result
+    )
+  );
+});
+
+export const listAdminAccounts = asyncHandler(async (req, res) => {
+  const admins = await adminService.listAdmins(req.user._id);
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Admin accounts fetched.", { admins })
+  );
+});

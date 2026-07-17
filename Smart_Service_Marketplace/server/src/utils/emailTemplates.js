@@ -144,16 +144,24 @@ export function paymentReceiptEmailTemplate({ name, payment, booking }) {
   };
 }
 
-export function passwordResetEmailTemplate({ name, resetURL }) {
+export function passwordResetEmailTemplate({ name, resetURL, otpCode }) {
   const title = "Reset Your Password";
+  const otpBlock = otpCode
+    ? `
+        <p>Or enter this one-time code in the app:</p>
+        <p style="font-size:28px;letter-spacing:6px;font-weight:700;color:#312e81;">${otpCode}</p>
+      `
+    : "";
+
   return {
     subject: title,
     html: layout({
       title,
       bodyHtml: `
         <p>Hi ${name || "there"},</p>
-        <p>We received a request to reset your password. This link expires in 15 minutes.</p>
+        <p>We received a request to reset your password. This link and code expire in 15 minutes.</p>
         ${ctaButton(resetURL, "Reset Password")}
+        ${otpBlock}
         <p style="color:#6b7280;font-size:13px;">If you did not request this, you can ignore this email.</p>
       `,
     }),

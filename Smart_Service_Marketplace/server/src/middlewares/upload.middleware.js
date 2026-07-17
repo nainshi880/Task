@@ -59,6 +59,104 @@ export const uploadProfilePhoto = multer({
   fileFilter: imageFilter,
 }).single("profilePhoto");
 
+export const uploadCustomerAvatar = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+  },
+  fileFilter: imageFilter,
+}).single("avatar");
+
+const identityProofFilter = (_req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase().replace(".", "");
+  const allowed = /jpeg|jpg|png|webp|pdf/;
+  const mimeOk =
+    file.mimetype.startsWith("image/") || file.mimetype === "application/pdf";
+
+  if (allowed.test(ext) && mimeOk) {
+    return cb(null, true);
+  }
+
+  return cb(
+    new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      "Identity proof must be an image or PDF."
+    ),
+    false
+  );
+};
+
+export const uploadIdentityProof = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+  },
+  fileFilter: identityProofFilter,
+}).single("identityProof");
+
+export const uploadCertificationDocument = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+  },
+  fileFilter: identityProofFilter,
+}).single("document");
+
+const registrationFileFilter = (_req, file, cb) => {
+  const field = file.fieldname;
+  const ext = path.extname(file.originalname).toLowerCase().replace(".", "");
+
+  if (field === "profileImage" || field === "profilePhoto") {
+    const allowed = /jpeg|jpg|png|webp/;
+    if (allowed.test(ext) && file.mimetype.startsWith("image/")) {
+      return cb(null, true);
+    }
+    return cb(
+      new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Profile image must be JPEG, PNG, or WEBP."
+      ),
+      false
+    );
+  }
+
+  if (field === "identityProof") {
+    const allowed = /jpeg|jpg|png|webp|pdf/;
+    const mimeOk =
+      file.mimetype.startsWith("image/") || file.mimetype === "application/pdf";
+    if (allowed.test(ext) && mimeOk) {
+      return cb(null, true);
+    }
+    return cb(
+      new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Identity proof must be an image or PDF."
+      ),
+      false
+    );
+  }
+
+  return cb(
+    new ApiError(HTTP_STATUS.BAD_REQUEST, "Unexpected file field."),
+    false
+  );
+};
+
+export const uploadTechnicianRegistrationFiles = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 2,
+  },
+  fileFilter: registrationFileFilter,
+}).fields([
+  { name: "profileImage", maxCount: 1 },
+  { name: "identityProof", maxCount: 1 },
+]);
+
 export const optionalIssueImagesUpload = (req, res, next) => {
   const contentType = req.headers["content-type"] || "";
 

@@ -45,3 +45,22 @@ export const adminChangePasswordValidation = [
     .notEmpty()
     .withMessage("Confirm password is required."),
 ];
+
+export const createAdminValidation = [
+  body("name")
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Name must be 2–100 characters."),
+  body("firstName").optional().trim().isLength({ max: 50 }),
+  body("lastName").optional().trim().isLength({ max: 50 }),
+  body("email").isEmail().withMessage("Valid email is required."),
+  body("phone")
+    .optional()
+    .trim()
+    .matches(/^[0-9+\-\s]{10,15}$/)
+    .withMessage("Phone must be 10–15 digits."),
+  strongPasswordRules("password"),
+  body("department").optional().trim().isLength({ max: 100 }),
+  body("designation").optional().trim().isLength({ max: 100 }),
+];

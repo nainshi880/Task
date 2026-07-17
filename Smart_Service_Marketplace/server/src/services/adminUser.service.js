@@ -117,7 +117,7 @@ class AdminUserService {
       );
     }
 
-    if (targetUser.role === ROLES.ADMIN) {
+    if (targetUser.role === ROLES.ADMIN || targetUser.role === ROLES.SUPER_ADMIN) {
       throw new ApiError(
         HTTP_STATUS.FORBIDDEN,
         "Admin accounts cannot be managed through this endpoint."

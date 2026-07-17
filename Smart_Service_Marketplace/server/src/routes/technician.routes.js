@@ -13,6 +13,9 @@ import {
   updateTechnicianProfile,
   uploadTechnicianPhoto,
   deleteTechnicianPhoto,
+  uploadTechnicianIdentityProof,
+  uploadTechnicianCertification,
+  completeTechnicianProfileSetup,
   updateTechnicianSkills,
   updateServiceCategories,
   updateAvailabilityStatus,
@@ -106,7 +109,7 @@ import {
 
 import { bookingSearchLimiter } from "../middlewares/bookingRateLimit.middleware.js";
 
-import { uploadProfilePhoto, uploadIssueImages } from "../middlewares/upload.middleware.js";
+import { uploadProfilePhoto, uploadIssueImages, uploadIdentityProof, uploadCertificationDocument } from "../middlewares/upload.middleware.js";
 import { bookingWriteLimiter } from "../middlewares/bookingRateLimit.middleware.js";
 import validate from "../middlewares/validation.middleware.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
@@ -356,6 +359,29 @@ router.delete(
   authenticate,
   authorize(ROLES.TECHNICIAN),
   deleteTechnicianPhoto
+);
+
+router.patch(
+  "/profile/identity-proof",
+  authenticate,
+  authorize(ROLES.TECHNICIAN),
+  uploadIdentityProof,
+  uploadTechnicianIdentityProof
+);
+
+router.post(
+  "/profile/certifications/upload",
+  authenticate,
+  authorize(ROLES.TECHNICIAN),
+  uploadCertificationDocument,
+  uploadTechnicianCertification
+);
+
+router.post(
+  "/profile/complete-setup",
+  authenticate,
+  authorize(ROLES.TECHNICIAN),
+  completeTechnicianProfileSetup
 );
 
 /*

@@ -139,12 +139,18 @@ class TechnicianProfileService {
       "phone",
       "bio",
       "workingCity",
+      "address",
+      "state",
+      "pincode",
+      "identityProofUrl",
       "skills",
       "serviceCategories",
       "experienceYears",
       "certifications",
       "availabilityStatus",
       "workingHours",
+      "workingRadius",
+      "serviceAreas",
     ];
 
     const updateData = {};
@@ -257,6 +263,163 @@ class TechnicianProfileService {
       avatar: null,
     });
 
+    return updated;
+  }
+
+  async uploadIdentityProof(userId, file) {
+    if (!file) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Please upload an Aadhaar or PAN document."
+      );
+    }
+
+    const profile =
+      await technicianProfileRepository.findByUserId(userId);
+
+    if (!profile) {
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        "Technician profile not found. Create profile first."
+      );
+    }
+
+    try {
+      const result = await withRetry(
+        async () =>
+          cloudinary.uploader.upload(file.path, {
+            folder: "technician-identity-proofs",
+            resource_type: "auto",
+          }),
+        {
+          retries: 3,
+          delayMs: 400,
+          shouldRetry: isTransientError,
+        }
+      );
+
+      return await technicianProfileRepository.updateByUserId(userId, {
+        identityProofUrl: result.secure_url,
+      });
+    } finally {
+      try {
+        await fs.unlink(file.path);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  async uploadCertificationDocument(userId, file, meta = {}) {
+    if (!file) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Please upload a certificate document."
+      );
+    }
+
+    if (!meta.name?.trim()) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Certification name is required."
+      );
+    }
+
+    const profile =
+      await technicianProfileRepository.findByUserId(userId);
+
+    if (!profile) {
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        "Technician profile not found."
+      );
+    }
+
+    try {
+      const result = await withRetry(
+        async () =>
+          cloudinary.uploader.upload(file.path, {
+            folder: "technician-certifications",
+            resource_type: "auto",
+          }),
+        {
+          retries: 3,
+          delayMs: 400,
+          shouldRetry: isTransientError,
+        }
+      );
+
+      return await this.addCertification(userId, {
+        name: meta.name.trim(),
+        issuedBy: meta.issuedBy?.trim() || "",
+        issuedAt: meta.issuedAt || undefined,
+        expiresAt: meta.expiresAt || undefined,
+        documentUrl: result.secure_url,
+      });
+    } finally {
+      try {
+        await fs.unlink(file.path);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  async completeProfileSetup(userId, data = {}) {
+    const profile =
+      await technicianProfileRepository.findByUserId(userId);
+
+    if (!profile) {
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        "Technician profile not found."
+      );
+    }
+
+    const updateData = {};
+
+    if (data.workingRadius !== undefined) {
+      updateData.workingRadius = Number(data.workingRadius);
+    }
+    if (Array.isArray(data.serviceAreas) && data.serviceAreas.length) {
+      updateData.serviceAreas = data.serviceAreas;
+    }
+    if (data.availabilityStatus !== undefined) {
+      updateData.availabilityStatus = Boolean(data.availabilityStatus);
+    }
+    if (data.workingHours) {
+      updateData.workingHours = data.workingHours;
+    }
+    if (Array.isArray(data.serviceCategories) && data.serviceCategories.length) {
+      updateData.serviceCategories = data.serviceCategories;
+      updateData.skills = data.serviceCategories;
+    }
+    if (data.experienceYears !== undefined) {
+      updateData.experienceYears = Number(data.experienceYears);
+    }
+    if (data.workingCity) {
+      updateData.workingCity = data.workingCity;
+    }
+
+    const merged = {
+      fullName: profile.fullName,
+      phone: profile.phone,
+      workingCity: updateData.workingCity ?? profile.workingCity,
+      skills: updateData.skills ?? profile.skills,
+      serviceCategories:
+        updateData.serviceCategories ?? profile.serviceCategories,
+      experienceYears:
+        updateData.experienceYears ?? profile.experienceYears,
+    };
+
+    updateData.profileCompleted = this.calculateProfileCompletion(merged);
+
+    const updated = await technicianProfileRepository.updateByUserId(
+      userId,
+      updateData
+    );
+
+    await this.syncUserFromProfile(userId, updated);
     return updated;
   }
 

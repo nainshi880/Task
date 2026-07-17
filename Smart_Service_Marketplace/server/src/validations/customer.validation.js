@@ -34,6 +34,23 @@ export const customerProfileValidation = [
     .isISO8601()
     .withMessage("Invalid date format."),
 
+  body("emergencyContact.name")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("Emergency contact name is too long."),
+
+  body("emergencyContact.phone")
+    .optional()
+    .matches(/^[0-9]{10}$/)
+    .withMessage("Emergency contact phone must contain 10 digits."),
+
+  body("emergencyContact.relationship")
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage("Relationship is too long."),
+
   body("preferences.emailNotification")
     .optional()
     .isBoolean(),

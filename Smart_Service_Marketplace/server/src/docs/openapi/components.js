@@ -113,7 +113,7 @@ export const schemas = {
       _id: { type: "string", example: "507f1f77bcf86cd799439011" },
       name: { type: "string", example: "Jane Customer" },
       email: { type: "string", example: "jane@example.com" },
-      role: { type: "string", enum: ["customer", "technician", "admin"], example: "customer" },
+      role: { type: "string", enum: ["customer", "technician", "admin", "super_admin"], example: "customer" },
       isActive: { type: "boolean", example: true },
       isVerified: { type: "boolean", example: false },
     },

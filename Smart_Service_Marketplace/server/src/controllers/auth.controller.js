@@ -34,6 +34,29 @@ export const register = asyncHandler(async (req, res) => {
   );
 });
 
+export const registerTechnician = asyncHandler(async (req, res) => {
+  const result = await authService.registerTechnician(
+    req.body,
+    req.files || {},
+    sessionMeta(req)
+  );
+
+  setAuthCookies(res, { refreshToken: result.refreshToken });
+
+  res.status(HTTP_STATUS.CREATED).json(
+    new ApiResponse(
+      HTTP_STATUS.CREATED,
+      "Technician application submitted successfully. Awaiting admin approval.",
+      {
+        user: result.user,
+        profile: result.profile,
+        token: result.token,
+        accessToken: result.accessToken,
+      }
+    )
+  );
+});
+
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -70,7 +93,18 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   const result = await authService.forgotPassword(req.body.email);
 
   res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result.message)
+    new ApiResponse(HTTP_STATUS.OK, result.message, result)
+  );
+});
+
+export const verifyForgotPasswordOtp = asyncHandler(async (req, res) => {
+  const result = await authService.verifyForgotPasswordOtp(
+    req.body.email,
+    req.body.code
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, result.message, result)
   );
 });
 
@@ -121,7 +155,15 @@ export const sendVerificationEmail = asyncHandler(async (req, res) => {
   const result = await authService.sendVerificationEmail(req.user._id);
 
   res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result.message)
+    new ApiResponse(HTTP_STATUS.OK, result.message, result)
+  );
+});
+
+export const resendVerificationEmail = asyncHandler(async (req, res) => {
+  const result = await authService.resendVerificationByEmail(req.body.email);
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, result.message, result)
   );
 });
 
@@ -129,6 +171,6 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   const result = await authService.verifyEmail(req.params.token);
 
   res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result.message)
+    new ApiResponse(HTTP_STATUS.OK, result.message, result)
   );
 });

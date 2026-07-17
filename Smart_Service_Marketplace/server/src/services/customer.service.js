@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import customerRepository from "../repositories/customer.repository.js";
 import auditRepository from "../repositories/audit.repository.js";
+import User from "../models/User.js";
 
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
@@ -8,6 +9,17 @@ import PAGINATION from "../constants/pagination.js";
 import AUDIT_ACTION from "../constants/auditAction.js";
 
 class CustomerService {
+
+  async syncUserFromProfile(userId, profile) {
+    if (!profile) return;
+
+    await User.findByIdAndUpdate(userId, {
+      name: profile.fullName || undefined,
+      phone: profile.phone || undefined,
+      avatar: profile.avatar || undefined,
+      profileCompleted: Boolean(profile.profileCompleted),
+    });
+  }
 
   // ======================================
   // Create Customer Profile
@@ -25,11 +37,17 @@ class CustomerService {
       );
     }
 
+    const payload = {
+      user: userId,
+      ...profileData,
+    };
+
+    payload.profileCompleted = this.calculateProfileCompletion(payload);
+
     const profile =
-      await customerRepository.createProfile({
-        user: userId,
-        ...profileData,
-      });
+      await customerRepository.createProfile(payload);
+
+    await this.syncUserFromProfile(userId, profile);
 
     return profile;
   }
@@ -69,13 +87,24 @@ class CustomerService {
       );
     }
 
-    updateData.profileCompleted =
-      this.calculateProfileCompletion(updateData);
+    const merged = {
+      fullName: updateData.fullName ?? profile.fullName,
+      phone: updateData.phone ?? profile.phone,
+      gender: updateData.gender ?? profile.gender,
+      dateOfBirth: updateData.dateOfBirth ?? profile.dateOfBirth,
+    };
 
-    return await customerRepository.updateProfile(
+    updateData.profileCompleted =
+      this.calculateProfileCompletion(merged);
+
+    const updated = await customerRepository.updateProfile(
       userId,
       updateData
     );
+
+    await this.syncUserFromProfile(userId, updated);
+
+    return updated;
   }
 
   // ======================================
@@ -117,10 +146,14 @@ class CustomerService {
       );
     }
 
-    return await customerRepository.updateAvatar(
+    const updated = await customerRepository.updateAvatar(
       userId,
       avatarUrl
     );
+
+    await this.syncUserFromProfile(userId, updated);
+
+    return updated;
   }
 
   // ======================================

@@ -9,12 +9,15 @@ import {
   adminLogout,
   adminLogoutAllDevices,
   getAdminSessions,
+  createAdminAccount,
+  listAdminAccounts,
 } from "../controllers/admin.controller.js";
 
 import {
   adminLoginValidation,
   adminProfileValidation,
   adminChangePasswordValidation,
+  createAdminValidation,
 } from "../validations/admin.validation.js";
 import { refreshTokenValidation } from "../validations/auth.validation.js";
 
@@ -60,5 +63,15 @@ router.put(
 router.post("/logout", csrfProtection, adminLogout);
 router.post("/logout-all", csrfProtection, adminLogoutAllDevices);
 router.get("/sessions", getAdminSessions);
+
+/* Super Admin only — no public admin registration */
+router.get("/admins", authorize(ROLES.SUPER_ADMIN), listAdminAccounts);
+router.post(
+  "/admins",
+  authorize(ROLES.SUPER_ADMIN),
+  createAdminValidation,
+  validate,
+  createAdminAccount
+);
 
 export default router;

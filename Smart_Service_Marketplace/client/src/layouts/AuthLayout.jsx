@@ -4,7 +4,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 
-function AuthLayout({ children, title, subtitle }) {
+function AuthLayout({ children, title, subtitle, maxWidthClass = "max-w-md" }) {
   return (
     <div className="min-h-screen bg-slate-100">
 
@@ -99,7 +99,7 @@ function AuthLayout({ children, title, subtitle }) {
 
         <div className="flex items-center justify-center px-6 py-10">
 
-          <div className="w-full max-w-md">
+          <div className={`w-full ${maxWidthClass}`}>
 
             <div className="mb-10 text-center">
 

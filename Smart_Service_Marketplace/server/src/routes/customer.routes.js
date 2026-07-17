@@ -43,6 +43,7 @@ import {
 import validate from "../middlewares/validation.middleware.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import authorize from "../middlewares/role.middleware.js";
+import { uploadCustomerAvatar } from "../middlewares/upload.middleware.js";
 import ROLES from "../constants/roles.js";
 
 const router = express.Router();
@@ -128,6 +129,7 @@ router.patch(
   "/avatar",
   authenticate,
   authorize(ROLES.CUSTOMER),
+  uploadCustomerAvatar,
   uploadAvatar
 );
 
