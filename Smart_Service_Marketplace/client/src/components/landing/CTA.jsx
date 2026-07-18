@@ -21,13 +21,13 @@ function CTA() {
         <div className="mt-10">
 
           <Button
-            className="bg-white text-indigo-600 hover:bg-slate-100"
+            className="border border-white bg-indigo-600"
           >
             Get Started
           </Button>
 
         </div>
-
+ 
       </div>
 
     </section>

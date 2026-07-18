@@ -5,8 +5,10 @@ import { CalendarPlus } from "lucide-react";
 import clsx from "clsx";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
-import Loader from "../../components/ui/Loader";
 import Button from "../../components/ui/Button";
+import EmptyState from "../../components/ui/EmptyState";
+import ErrorState from "../../components/ui/ErrorState";
+import { SkeletonList } from "../../components/ui/Skeleton";
 import BookingListCard from "../../components/customer/bookings/BookingListCard";
 import * as bookingService from "../../services/booking.service";
 import { bookingKeys } from "../../lib/queryClient";
@@ -69,7 +71,7 @@ function MyBookingsPage() {
           </Link>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" role="tablist" aria-label="Booking status">
           {TAB_CONFIG.map((tab) => {
             const count = buckets[tab.id]?.length || 0;
             const active = activeTab === tab.id;
@@ -77,9 +79,11 @@ function MyBookingsPage() {
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => setTab(tab.id)}
                 className={clsx(
-                  "flex-1 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition",
+                  "flex-1 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
                   active
                     ? "bg-indigo-600 text-white"
                     : "text-slate-600 hover:bg-slate-50"
@@ -100,44 +104,33 @@ function MyBookingsPage() {
         </div>
 
         {bookingsQuery.isLoading ? (
-          <Loader text="Loading bookings..." />
+          <SkeletonList rows={4} />
         ) : bookingsQuery.isError ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
-            <p className="font-medium text-red-800">Could not load bookings</p>
-            <p className="mt-1 text-sm text-red-600">
-              {bookingsQuery.error?.response?.data?.message ||
-                bookingsQuery.error?.message ||
-                "Please try again."}
-            </p>
-            <Button
-              className="mt-4"
-              variant="outline"
-              onClick={() => bookingsQuery.refetch()}
-            >
-              Retry
-            </Button>
-          </div>
+          <ErrorState
+            variant="auto"
+            error={bookingsQuery.error}
+            onRetry={() => bookingsQuery.refetch()}
+            homeTo="/dashboard"
+            homeLabel="Back to dashboard"
+          />
         ) : list.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              No {activeTab} bookings
-            </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              {activeTab === BOOKING_TABS.upcoming
+          <EmptyState
+            preset="bookings"
+            title={`No ${activeTab} bookings`}
+            description={
+              activeTab === BOOKING_TABS.upcoming
                 ? "You don't have any active bookings. Browse services to get started."
                 : activeTab === BOOKING_TABS.completed
                   ? "Completed services will show up here."
-                  : "Cancelled bookings will appear in this tab."}
-            </p>
-            {activeTab === BOOKING_TABS.upcoming && (
-              <Link
-                to="/services"
-                className="mt-5 inline-flex rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                Browse services
-              </Link>
-            )}
-          </div>
+                  : "Cancelled bookings will appear in this tab."
+            }
+            actionLabel={
+              activeTab === BOOKING_TABS.upcoming ? "Browse services" : undefined
+            }
+            actionTo={
+              activeTab === BOOKING_TABS.upcoming ? "/services" : undefined
+            }
+          />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {list.map((booking) => (

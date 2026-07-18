@@ -16,7 +16,7 @@ export function ProtectedRoute({ children, redirectTo = "/login" }) {
   const location = useLocation();
 
   if (isLoading) {
-    return <Loader text="Checking authentication..." />;
+    return <Loader fullPage text="Checking authentication..." />;
   }
 
   if (!isAuthenticated) {
@@ -40,7 +40,7 @@ export function RoleRoute({
   const location = useLocation();
 
   if (isLoading) {
-    return <Loader text="Checking authorization..." />;
+    return <Loader fullPage text="Checking authorization..." />;
   }
 
   if (!isAuthenticated) {
@@ -75,7 +75,7 @@ export function ProfileSetupRoute({ role, children }) {
   const location = useLocation();
 
   if (isLoading) {
-    return <Loader text="Checking authorization..." />;
+    return <Loader fullPage text="Checking authorization..." />;
   }
 
   if (!isAuthenticated) {
@@ -104,6 +104,15 @@ export function CustomerRoute({ children }) {
 export function TechnicianRoute({ children }) {
   return (
     <RoleRoute roles={[ROLES.TECHNICIAN]}>
+      {children}
+    </RoleRoute>
+  );
+}
+
+/** Customer or technician — shared chat routes. */
+export function ChatRoute({ children }) {
+  return (
+    <RoleRoute roles={[ROLES.CUSTOMER, ROLES.TECHNICIAN]}>
       {children}
     </RoleRoute>
   );

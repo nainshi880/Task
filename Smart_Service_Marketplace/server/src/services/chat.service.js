@@ -4,7 +4,7 @@ import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import PAGINATION from "../constants/pagination.js";
 import { MESSAGE_TYPE, DELIVERY_STATUS } from "../constants/chat.js";
-import ROLES from "../constants/roles.js";
+import ROLES, { isAdminRole } from "../constants/roles.js";
 import cloudinary from "../config/cloudinary.js";
 import withRetry, { isTransientError } from "../utils/retry.js";
 import {
@@ -60,6 +60,52 @@ class ChatService {
   // Rooms
   // ======================================
 
+  /**
+   * Create a chat room for an assigned booking, or sync the technician
+   * when the booking was reassigned. Safe to call from assignment flows.
+   */
+  async ensureRoomForBooking(bookingId) {
+    const booking = await chatRepository.findBookingById(bookingId);
+
+    if (!booking) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Booking not found.");
+    }
+
+    if (!booking.technician) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Chat is available only after a technician is assigned."
+      );
+    }
+
+    const customerId = booking.customer._id || booking.customer;
+    const technicianId = booking.technician._id || booking.technician;
+
+    let room = await chatRepository.findRoomByBooking(bookingId);
+
+    if (!room) {
+      room = await chatRepository.createRoom({
+        booking: booking._id,
+        customer: customerId,
+        technician: technicianId,
+      });
+      return chatRepository.findRoomById(room._id);
+    }
+
+    const roomTechId = (room.technician._id || room.technician).toString();
+    if (roomTechId !== technicianId.toString()) {
+      await chatRepository.updateRoom(room._id, {
+        technician: technicianId,
+        isArchived: false,
+        archivedAt: null,
+        archivedBy: null,
+      });
+      room = await chatRepository.findRoomById(room._id);
+    }
+
+    return room;
+  }
+
   async getOrCreateRoomForBooking(user, bookingId) {
     const booking = await chatRepository.findBookingById(bookingId);
 
@@ -80,7 +126,7 @@ class ChatService {
 
     const isCustomer = customerId.toString() === userId;
     const isTechnician = technicianId.toString() === userId;
-    const isAdmin = user.role === ROLES.ADMIN;
+    const isAdmin = isAdminRole(user.role);
 
     if (!isCustomer && !isTechnician && !isAdmin) {
       throw new ApiError(
@@ -89,18 +135,7 @@ class ChatService {
       );
     }
 
-    let room = await chatRepository.findRoomByBooking(bookingId);
-
-    if (!room) {
-      room = await chatRepository.createRoom({
-        booking: booking._id,
-        customer: customerId,
-        technician: technicianId,
-      });
-      room = await chatRepository.findRoomById(room._id);
-    }
-
-    return room;
+    return this.ensureRoomForBooking(bookingId);
   }
 
   async listRooms(user, query = {}) {
@@ -142,7 +177,7 @@ class ChatService {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Chat room not found.");
     }
 
-    if (user.role !== ROLES.ADMIN) {
+    if (!isAdminRole(user.role)) {
       this.assertParticipant(room, user._id);
     }
 
@@ -151,7 +186,7 @@ class ChatService {
 
   async archiveRoom(user, roomId) {
     const room = await this.getRoom(user, roomId);
-    if (user.role !== ROLES.ADMIN) {
+    if (!isAdminRole(user.role)) {
       this.assertParticipant(room, user._id);
     }
 
@@ -164,7 +199,7 @@ class ChatService {
 
   async unarchiveRoom(user, roomId) {
     const room = await this.getRoom(user, roomId);
-    if (user.role !== ROLES.ADMIN) {
+    if (!isAdminRole(user.role)) {
       this.assertParticipant(room, user._id);
     }
 

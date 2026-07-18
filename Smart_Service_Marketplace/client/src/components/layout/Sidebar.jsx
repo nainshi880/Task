@@ -28,12 +28,14 @@ const customerLinks = [
   { to: "/services", label: "Services", icon: Wrench },
   { to: "/bookings", label: "Bookings", icon: CalendarCheck },
   { to: "/chat", label: "Chat", icon: MessageSquare },
+  { to: "/notifications", label: "Notifications", icon: Bell },
   { to: "/profile", label: "Profile", icon: UserRound },
 ];
 
 const technicianLinks = [
   { to: "/technician/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/technician/jobs", label: "Jobs", icon: Briefcase },
+  { to: "/chat", label: "Chat", icon: MessageSquare },
   { to: "/technician/availability", label: "Availability", icon: Clock3 },
   { to: "/technician/earnings", label: "Earnings", icon: Wallet },
   { to: "/technician/payouts", label: "Payouts", icon: Banknote },
@@ -53,6 +55,7 @@ const adminLinks = [
   { to: "/admin/payments", label: "Payments", icon: CreditCard },
   { to: "/admin/reviews", label: "Reviews", icon: Star },
   { to: "/admin/reports", label: "Reports", icon: FileBarChart },
+  { to: "/admin/notifications", label: "Notifications", icon: Bell },
   { to: "/admin/settings", label: "Settings", icon: Settings2 },
   { to: "/admin/profile", label: "Profile", icon: UserRound },
 ];
@@ -61,7 +64,7 @@ const superAdminExtra = [
   { to: "/admin/admins", label: "Admins", icon: UserCog },
 ];
 
-function Sidebar() {
+function Sidebar({ id = "app-sidebar", onNavigate }) {
   const { role } = useAuth();
 
   let links = customerLinks;
@@ -74,20 +77,25 @@ function Sidebar() {
   }
 
   return (
-    <aside className="min-h-screen w-64 bg-slate-900 text-white">
-      <nav className="flex flex-col gap-2 p-5">
+    <aside
+      id={id}
+      className="flex h-full min-h-screen w-64 flex-col bg-slate-900 text-white"
+      aria-label="Main navigation"
+    >
+      <nav className="flex flex-col gap-1 p-4 sm:p-5" aria-label="Sidebar">
         {links.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
+            onClick={onNavigate}
             className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg p-3 transition ${
+              `flex items-center gap-3 rounded-lg p-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                 isActive ? "bg-indigo-600" : "hover:bg-slate-700"
               }`
             }
           >
-            <Icon size={20} />
-            {label}
+            <Icon size={20} aria-hidden />
+            <span>{label}</span>
           </NavLink>
         ))}
       </nav>

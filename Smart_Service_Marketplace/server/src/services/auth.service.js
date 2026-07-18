@@ -1,5 +1,6 @@
 import authRepository from "../repositories/auth.repository.js";
 import technicianProfileRepository from "../repositories/technicianProfile.repository.js";
+import customerRepository from "../repositories/customer.repository.js";
 import Otp from "../models/Otp.js";
 
 import ApiError from "../utils/ApiError.js";
@@ -14,6 +15,7 @@ import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
 import ROLES, { isAdminRole } from "../constants/roles.js";
 import { defaultWorkingHours } from "../models/TechnicianProfile.js";
+import User from "../models/User.js";
 
 class AuthService {
   sessionMeta(meta = {}) {
@@ -65,6 +67,16 @@ class AuthService {
       );
     }
 
+    const existingPhone = phone
+      ? await authRepository.findByPhone(phone)
+      : null;
+    if (existingPhone) {
+      throw new ApiError(
+        HTTP_STATUS.CONFLICT,
+        "User already exists with this phone number."
+      );
+    }
+
     const user = await authRepository.createUser({
       name,
       email,
@@ -72,6 +84,14 @@ class AuthService {
       phone,
       role: ROLES.CUSTOMER,
     });
+
+    // Seed a draft CustomerProfile so GET /customer/profile works before setup.
+    await customerRepository.createProfile({
+      user: user._id,
+      fullName: name,
+      phone: phone || "",
+      profileCompleted: false,
+    }).catch(() => {});
 
     const tokens = await tokenService.issueTokenPair(
       user,
@@ -106,8 +126,20 @@ class AuthService {
     if (existingUser) {
       throw new ApiError(
         HTTP_STATUS.CONFLICT,
-        "User already exists with this email."
+        existingUser.role === ROLES.TECHNICIAN
+          ? "A technician account already exists with this email. Please log in."
+          : "This email is already registered. Use a different email or log in."
       );
+    }
+
+    if (phone) {
+      const existingPhone = await authRepository.findByPhone(phone);
+      if (existingPhone) {
+        throw new ApiError(
+          HTTP_STATUS.CONFLICT,
+          "This phone number is already registered. Use a different number."
+        );
+      }
     }
 
     const profileImage = files.profileImage?.[0] || files.profilePhoto?.[0];
@@ -132,51 +164,60 @@ class AuthService {
       this.uploadLocalFile(identityProof, "technicians/identity"),
     ]);
 
-    const user = await authRepository.createUser({
-      name,
-      email,
-      password,
-      phone,
-      role: ROLES.TECHNICIAN,
-      city,
-      skills: [profession],
-      availability: false,
-      avatar: profilePhotoUrl,
-    });
+    let user;
+    try {
+      user = await authRepository.createUser({
+        name,
+        email,
+        password,
+        phone,
+        role: ROLES.TECHNICIAN,
+        city,
+        skills: [profession],
+        availability: false,
+        avatar: profilePhotoUrl,
+      });
 
-    const profile = await technicianProfileRepository.create({
-      user: user._id,
-      fullName: name,
-      phone,
-      profession,
-      workingCity: city,
-      address,
-      state,
-      pincode,
-      skills: [profession],
-      serviceCategories: [profession],
-      experienceYears: Number(experience) || 0,
-      profilePhoto: profilePhotoUrl,
-      identityProofUrl,
-      availabilityStatus: false,
-      workingHours: defaultWorkingHours(),
-      profileCompleted: false,
-      applicationStatus: "pending",
-    });
+      const profile = await technicianProfileRepository.create({
+        user: user._id,
+        fullName: name,
+        phone,
+        profession,
+        workingCity: city,
+        address,
+        state,
+        pincode,
+        skills: [profession],
+        serviceCategories: [profession],
+        experienceYears: Number(experience) || 0,
+        profilePhoto: profilePhotoUrl,
+        identityProofUrl,
+        availabilityStatus: false,
+        workingHours: defaultWorkingHours(),
+        profileCompleted: false,
+        applicationStatus: "pending",
+      });
 
-    const tokens = await tokenService.issueTokenPair(
-      user,
-      this.sessionMeta(meta)
-    );
+      const tokens = await tokenService.issueTokenPair(
+        user,
+        this.sessionMeta(meta)
+      );
 
-    emailService.sendWelcome({ user }).catch(() => {});
-    this.sendVerificationEmail(user._id).catch(() => {});
+      emailService.sendWelcome({ user }).catch(() => {});
+      this.sendVerificationEmail(user._id).catch(() => {});
 
-    return {
-      user,
-      profile,
-      ...tokens,
-    };
+      return {
+        user,
+        profile,
+        ...tokens,
+      };
+    } catch (error) {
+      // Avoid leaving an orphan User if profile creation fails.
+      if (user?._id) {
+        await User.findByIdAndDelete(user._id).catch(() => {});
+      }
+      throw error;
+    }
   }
 
   async login(email, password, meta = {}) {

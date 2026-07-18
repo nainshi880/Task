@@ -16,6 +16,11 @@ class AuthRepository {
 
   }
 
+  async findByPhone(phone) {
+    if (!phone) return null;
+    return await User.findOne({ phone });
+  }
+
   async findById(id) {
 
     return await User.findById(id);

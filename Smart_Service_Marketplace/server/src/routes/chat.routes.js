@@ -42,7 +42,12 @@ import ROLES from "../constants/roles.js";
 
 const router = express.Router();
 
-const chatRoles = [ROLES.CUSTOMER, ROLES.TECHNICIAN, ROLES.ADMIN];
+const chatRoles = [
+  ROLES.CUSTOMER,
+  ROLES.TECHNICIAN,
+  ROLES.ADMIN,
+  ROLES.SUPER_ADMIN,
+];
 
 router.get(
   "/rooms",

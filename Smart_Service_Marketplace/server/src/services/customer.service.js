@@ -57,15 +57,32 @@ class CustomerService {
   // ======================================
 
   async getProfile(userId) {
-
-    const profile =
-      await customerRepository.findProfileByUserId(userId);
+    let profile = await customerRepository.findProfileByUserId(userId);
 
     if (!profile) {
-      throw new ApiError(
-        HTTP_STATUS.NOT_FOUND,
-        "Customer profile not found."
-      );
+      const user = await User.findById(userId).select("name phone avatar");
+      if (!user) {
+        throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found.");
+      }
+
+      try {
+        profile = await customerRepository.createProfile({
+          user: userId,
+          fullName: user.name || "Customer",
+          phone: user.phone || "",
+          avatar: user.avatar || null,
+          profileCompleted: false,
+        });
+      } catch {
+        profile = await customerRepository.findProfileByUserId(userId);
+      }
+
+      if (!profile) {
+        throw new ApiError(
+          HTTP_STATUS.NOT_FOUND,
+          "Customer profile not found."
+        );
+      }
     }
 
     return profile;
@@ -198,22 +215,32 @@ class CustomerService {
   }
   // Profile Completion
 
-  calculateProfileCompletion(profile) {
-
-    const fields = [
-      profile.fullName,
-      profile.phone,
-      profile.gender,
-      profile.dateOfBirth,
+  /**
+   * Percentage 0–100 for UI. Core identity fields + common setup extras.
+   */
+  getProfileCompletionPercent(profile = {}) {
+    const checks = [
+      Boolean(profile.fullName?.toString().trim()),
+      Boolean(profile.phone?.toString().trim()),
+      Boolean(profile.gender),
+      Boolean(profile.dateOfBirth),
+      Boolean(profile.avatar),
+      Boolean(profile.addresses?.length),
+      Boolean(profile.emergencyContact?.name || profile.emergencyContact?.phone),
     ];
 
-    const completedFields =
-      fields.filter(Boolean).length;
+    const done = checks.filter(Boolean).length;
+    return Math.round((done / checks.length) * 100);
+  }
 
-    const percentage =
-      (completedFields / fields.length) * 100;
-
-    return percentage === 100;
+  /** True when required profile fields are present (gates setup wizard). */
+  calculateProfileCompletion(profile = {}) {
+    return [
+      profile.fullName?.toString().trim(),
+      profile.phone?.toString().trim(),
+      profile.gender,
+      profile.dateOfBirth,
+    ].every(Boolean);
   }
 
   async addAddress(userId, address) {
@@ -326,8 +353,9 @@ class CustomerService {
 
         phone: profile.phone,
 
-        profileCompletion:
-          profile.profileCompletion || 0,
+        profileCompleted: Boolean(profile.profileCompleted),
+
+        profileCompletion: this.getProfileCompletionPercent(profile),
 
       },
 

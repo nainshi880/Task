@@ -13,6 +13,11 @@ class TechnicianRepository {
       $or: [
         { applicationStatus: TECHNICIAN_APPLICATION_STATUS.APPROVED },
         { applicationStatus: { $exists: false } },
+        // Completed setup but still pending admin review — allow booking.
+        {
+          applicationStatus: TECHNICIAN_APPLICATION_STATUS.PENDING,
+          profileCompleted: true,
+        },
       ],
     }).distinct("user");
   }

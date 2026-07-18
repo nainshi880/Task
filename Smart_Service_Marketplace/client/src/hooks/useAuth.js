@@ -38,8 +38,14 @@ export default function useAuth() {
     }
 
     if (meQuery.isError) {
-      clearSession();
-      queryClient.removeQueries({ queryKey: authKeys.all });
+      // Only clear session on auth failures — not network blips / server restarts.
+      const status = meQuery.error?.response?.status;
+      if (status === 401 || status === 403) {
+        clearSession();
+        queryClient.removeQueries({ queryKey: authKeys.all });
+      } else {
+        setLoading(false);
+      }
       return;
     }
 

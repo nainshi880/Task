@@ -10,11 +10,13 @@ function Button({
   loading = false,
   onClick,
   className = "",
+  "aria-label": ariaLabel,
+  ...props
 }) {
   const isDisabled = disabled || loading;
 
   const baseClasses =
-    "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-300 focus:outline-none";
+    "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2";
 
   const variants = {
     primary: "bg-indigo-600 text-white hover:bg-indigo-700",
@@ -36,7 +38,9 @@ function Button({
       type={type}
       disabled={isDisabled}
       onClick={onClick}
-      aria-busy={loading}
+      aria-busy={loading || undefined}
+      aria-disabled={isDisabled || undefined}
+      aria-label={ariaLabel}
       className={clsx(
         baseClasses,
         variants[variant],
@@ -44,8 +48,11 @@ function Button({
         isDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
         className
       )}
+      {...props}
     >
-      {loading && <Loader2 size={18} className="animate-spin" aria-hidden />}
+      {loading && (
+        <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+      )}
       {children}
     </button>
   );

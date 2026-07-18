@@ -7,6 +7,7 @@ import {
   AdminRoute,
   SuperAdminRoute,
   ProfileSetupRoute,
+  ChatRoute,
 } from "./ProtectedRoute";
 import { ROLES } from "../constants/roles";
 
@@ -57,8 +58,10 @@ import TechnicianPayoutsPage from "../pages/technician/TechnicianPayoutsPage";
 import TechnicianReviewsPage from "../pages/technician/TechnicianReviewsPage";
 import TechnicianNotificationsPage from "../pages/technician/TechnicianNotificationsPage";
 import TechnicianSettingsPage from "../pages/technician/TechnicianSettingsPage";
-
-import { CustomerChat } from "../pages/placeholders/RolePages";
+import NotificationsPage from "../pages/shared/NotificationsPage";
+import ChatInboxPage from "../pages/shared/ChatInboxPage";
+import ChatRoomPage from "../pages/shared/ChatRoomPage";
+import NotFoundPage from "../pages/shared/NotFoundPage";
 
 function AppRoutes() {
   return (
@@ -107,7 +110,13 @@ function AppRoutes() {
         <Route path="/booking/confirm" element={<BookingConfirmPage />} />
         <Route path="/bookings" element={<MyBookingsPage />} />
         <Route path="/bookings/:bookingId" element={<BookingDetailPage />} />
-        <Route path="/chat" element={<CustomerChat />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
+      </Route>
+
+      {/* Shared chat (customer + technician) */}
+      <Route element={<ChatRoute />}>
+        <Route path="/chat" element={<ChatInboxPage />} />
+        <Route path="/chat/:conversationId" element={<ChatRoomPage />} />
       </Route>
 
       {/* Technician routes */}
@@ -178,6 +187,7 @@ function AppRoutes() {
         <Route path="/admin/payments" element={<AdminPaymentsPage />} />
         <Route path="/admin/reviews" element={<AdminReviewsPage />} />
         <Route path="/admin/reports" element={<AdminReportsPage />} />
+        <Route path="/admin/notifications" element={<NotificationsPage />} />
         <Route path="/admin/settings" element={<AdminSettingsPage />} />
         <Route path="/admin/profile" element={<AdminProfilePage />} />
       </Route>
@@ -190,7 +200,7 @@ function AppRoutes() {
       <Route path="/technician" element={<Navigate to="/technician/dashboard" replace />} />
       <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

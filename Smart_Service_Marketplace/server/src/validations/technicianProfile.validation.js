@@ -137,8 +137,9 @@ export const updateTechnicianProfileValidation = [
 
   body("phone")
     .optional()
-    .matches(/^[0-9]{10}$/)
-    .withMessage("Phone number must contain 10 digits."),
+    .trim()
+    .matches(/^[0-9+\-\s]{10,15}$/)
+    .withMessage("Enter a valid phone number."),
 
   body("bio")
     .optional()
@@ -146,11 +147,35 @@ export const updateTechnicianProfileValidation = [
     .isLength({ max: 1000 })
     .withMessage("Bio cannot exceed 1000 characters."),
 
+  body("profession")
+    .optional({ values: "falsy" })
+    .trim()
+    .isIn(SERVICE_CATEGORIES)
+    .withMessage("Invalid profession / occupation."),
+
   body("workingCity")
     .optional()
     .trim()
     .isLength({ min: 2, max: 100 })
     .withMessage("Working city must be between 2 and 100 characters."),
+
+  body("address")
+    .optional()
+    .trim()
+    .isLength({ max: 300 })
+    .withMessage("Address cannot exceed 300 characters."),
+
+  body("state")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("State cannot exceed 100 characters."),
+
+  body("pincode")
+    .optional()
+    .trim()
+    .matches(/^[0-9]{4,12}$/)
+    .withMessage("Enter a valid pincode."),
 
   body("skills")
     .optional()

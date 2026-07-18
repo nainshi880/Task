@@ -19,6 +19,7 @@ import BookingTrackingPanel from "../../components/customer/bookings/BookingTrac
 import CancelBookingModal from "../../components/customer/bookings/CancelBookingModal";
 import RescheduleBookingModal from "../../components/customer/bookings/RescheduleBookingModal";
 import * as bookingService from "../../services/booking.service";
+import * as chatService from "../../services/chat.service";
 import { bookingKeys, customerKeys } from "../../lib/queryClient";
 import {
   canCancelBooking,
@@ -56,8 +57,17 @@ function BookingDetailPage() {
     retry: false,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return shouldTrackLive(status) ? 12_000 : false;
+      return shouldTrackLive(status) ? 8_000 : false;
     },
+  });
+
+  // Ensure chat room exists once a technician is assigned (also backfills older bookings).
+  useQuery({
+    queryKey: ["chat", "booking-room", bookingId],
+    queryFn: () => chatService.getOrCreateBookingRoom(bookingId),
+    enabled: Boolean(bookingId && detailQuery.data?.technician),
+    retry: false,
+    staleTime: 60_000,
   });
 
   const timelineQuery = useQuery({
@@ -65,9 +75,24 @@ function BookingDetailPage() {
     queryFn: () => bookingService.getBookingTimeline(bookingId),
     enabled: Boolean(bookingId),
     retry: false,
-    refetchInterval: (query) => {
+    refetchInterval: () => {
       const status = detailQuery.data?.status;
-      return shouldTrackLive(status) ? 12_000 : false;
+      return shouldTrackLive(status) ? 8_000 : false;
+    },
+  });
+
+  const openChatMutation = useMutation({
+    mutationFn: () => chatService.getOrCreateBookingRoom(bookingId),
+    onSuccess: (data) => {
+      const room = data?.room || data;
+      const id = room?._id || room?.id;
+      if (id) navigate(`/chat/${id}`);
+      else toast.error("Could not open chat room");
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message || "Could not start chat for this booking"
+      );
     },
   });
 
@@ -212,6 +237,8 @@ function BookingDetailPage() {
         <BookingTrackingPanel
           booking={booking}
           timeline={timeline}
+          onOpenChat={() => openChatMutation.mutate()}
+          chatLoading={openChatMutation.isPending}
           isRefreshing={detailQuery.isFetching || timelineQuery.isFetching}
           lastUpdatedAt={lastUpdatedAt}
         />

@@ -2,11 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   Award,
+  Briefcase,
   FileText,
   MapPin,
   Pencil,
   Star,
   UserRound,
+  Wrench,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
@@ -74,7 +76,14 @@ function TechnicianProfilePage() {
   const profile = profileQuery.data || {};
   const photo = profile.profilePhoto || profile.user?.avatar;
   const displayName = profile.fullName || profile.user?.name || "Technician";
-  const categories = profile.serviceCategories || profile.skills || [];
+  const occupation =
+    profile.profession ||
+    profile.serviceCategories?.[0] ||
+    profile.skills?.[0] ||
+    "";
+  const categories = profile.serviceCategories?.length
+    ? profile.serviceCategories
+    : profile.skills || [];
   const certifications = profile.certifications || [];
   const serviceAreas = profile.serviceAreas || [];
   const hours = profile.workingHours || {};
@@ -122,6 +131,12 @@ function TechnicianProfilePage() {
                 >
                   {profile.availabilityStatus ? "Available" : "Unavailable"}
                 </span>
+                {occupation && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                    <Briefcase size={12} aria-hidden />
+                    {occupation}
+                  </span>
+                )}
               </div>
               <p className="mt-1 text-slate-500">
                 {profile.user?.email || ""}
@@ -140,6 +155,7 @@ function TechnicianProfilePage() {
                   {profile.experienceYears ?? 0} yrs experience ·{" "}
                   {profile.workingRadius ?? 10} km radius
                 </span>
+                <span>{profile.totalJobsCompleted ?? 0} jobs completed</span>
               </div>
               {profile.bio && (
                 <p className="mt-3 text-sm leading-relaxed text-slate-600">
@@ -158,11 +174,77 @@ function TechnicianProfilePage() {
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <InfoRow label="Full name" value={profile.fullName} />
+              <InfoRow label="Email" value={profile.user?.email} />
               <InfoRow label="Phone" value={profile.phone} />
               <InfoRow label="Working city" value={profile.workingCity} />
               <InfoRow label="State" value={profile.state} />
-              <InfoRow label="Address" value={profile.address} />
               <InfoRow label="Pincode" value={profile.pincode} />
+              <InfoRow label="Address" value={profile.address} />
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <Wrench size={18} className="text-indigo-600" />
+              Professional details
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <InfoRow label="Occupation / profession" value={occupation || "—"} />
+              <InfoRow
+                label="Years of experience"
+                value={`${profile.experienceYears ?? 0} years`}
+              />
+              <InfoRow
+                label="Working radius"
+                value={`${profile.workingRadius ?? 10} km`}
+              />
+              <InfoRow
+                label="Jobs completed"
+                value={String(profile.totalJobsCompleted ?? 0)}
+              />
+              <InfoRow
+                label="Application status"
+                value={profile.applicationStatus || "—"}
+              />
+              <InfoRow
+                label="Online status"
+                value={
+                  profile.onlineStatus === false
+                    ? "Offline"
+                    : profile.vacationMode
+                      ? "On vacation"
+                      : "Online"
+                }
+              />
+            </div>
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Skills & categories
+              </p>
+              {categories.length === 0 ? (
+                <p className="mt-2 text-sm text-slate-500">No categories selected.</p>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {categories.map((category) => (
+                    <span
+                      key={category}
+                      className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-700"
+                    >
+                      {category}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Service areas
+              </p>
+              <p className="mt-1 text-sm text-slate-700">
+                {serviceAreas.length
+                  ? serviceAreas.join(", ")
+                  : profile.workingCity || "—"}
+              </p>
             </div>
           </section>
 
@@ -223,46 +305,6 @@ function TechnicianProfilePage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
               <Award size={18} className="text-indigo-600" />
-              Service categories
-            </h3>
-            {categories.length === 0 ? (
-              <p className="text-sm text-slate-500">No categories selected.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {categories.map((category) => (
-                  <span
-                    key={category}
-                    className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-700"
-                  >
-                    {category}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <InfoRow
-                label="Experience"
-                value={`${profile.experienceYears ?? 0} years`}
-              />
-              <InfoRow
-                label="Working radius"
-                value={`${profile.workingRadius ?? 10} km`}
-              />
-            </div>
-            <div className="mt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Service areas
-              </p>
-              <p className="mt-1 text-sm text-slate-700">
-                {serviceAreas.length
-                  ? serviceAreas.join(", ")
-                  : profile.workingCity || "—"}
-              </p>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold text-slate-900">
               Working hours
             </h3>
             <ul className="space-y-2 text-sm">
@@ -283,12 +325,9 @@ function TechnicianProfilePage() {
                 );
               })}
             </ul>
-            {profile.applicationStatus && (
+            {profile.verifiedAt && (
               <p className="mt-4 text-xs text-slate-500">
-                Application: {profile.applicationStatus}
-                {profile.verifiedAt
-                  ? ` · Verified ${formatDate(profile.verifiedAt)}`
-                  : ""}
+                Verified {formatDate(profile.verifiedAt)}
               </p>
             )}
           </section>

@@ -1,6 +1,8 @@
+import { Link } from "react-router-dom";
 import {
   Clock3,
   MapPin,
+  MessageSquare,
   Navigation,
   Phone,
   RefreshCw,
@@ -8,6 +10,7 @@ import {
 } from "lucide-react";
 
 import BookingStatusBadge from "../BookingStatusBadge";
+import Button from "../../ui/Button";
 import { formatDateTime } from "../../../utils/format";
 import { formatTimeSlot } from "../../../constants/timeSlots";
 import {
@@ -42,6 +45,35 @@ function estimateArrivalMinutes(booking, timeline = []) {
   return null;
 }
 
+function arrivalLabel(booking, hasArriving, etaMinutes) {
+  if (booking.status === BOOKING_STATUS.IN_PROGRESS) {
+    return { title: "On site", detail: "Technician has started the job." };
+  }
+  if (hasArriving) {
+    return {
+      title: etaMinutes != null ? `Arriving in ~${etaMinutes} min` : "En route",
+      detail:
+        "Technician shared arrival status. Live updates every few seconds.",
+    };
+  }
+  if (booking.status === BOOKING_STATUS.ACCEPTED) {
+    return {
+      title: "Accepted",
+      detail: "Waiting for technician to start heading over.",
+    };
+  }
+  if (booking.status === BOOKING_STATUS.ASSIGNED) {
+    return {
+      title: "Assigned",
+      detail: "Technician will confirm shortly.",
+    };
+  }
+  return {
+    title: "Pending update",
+    detail: "Arrival status appears when the technician is on the way.",
+  };
+}
+
 function statusMessage(booking, hasArriving) {
   switch (booking.status) {
     case BOOKING_STATUS.PENDING:
@@ -72,6 +104,9 @@ function BookingTrackingPanel({
   timeline = [],
   isRefreshing = false,
   lastUpdatedAt,
+  chatHref,
+  onOpenChat,
+  chatLoading = false,
 }) {
   const technician = booking.technician;
   const address = booking.addressDetails;
@@ -79,6 +114,7 @@ function BookingTrackingPanel({
   const etaMinutes = estimateArrivalMinutes(booking, timeline);
   const live = shouldTrackLive(booking.status);
   const cityLabel = address?.city || address?.state || "Service location";
+  const arrival = arrivalLabel(booking, hasArriving, etaMinutes);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -91,7 +127,7 @@ function BookingTrackingPanel({
             {statusMessage(booking, hasArriving)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <BookingStatusBadge status={booking.status} />
           {live && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
@@ -101,6 +137,26 @@ function BookingTrackingPanel({
               </span>
               Live
             </span>
+          )}
+          {(chatHref || onOpenChat) && technician && (
+            chatHref ? (
+              <Link to={chatHref}>
+                <Button size="sm" variant="outline">
+                  <MessageSquare size={14} />
+                  Chat
+                </Button>
+              </Link>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                loading={chatLoading}
+                onClick={onOpenChat}
+              >
+                <MessageSquare size={14} />
+                Chat
+              </Button>
+            )
           )}
         </div>
       </div>
@@ -155,23 +211,13 @@ function BookingTrackingPanel({
           <div className="rounded-xl bg-slate-50 p-4">
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <Clock3 size={14} />
-              Estimated arrival
+              Arrival status
             </p>
-            {etaMinutes === 0 ? (
-              <p className="mt-2 text-lg font-semibold text-slate-900">
-                Technician on site
-              </p>
-            ) : etaMinutes != null ? (
-              <p className="mt-2 text-lg font-semibold text-slate-900">
-                ~{etaMinutes} min
-                {hasArriving ? " · en route" : ""}
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-slate-600">
-                ETA will appear once the technician is en route.
-              </p>
-            )}
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-2 text-lg font-semibold text-slate-900">
+              {arrival.title}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">{arrival.detail}</p>
+            <p className="mt-2 text-xs text-slate-500">
               Scheduled{" "}
               {formatDateTime(booking.bookingDate, booking.bookingTime)}
               {booking.bookingTime
@@ -197,7 +243,7 @@ function BookingTrackingPanel({
               }}
             />
             <div className="relative flex min-h-[180px] flex-col items-center justify-center gap-3 p-6 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md text-indigo-600">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-indigo-600 shadow-md">
                 <MapPin size={22} />
               </div>
               <div>
@@ -210,11 +256,11 @@ function BookingTrackingPanel({
               </div>
               {hasArriving ? (
                 <p className="rounded-full bg-indigo-600/90 px-3 py-1 text-xs font-semibold text-white">
-                  Live GPS coming soon · approximate area shown
+                  En route · status updates live
                 </p>
               ) : (
                 <p className="text-xs text-slate-500">
-                  Precise location is shown when the technician shares live GPS.
+                  Precise GPS appears when the technician shares live location.
                 </p>
               )}
             </div>

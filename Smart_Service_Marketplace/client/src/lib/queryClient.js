@@ -69,6 +69,14 @@ export const notificationKeys = {
   preferences: () => [...notificationKeys.all, "preferences"],
 };
 
+export const chatKeys = {
+  all: ["chat"],
+  rooms: (params) => [...chatKeys.all, "rooms", params],
+  room: (id) => [...chatKeys.all, "room", id],
+  messages: (id, params) => [...chatKeys.all, "messages", id, params],
+  presence: (id) => [...chatKeys.all, "presence", id],
+};
+
 export const adminKeys = {
   all: ["admin"],
   dashboard: (params) => [...adminKeys.all, "dashboard", params],

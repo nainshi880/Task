@@ -12,23 +12,38 @@ function Input({
   rightIcon,
   className = "",
   id,
+  required,
+  hint,
   ...props
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === "password";
-  const inputId = id || register?.name || label?.toLowerCase().replace(/\s+/g, "-");
+  const inputId =
+    id || register?.name || label?.toLowerCase().replace(/\s+/g, "-");
+  const hintId = hint ? `${inputId}-hint` : undefined;
+  const errorId = error ? `${inputId}-error` : undefined;
+  const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
 
   return (
     <div className="space-y-2">
       {label && (
         <label htmlFor={inputId} className="text-sm font-medium text-slate-700">
           {label}
+          {required && (
+            <span className="ml-0.5 text-rose-600" aria-hidden>
+              *
+            </span>
+          )}
+          {required && <span className="sr-only"> (required)</span>}
         </label>
       )}
 
       <div className="relative">
         {leftIcon && (
-          <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+          <div
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            aria-hidden
+          >
             {leftIcon}
           </div>
         )}
@@ -37,8 +52,10 @@ function Input({
           id={inputId}
           type={isPassword ? (showPassword ? "text" : "password") : type}
           placeholder={placeholder}
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? `${inputId}-error` : undefined}
+          required={required}
+          aria-invalid={Boolean(error) || undefined}
+          aria-describedby={describedBy}
+          aria-required={required || undefined}
           {...register}
           {...props}
           className={clsx(
@@ -55,22 +72,32 @@ function Input({
           <button
             type="button"
             onClick={() => setShowPassword((prev) => !prev)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-slate-500 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
           >
             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
           </button>
         )}
 
         {!isPassword && rightIcon && (
-          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+          <div
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+            aria-hidden
+          >
             {rightIcon}
           </div>
         )}
       </div>
 
+      {hint && !error && (
+        <p id={hintId} className="text-xs text-slate-500">
+          {hint}
+        </p>
+      )}
+
       {error && (
-        <p id={`${inputId}-error`} className="text-sm text-red-500" role="alert">
+        <p id={errorId} className="text-sm text-red-500" role="alert">
           {error}
         </p>
       )}

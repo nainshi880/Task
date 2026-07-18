@@ -5,8 +5,10 @@ import { ArrowLeft, Star } from "lucide-react";
 import clsx from "clsx";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
-import Loader from "../../components/ui/Loader";
 import Button from "../../components/ui/Button";
+import EmptyState from "../../components/ui/EmptyState";
+import ErrorState from "../../components/ui/ErrorState";
+import { SkeletonList } from "../../components/ui/Skeleton";
 import * as reviewService from "../../services/review.service";
 import useAuth from "../../hooks/useAuth";
 import { technicianKeys } from "../../lib/queryClient";
@@ -67,7 +69,15 @@ function TechnicianReviewsPage() {
   if (reviewsQuery.isLoading) {
     return (
       <DashboardLayout>
-        <Loader text="Loading reviews..." />
+        <div className="mx-auto max-w-5xl space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Reviews</h1>
+            <p className="mt-1 text-slate-500">
+              Customer ratings and feedback for your completed jobs.
+            </p>
+          </div>
+          <SkeletonList rows={5} />
+        </div>
       </DashboardLayout>
     );
   }
@@ -90,18 +100,14 @@ function TechnicianReviewsPage() {
         </div>
 
         {reviewsQuery.isError ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
-            <p className="font-medium text-red-800">Could not load reviews</p>
-            <p className="mt-1 text-sm text-red-600">
-              {reviewsQuery.error?.response?.data?.message ||
-                reviewsQuery.error?.message}
-            </p>
-            <Button className="mt-4" variant="outline" onClick={() => reviewsQuery.refetch()}>
-              Retry
-            </Button>
-          </div>
-        ) : (
-          <>
+          <ErrorState
+            variant="auto"
+            error={reviewsQuery.error}
+            onRetry={() => reviewsQuery.refetch()}
+            homeTo="/technician/dashboard"
+            homeLabel="Back to dashboard"
+          />
+        ) : (          <>
             <section className="grid gap-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:grid-cols-[1fr_1.4fr]">
               <div className="text-center lg:text-left">
                 <p className="text-sm text-slate-500">Overall rating</p>
@@ -143,9 +149,12 @@ function TechnicianReviewsPage() {
               </h2>
 
               {items.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  No reviews yet. They will appear after customers rate completed jobs.
-                </p>
+                <EmptyState
+                  preset="reviews"
+                  title="No reviews yet"
+                  description="They will appear after customers rate completed jobs."
+                  className="border-0 shadow-none"
+                />
               ) : (
                 <ul className="space-y-3">
                   {items.map((review) => (

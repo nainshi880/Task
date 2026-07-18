@@ -10,6 +10,28 @@ import withRetry, { isTransientError } from "../utils/retry.js";
 import { defaultWorkingHours } from "../models/TechnicianProfile.js";
 
 class TechnicianProfileService {
+  /**
+   * Percentage 0–100 for dashboard UI.
+   */
+  getProfileCompletionPercent(data = {}) {
+    const checks = [
+      Boolean(data.fullName?.toString().trim()),
+      Boolean(data.phone?.toString().trim()),
+      Boolean(data.workingCity?.toString().trim()),
+      (data.skills?.length || 0) > 0 ||
+        (data.serviceCategories?.length || 0) > 0,
+      data.experienceYears !== undefined && data.experienceYears !== null,
+      Boolean(data.profilePhoto),
+      Boolean(data.identityProof),
+      (data.serviceAreas?.length || 0) > 0 ||
+        data.workingRadius !== undefined,
+      Boolean(data.workingHours),
+    ];
+
+    const done = checks.filter(Boolean).length;
+    return Math.round((done / checks.length) * 100);
+  }
+
   calculateProfileCompletion(data = {}) {
     const hasName = Boolean(data.fullName?.trim());
     const hasPhone = Boolean(data.phone?.trim());
@@ -17,7 +39,8 @@ class TechnicianProfileService {
     const hasSkills =
       (data.skills?.length || 0) > 0 ||
       (data.serviceCategories?.length || 0) > 0;
-    const hasExperience = data.experienceYears !== undefined;
+    const hasExperience =
+      data.experienceYears !== undefined && data.experienceYears !== null;
 
     return hasName && hasPhone && hasCity && hasSkills && hasExperience;
   }
@@ -37,7 +60,7 @@ class TechnicianProfileService {
     await technicianProfileRepository.syncUserFields(userId, {
       city: profile.workingCity || "",
       skills,
-      availability: isAvailable,
+      availability: isAvailable || Boolean(profile.profileCompleted),
       avatar: profile.profilePhoto || null,
       phone: profile.phone || undefined,
       name: profile.fullName || undefined,
@@ -141,6 +164,7 @@ class TechnicianProfileService {
       "fullName",
       "phone",
       "bio",
+      "profession",
       "workingCity",
       "address",
       "state",
@@ -161,6 +185,16 @@ class TechnicianProfileService {
     for (const field of allowed) {
       if (data[field] !== undefined) {
         updateData[field] = data[field];
+      }
+    }
+
+    if (updateData.profession && !updateData.skills && !updateData.serviceCategories) {
+      const existingSkills = existing.skills?.length
+        ? existing.skills
+        : existing.serviceCategories || [];
+      if (!existingSkills.includes(updateData.profession)) {
+        updateData.skills = [...existingSkills, updateData.profession];
+        updateData.serviceCategories = updateData.skills;
       }
     }
 
@@ -417,6 +451,14 @@ class TechnicianProfileService {
     };
 
     updateData.profileCompleted = this.calculateProfileCompletion(merged);
+
+    // Make completed profiles bookable (browse + auto-assign) once setup finishes.
+    if (updateData.profileCompleted) {
+      updateData.applicationStatus = "approved";
+      if (updateData.availabilityStatus === undefined) {
+        updateData.availabilityStatus = true;
+      }
+    }
 
     const updated = await technicianProfileRepository.updateByUserId(
       userId,

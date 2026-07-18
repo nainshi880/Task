@@ -6,8 +6,10 @@ import toast from "react-hot-toast";
 import clsx from "clsx";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
-import Loader from "../../components/ui/Loader";
 import Button from "../../components/ui/Button";
+import EmptyState from "../../components/ui/EmptyState";
+import ErrorState from "../../components/ui/ErrorState";
+import { SkeletonList } from "../../components/ui/Skeleton";
 import * as adminService from "../../services/admin.service";
 import { adminKeys } from "../../lib/queryClient";
 import { formatRelativeTime } from "../../utils/format";
@@ -203,14 +205,20 @@ function AdminReviewsPage() {
           ))}
         </div>
 
-        <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div
+          className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
+          role="tablist"
+          aria-label="Review views"
+        >
           {TABS.map((t) => (
             <button
               key={t.id}
               type="button"
+              role="tab"
+              aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={clsx(
-                "flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold transition",
+                "flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
                 tab === t.id
                   ? "bg-indigo-600 text-white"
                   : "text-slate-600 hover:bg-slate-50"
@@ -222,40 +230,44 @@ function AdminReviewsPage() {
         </div>
 
         {tab === "all" && (
-          <select
-            value={status}
-            onChange={(e) => {
-              const next = new URLSearchParams(searchParams);
-              if (e.target.value) next.set("status", e.target.value);
-              else next.delete("status");
-              next.delete("page");
-              setSearchParams(next);
-            }}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
-          >
-            <option value="">Status: All</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="hidden">Hidden</option>
-          </select>
+          <label className="block max-w-xs">
+            <span className="sr-only">Filter by status</span>
+            <select
+              value={status}
+              onChange={(e) => {
+                const next = new URLSearchParams(searchParams);
+                if (e.target.value) next.set("status", e.target.value);
+                else next.delete("status");
+                next.delete("page");
+                setSearchParams(next);
+              }}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+            >
+              <option value="">Status: All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="hidden">Hidden</option>
+            </select>
+          </label>
         )}
 
         {reviewsQuery.isLoading ? (
-          <Loader text="Loading reviews..." />
+          <SkeletonList rows={5} />
         ) : reviewsQuery.isError ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
-            <p className="font-medium text-red-800">Could not load reviews</p>
-            <p className="mt-1 text-sm text-red-600">
-              {reviewsQuery.error?.response?.data?.message}
-            </p>
-          </div>
+          <ErrorState
+            variant="auto"
+            error={reviewsQuery.error}
+            onRetry={() => reviewsQuery.refetch()}
+            homeTo="/admin/dashboard"
+            homeLabel="Back to dashboard"
+          />
         ) : items.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              No reviews found
-            </h2>
-          </div>
+          <EmptyState
+            preset="reviews"
+            title="No reviews found"
+            description="Try adjusting filters or check the Reported tab."
+          />
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="divide-y divide-slate-100">

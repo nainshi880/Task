@@ -1,31 +1,31 @@
 import { query, param } from "express-validator";
 import SERVICE_CATEGORIES from "../constants/serviceCategory.js";
 
+/** Treat missing / empty / whitespace query values as "not provided". */
+const optionalQuery = (field) =>
+  query(field).optional({ values: "falsy" }).trim();
+
 export const listServicesValidation = [
-  query("q").optional().trim().isLength({ max: 100 }),
-  query("search").optional().trim().isLength({ max: 100 }),
-  query("category")
-    .optional()
+  optionalQuery("q").isLength({ max: 100 }),
+  optionalQuery("search").isLength({ max: 100 }),
+  optionalQuery("category")
     .isIn(SERVICE_CATEGORIES)
     .withMessage("Invalid service category."),
-  query("serviceCategory")
-    .optional()
+  optionalQuery("serviceCategory")
     .isIn(SERVICE_CATEGORIES)
     .withMessage("Invalid service category."),
-  query("popular").optional().isIn(["true", "false", "1", "0"]),
-  query("sortBy")
-    .optional()
-    .isIn([
-      "sortOrder",
-      "name",
-      "basePrice",
-      "rating",
-      "bookingCount",
-      "createdAt",
-    ]),
-  query("sortOrder").optional().isIn(["asc", "desc"]),
-  query("page").optional().isInt({ min: 1 }).toInt(),
-  query("limit").optional().isInt({ min: 1, max: 50 }).toInt(),
+  optionalQuery("popular").isIn(["true", "false", "1", "0"]),
+  optionalQuery("sortBy").isIn([
+    "sortOrder",
+    "name",
+    "basePrice",
+    "rating",
+    "bookingCount",
+    "createdAt",
+  ]),
+  optionalQuery("sortOrder").isIn(["asc", "desc"]),
+  optionalQuery("page").isInt({ min: 1 }).toInt(),
+  optionalQuery("limit").isInt({ min: 1, max: 50 }).toInt(),
 ];
 
 export const serviceIdValidation = [

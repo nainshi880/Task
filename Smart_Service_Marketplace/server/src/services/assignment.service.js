@@ -2,8 +2,10 @@ import bookingRepository from "../repositories/booking.repository.js";
 import technicianRepository from "../repositories/technician.repository.js";
 import assignmentRepository from "../repositories/assignment.repository.js";
 import bookingEventService from "./bookingEvent.service.js";
+import chatService from "./chat.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
+import logger from "../utils/logger.js";
 import {
   parsePagination,
   formatPaginatedResponse,
@@ -261,6 +263,8 @@ class AssignmentService {
       },
     });
 
+    await this.ensureChatRoom(bookingId);
+
     return {
       booking: updated,
       assignment: history,
@@ -379,6 +383,8 @@ class AssignmentService {
       },
     });
 
+    await this.ensureChatRoom(bookingId);
+
     return {
       booking: updated,
       assignment: history,
@@ -388,6 +394,17 @@ class AssignmentService {
         matchDetails,
       },
     };
+  }
+
+  async ensureChatRoom(bookingId) {
+    try {
+      await chatService.ensureRoomForBooking(bookingId);
+    } catch (error) {
+      logger.warn("Failed to ensure chat room after assignment", {
+        bookingId: String(bookingId),
+        message: error.message,
+      });
+    }
   }
 
   // ======================================

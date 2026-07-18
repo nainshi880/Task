@@ -25,9 +25,29 @@ function sanitizeValue(value) {
   return value;
 }
 
+/**
+ * Express 5 exposes `req.query` (and sometimes `req.params`) as getter-only.
+ * Reassigning throws; redefine the property with a sanitized plain object instead.
+ */
+function replaceRequestProperty(req, key, value) {
+  const current = req[key];
+  if (!current || typeof current !== "object") return;
+
+  try {
+    req[key] = value;
+  } catch {
+    Object.defineProperty(req, key, {
+      value,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
+  }
+}
+
 export default function mongoSanitize(req, _res, next) {
   if (req.body) req.body = sanitizeValue(req.body);
-  if (req.query) req.query = sanitizeValue(req.query);
-  if (req.params) req.params = sanitizeValue(req.params);
+  if (req.query) replaceRequestProperty(req, "query", sanitizeValue(req.query));
+  if (req.params) replaceRequestProperty(req, "params", sanitizeValue(req.params));
   next();
 }

@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   CalendarDays,
   MapPin,
+  MessageSquare,
   Phone,
   StickyNote,
   UserRound,
@@ -20,6 +21,7 @@ import JobStatusFlow from "../../components/technician/JobStatusFlow";
 import RejectJobModal from "../../components/technician/RejectJobModal";
 import * as technicianJobsService from "../../services/technicianJobs.service";
 import * as bookingService from "../../services/booking.service";
+import * as chatService from "../../services/chat.service";
 import { technicianKeys, bookingKeys } from "../../lib/queryClient";
 import { BOOKING_STATUS } from "../../constants/bookingStatus";
 import { formatCurrency, formatDate } from "../../utils/format";
@@ -42,6 +44,21 @@ function TechnicianJobDetailPage() {
   const [completeNotes, setCompleteNotes] = useState("");
   const [completionFiles, setCompletionFiles] = useState([]);
 
+  const openChatMutation = useMutation({
+    mutationFn: () => chatService.getOrCreateBookingRoom(bookingId),
+    onSuccess: (data) => {
+      const room = data?.room || data;
+      const id = room?._id || room?.id;
+      if (id) navigate(`/chat/${id}`);
+      else toast.error("Could not open chat room");
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message || "Could not start chat for this job"
+      );
+    },
+  });
+
   const jobQuery = useQuery({
     queryKey: technicianKeys.job(bookingId),
     queryFn: () => technicianJobsService.getJobById(bookingId),
@@ -58,6 +75,15 @@ function TechnicianJobDetailPage() {
         ? 15_000
         : false;
     },
+  });
+
+  // Ensure chat room exists for this job (backfills if assign ran before chat wiring).
+  useQuery({
+    queryKey: ["chat", "booking-room", bookingId],
+    queryFn: () => chatService.getOrCreateBookingRoom(bookingId),
+    enabled: Boolean(bookingId && jobQuery.data),
+    retry: false,
+    staleTime: 60_000,
   });
 
   const timelineQuery = useQuery({
@@ -230,6 +256,15 @@ function TechnicianJobDetailPage() {
                 )}
               </div>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              loading={openChatMutation.isPending}
+              onClick={() => openChatMutation.mutate()}
+            >
+              <MessageSquare size={16} />
+              Chat with customer
+            </Button>
           </div>
         </div>
 

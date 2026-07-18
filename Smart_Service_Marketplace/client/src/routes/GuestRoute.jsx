@@ -12,7 +12,7 @@ function GuestRoute() {
   const location = useLocation();
 
   if (isLoading) {
-    return <Loader text="Loading..." />;
+    return <Loader fullPage text="Loading..." />;
   }
 
   if (isAuthenticated) {

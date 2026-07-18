@@ -1,5 +1,6 @@
 import technicianDashboardRepository from "../repositories/technicianDashboard.repository.js";
 import technicianRepository from "../repositories/technician.repository.js";
+import technicianProfileService from "./technicianProfile.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import BOOKING_STATUS from "../constants/bookingStatus.js";
@@ -124,6 +125,9 @@ class TechnicianDashboardService {
           : user.skills || [],
         experienceYears: profile?.experienceYears ?? 0,
         profileCompleted: profile?.profileCompleted ?? false,
+        profileCompletion: technicianProfileService.getProfileCompletionPercent(
+          profile || {}
+        ),
       },
 
       overview: {

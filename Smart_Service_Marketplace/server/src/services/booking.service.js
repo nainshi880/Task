@@ -3,6 +3,8 @@ import cloudinary from "../config/cloudinary.js";
 import bookingRepository from "../repositories/booking.repository.js";
 import technicianRepository from "../repositories/technician.repository.js";
 import bookingEventService from "./bookingEvent.service.js";
+import assignmentService from "./assignment.service.js";
+import chatService from "./chat.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import BOOKING_STATUS, {
@@ -18,6 +20,7 @@ import cacheService, {
   CACHE_KEYS,
   CACHE_TTL,
 } from "../utils/cache.js";
+import logger from "../utils/logger.js";
 import {
   parsePagination,
   formatPaginatedResponse,
@@ -235,7 +238,34 @@ class BookingService {
       userAgent: actorMeta.userAgent,
     });
 
-    return this.enrichBooking(booking, customerId);
+    let finalBooking = booking;
+
+    // Preferred technician: open chat immediately.
+    if (technicianId) {
+      try {
+        await chatService.ensureRoomForBooking(booking._id);
+      } catch (error) {
+        logger.warn("Chat room create failed after preferred booking", {
+          bookingId: String(booking._id),
+          message: error.message,
+        });
+      }
+      await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
+    } else {
+      // No preference — auto-assign a matching available technician.
+      try {
+        const assigned = await assignmentService.autoAssign(booking._id);
+        finalBooking = assigned.booking || booking;
+        await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
+      } catch (error) {
+        logger.warn("Auto-assign skipped after booking create", {
+          bookingId: String(booking._id),
+          message: error.message,
+        });
+      }
+    }
+
+    return this.enrichBooking(finalBooking, customerId);
   }
 
   // ======================================

@@ -177,6 +177,16 @@ function TechnicianDashboard() {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              {profile.profileCompletion !== undefined && (
+                <div className="rounded-xl bg-white/15 px-4 py-3 backdrop-blur">
+                  <p className="text-xs uppercase tracking-wide text-indigo-100">
+                    Profile completion
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {Math.round(profile.profileCompletion || 0)}%
+                  </p>
+                </div>
+              )}
               <div className="rounded-xl bg-white/15 px-4 py-3 backdrop-blur">
                 <p className="text-xs uppercase tracking-wide text-indigo-100">
                   Rating

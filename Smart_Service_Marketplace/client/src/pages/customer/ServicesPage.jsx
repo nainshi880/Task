@@ -5,7 +5,9 @@ import { Search, SlidersHorizontal } from "lucide-react";
 import clsx from "clsx";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
-import Loader from "../../components/ui/Loader";
+import EmptyState from "../../components/ui/EmptyState";
+import ErrorState from "../../components/ui/ErrorState";
+import { SkeletonGrid } from "../../components/ui/Skeleton";
 import ServiceCard from "../../components/customer/services/ServiceCard";
 import * as serviceService from "../../services/service.service";
 import { serviceKeys } from "../../lib/queryClient";
@@ -249,21 +251,26 @@ function ServicesPage() {
           </div>
 
           {servicesQuery.isLoading ? (
-            <Loader text="Loading services..." />
+            <SkeletonGrid cards={6} className="xl:grid-cols-3" />
+          ) : servicesQuery.isError ? (
+            <ErrorState
+              variant="auto"
+              error={servicesQuery.error}
+              onRetry={() => servicesQuery.refetch()}
+              homeTo="/dashboard"
+              homeLabel="Back to dashboard"
+            />
           ) : services.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
-              <p className="text-slate-500">No services match your filters.</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchInput("");
-                  setSearchParams({});
-                }}
-                className="mt-3 text-sm font-medium text-indigo-600 hover:underline"
-              >
-                Clear filters
-              </button>
-            </div>
+            <EmptyState
+              preset="search"
+              title="No services match your filters"
+              description="Try a different keyword or clear your filters to see more services."
+              actionLabel="Clear filters"
+              onAction={() => {
+                setSearchInput("");
+                setSearchParams({});
+              }}
+            />
           ) : (
             <>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

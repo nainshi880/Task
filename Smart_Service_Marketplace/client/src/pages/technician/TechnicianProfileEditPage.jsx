@@ -77,6 +77,7 @@ function TechnicianProfileEditPage() {
       fullName: "",
       phone: "",
       bio: "",
+      profession: "",
       workingCity: "",
       address: "",
       state: "",
@@ -97,6 +98,11 @@ function TechnicianProfileEditPage() {
       fullName: profile.fullName || "",
       phone: profile.phone || "",
       bio: profile.bio || "",
+      profession:
+        profile.profession ||
+        profile.serviceCategories?.[0] ||
+        profile.skills?.[0] ||
+        "",
       workingCity: profile.workingCity || "",
       address: profile.address || "",
       state: profile.state || "",
@@ -258,12 +264,23 @@ function TechnicianProfileEditPage() {
       fullName: values.fullName.trim(),
       phone: values.phone.trim(),
       bio: values.bio.trim(),
+      profession: values.profession,
       workingCity: values.workingCity.trim(),
       address: values.address.trim(),
       state: values.state.trim(),
       pincode: values.pincode.trim(),
       workingRadius: Number(values.workingRadius),
       experienceYears: Number(values.experienceYears),
+      serviceCategories: selectedCategories.length
+        ? selectedCategories
+        : values.profession
+          ? [values.profession]
+          : undefined,
+      skills: selectedCategories.length
+        ? selectedCategories
+        : values.profession
+          ? [values.profession]
+          : undefined,
     });
   };
 
@@ -362,8 +379,8 @@ function TechnicianProfileEditPage() {
         </Section>
 
         <Section
-          title="Personal information"
-          description="Name, contact, location, experience, and working radius."
+          title="Personal & professional information"
+          description="Name, occupation, contact, location, experience, and working radius."
         >
           <form
             onSubmit={handleSubmit(onSavePersonal)}
@@ -378,6 +395,36 @@ function TechnicianProfileEditPage() {
                 minLength: { value: 2, message: "Enter a valid name" },
               })}
             />
+            <div>
+              <label
+                htmlFor="profession"
+                className="text-sm font-medium text-slate-700"
+              >
+                Occupation / profession
+              </label>
+              <select
+                id="profession"
+                className={clsx(
+                  "mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200",
+                  errors.profession && "border-red-500"
+                )}
+                {...register("profession", {
+                  required: "Occupation is required",
+                })}
+              >
+                <option value="">Select occupation</option>
+                {SERVICE_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+              {errors.profession?.message && (
+                <p className="mt-1 text-sm text-red-600" role="alert">
+                  {errors.profession.message}
+                </p>
+              )}
+            </div>
             <Input
               label="Phone"
               error={errors.phone?.message}
@@ -390,6 +437,7 @@ function TechnicianProfileEditPage() {
               <textarea
                 rows={3}
                 className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                placeholder="Tell customers about your work experience and specialties"
                 {...register("bio")}
               />
             </div>
@@ -432,7 +480,7 @@ function TechnicianProfileEditPage() {
               loading={updateMutation.isPending}
               disabled={!isDirty && !updateMutation.isPending}
             >
-              Save personal info
+              Save profile details
             </Button>
           </form>
         </Section>

@@ -332,14 +332,13 @@ technicianProfileSchema.index({ skills: 1 });
 technicianProfileSchema.index({ serviceCategories: 1 });
 technicianProfileSchema.index({ isDeleted: 1, createdAt: -1 });
 
-technicianProfileSchema.pre("validate", function (next) {
+technicianProfileSchema.pre("validate", function () {
   if ((!this.skills || this.skills.length === 0) && this.serviceCategories?.length) {
     this.skills = [...this.serviceCategories];
   }
   if ((!this.serviceCategories || this.serviceCategories.length === 0) && this.skills?.length) {
     this.serviceCategories = [...this.skills];
   }
-  next();
 });
 
 const TechnicianProfile = mongoose.model(
