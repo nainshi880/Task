@@ -1,6 +1,5 @@
 import adminTechnicianRepository from "../repositories/adminTechnician.repository.js";
 import technicianProfileRepository from "../repositories/technicianProfile.repository.js";
-import earningsRepository from "../repositories/earnings.repository.js";
 import auditRepository from "../repositories/audit.repository.js";
 import notificationService from "./notification.service.js";
 import technicianProfileService from "./technicianProfile.service.js";
@@ -403,35 +402,6 @@ class AdminTechnicianService {
     return {
       profile: updatedProfile,
       message: "Technician availability updated.",
-    };
-  }
-
-  async getEarnings(technicianId, query = {}) {
-    await this.assertTechnician(technicianId);
-
-    const summary = await earningsRepository.getEarningsSummary(technicianId);
-
-    let monthly = null;
-    if (query.year && query.month) {
-      monthly = await earningsRepository.getMonthlyEarnings(
-        technicianId,
-        Number(query.year),
-        Number(query.month)
-      );
-    }
-
-    const { items, total } = await earningsRepository.getPayoutHistory(
-      technicianId,
-      {
-        page: Number(query.page) || 1,
-        limit: Math.min(Number(query.limit) || 10, PAGINATION.MAX_LIMIT),
-      }
-    );
-
-    return {
-      summary,
-      monthly,
-      payouts: { items, total },
     };
   }
 

@@ -4,7 +4,6 @@ import bookingRepository from "../repositories/booking.repository.js";
 import technicianRepository from "../repositories/technician.repository.js";
 import bookingEventService from "./bookingEvent.service.js";
 import assignmentService from "./assignment.service.js";
-import chatService from "./chat.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import BOOKING_STATUS, {
@@ -240,25 +239,28 @@ class BookingService {
 
     let finalBooking = booking;
 
-    // Preferred technician: open chat immediately.
     if (technicianId) {
+      // Preferred technician already on booking — same centralized follow-ups.
       try {
-        await chatService.ensureRoomForBooking(booking._id);
+        await assignmentService.finalizePreferredAssignment(
+          booking._id,
+          technicianId,
+          customerId
+        );
+        await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
       } catch (error) {
-        logger.warn("Chat room create failed after preferred booking", {
+        logger.warn("Preferred assignment follow-up failed", {
           bookingId: String(booking._id),
           message: error.message,
         });
       }
-      await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
     } else {
-      // No preference — auto-assign a matching available technician.
+      // No preference — offer to all eligible technicians; first to accept wins.
       try {
-        const assigned = await assignmentService.autoAssign(booking._id);
-        finalBooking = assigned.booking || booking;
+        await assignmentService.broadcastOpenBooking(booking._id);
         await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
       } catch (error) {
-        logger.warn("Auto-assign skipped after booking create", {
+        logger.warn("Open booking broadcast failed after create", {
           bookingId: String(booking._id),
           message: error.message,
         });

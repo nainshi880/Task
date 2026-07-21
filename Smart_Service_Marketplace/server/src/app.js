@@ -15,7 +15,6 @@ import xssSanitize from "./middlewares/xssSanitize.middleware.js";
 import { globalLimiter } from "./middlewares/rateLimit.middleware.js";
 import { setupSwagger } from "./config/swagger.js";
 import { getCorsOptions, getHelmetOptions } from "./config/security.js";
-import getRedisClient from "./config/redis.js";
 import maintenanceMiddleware from "./middlewares/maintenance.middleware.js";
 
 const app = express();
@@ -69,10 +68,6 @@ app.use(
 app.use(performanceMiddleware);
 app.use(requestLogMiddleware);
 app.use(httpLoggerMiddleware);
-
-/* ---------- Cache warm-up ---------- */
-
-getRedisClient();
 
 /* ---------- Routes ---------- */
 

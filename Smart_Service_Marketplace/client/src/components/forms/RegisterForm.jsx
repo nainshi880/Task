@@ -10,10 +10,8 @@ import Input from "../ui/Input";
 import PasswordStrength from "../ui/PasswordStrength";
 import FileUpload from "../ui/FileUpload";
 import * as authService from "../../services/auth.service";
-import useAuth from "../../hooks/useAuth";
 import { validateStrongPassword } from "../../utils/password";
 import SERVICE_CATEGORIES from "../../constants/serviceCategories";
-import { getProfileSetupPath } from "../../constants/roles";
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const PHONE_PATTERN = /^[0-9+\-\s]{10,15}$/;
@@ -26,7 +24,6 @@ const ROLE_TABS = [
 
 function RegisterForm() {
   const navigate = useNavigate();
-  const { login } = useAuth();
   const [role, setRole] = useState("customer");
   const [formError, setFormError] = useState("");
   const [profileImage, setProfileImage] = useState(null);
@@ -98,11 +95,13 @@ function RegisterForm() {
           password: data.password,
         });
 
-        login(response.user, response.token || response.accessToken, {
-          refreshToken: response.refreshToken,
+        toast.success("OTP sent — verify your email to finish registration");
+        navigate("/verify-email", {
+          replace: true,
+          state: {
+            email: response.email || data.email.trim().toLowerCase(),
+          },
         });
-        toast.success("Account created successfully");
-        navigate("/verify-email");
         return;
       }
 
@@ -123,11 +122,13 @@ function RegisterForm() {
 
       const response = await authService.registerTechnician(formData);
 
-      login(response.user, response.token || response.accessToken, {
-        refreshToken: response.refreshToken,
+      toast.success("OTP sent — verify your email to finish registration");
+      navigate("/verify-email", {
+        replace: true,
+        state: {
+          email: response.email || data.email.trim().toLowerCase(),
+        },
       });
-      toast.success("Technician application submitted. Awaiting approval.");
-      navigate(getProfileSetupPath("technician") || "/setup/technician");
     } catch (error) {
       const message =
         error.response?.data?.message || "Registration failed. Please try again.";

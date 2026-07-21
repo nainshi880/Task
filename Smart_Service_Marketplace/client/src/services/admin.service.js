@@ -141,12 +141,6 @@ export const refundPayment = async (paymentId, data) =>
 export const listPaymentRefunds = async (params) =>
   unwrap(await adminApi.listPaymentRefunds(params));
 
-export const listTechnicianPayouts = async (params) =>
-  unwrap(await adminApi.listTechnicianPayouts(params));
-
-export const updateTechnicianPayout = async (payoutId, data) =>
-  unwrap(await adminApi.updateTechnicianPayout(payoutId, data));
-
 export const getPaymentReports = async (params) =>
   unwrap(await adminApi.getPaymentReports(params));
 
@@ -199,9 +193,6 @@ export const suspendTechnician = async (technicianId, data) =>
 
 export const unsuspendTechnician = async (technicianId) =>
   unwrap(await adminApi.unsuspendTechnician(technicianId));
-
-export const getTechnicianEarnings = async (technicianId, params) =>
-  unwrap(await adminApi.getTechnicianEarnings(technicianId, params));
 
 export const getTechnicianRatings = async (technicianId) =>
   unwrap(await adminApi.getTechnicianRatings(technicianId));
@@ -292,18 +283,6 @@ export const updateTermsOfService = async (data) =>
 
 export const updatePrivacyPolicy = async (data) =>
   unwrap(await adminApi.updatePrivacyPolicy(data));
-
-export const listBanners = async (params) =>
-  unwrap(await adminApi.listBanners(params));
-
-export const createBanner = async (data) =>
-  unwrap(await adminApi.createBanner(data));
-
-export const updateBanner = async (bannerId, data) =>
-  unwrap(await adminApi.updateBanner(bannerId, data));
-
-export const deleteBanner = async (bannerId) =>
-  unwrap(await adminApi.deleteBanner(bannerId));
 
 /* ── Admin profile ── */
 export const updateAdminProfile = async (data) =>

@@ -97,7 +97,6 @@ const platformSettingsSchema = new mongoose.Schema(
 
     notifications: {
       emailEnabled: { type: Boolean, default: true },
-      smsEnabled: { type: Boolean, default: true },
       pushEnabled: { type: Boolean, default: true },
       whatsappEnabled: { type: Boolean, default: true },
       bookingReminders: { type: Boolean, default: true },

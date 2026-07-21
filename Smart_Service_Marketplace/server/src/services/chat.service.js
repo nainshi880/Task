@@ -14,11 +14,9 @@ import {
 } from "../utils/messageCrypto.js";
 import {
   queueChatOfflineNotification,
-  queuePushNotification,
 } from "./notificationQueue.service.js";
 import NOTIFICATION_TYPES from "../constants/notificationType.js";
 import { isUserOnline } from "../sockets/presence.js";
-import { PUSH_EVENT } from "../constants/push.js";
 
 class ChatService {
   assertParticipant(room, userId) {
@@ -400,7 +398,7 @@ class ChatService {
 
     const formatted = this.formatMessage(populated);
 
-    // Offline peer → queue in-app + push notification
+    // Offline peer → queue in-app notification
     if (!isUserOnline(peerId)) {
       const notifPayload = {
         userId: peerId,
@@ -420,13 +418,6 @@ class ChatService {
       };
 
       await queueChatOfflineNotification(notifPayload);
-      await queuePushNotification({
-        userId: peerId,
-        title: notifPayload.title,
-        body: notifPayload.message,
-        data: notifPayload.metadata,
-        event: PUSH_EVENT.CHAT_MESSAGE,
-      });
     }
 
     if (io) {

@@ -18,7 +18,6 @@ import Register from "../pages/auth/Register";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import ResetPassword from "../pages/auth/ResetPassword";
 import VerifyEmail from "../pages/auth/VerifyEmail";
-import VerifyOtp from "../pages/auth/VerifyOtp";
 
 import CustomerProfileSetup from "../pages/onboarding/CustomerProfileSetup";
 import TechnicianProfileSetup from "../pages/onboarding/TechnicianProfileSetup";
@@ -53,8 +52,6 @@ import TechnicianProfileEditPage from "../pages/technician/TechnicianProfileEdit
 import TechnicianJobsPage from "../pages/technician/TechnicianJobsPage";
 import TechnicianJobDetailPage from "../pages/technician/TechnicianJobDetailPage";
 import TechnicianAvailabilityPage from "../pages/technician/TechnicianAvailabilityPage";
-import TechnicianEarningsPage from "../pages/technician/TechnicianEarningsPage";
-import TechnicianPayoutsPage from "../pages/technician/TechnicianPayoutsPage";
 import TechnicianReviewsPage from "../pages/technician/TechnicianReviewsPage";
 import TechnicianNotificationsPage from "../pages/technician/TechnicianNotificationsPage";
 import TechnicianSettingsPage from "../pages/technician/TechnicianSettingsPage";
@@ -70,16 +67,16 @@ function AppRoutes() {
 
       <Route element={<GuestRoute />}>
         <Route path="/login" element={<Login />} />
-        <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
       </Route>
 
+      {/* Outside GuestRoute so a technician session cannot bounce this page away */}
+      <Route path="/admin/login" element={<AdminLogin />} />
+
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
-      <Route path="/verify-email/:token" element={<VerifyEmail />} />
-      <Route path="/verify-otp" element={<VerifyOtp />} />
 
       {/* Profile setup wizards (after first login) */}
       <Route
@@ -131,18 +128,6 @@ function AppRoutes() {
         <Route
           path="/technician/availability"
           element={<TechnicianAvailabilityPage />}
-        />
-        <Route
-          path="/technician/earnings"
-          element={<TechnicianEarningsPage />}
-        />
-        <Route
-          path="/technician/payouts"
-          element={<TechnicianPayoutsPage />}
-        />
-        <Route
-          path="/earnings"
-          element={<Navigate to="/technician/earnings" replace />}
         />
         <Route path="/technician/reviews" element={<TechnicianReviewsPage />} />
         <Route

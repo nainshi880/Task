@@ -4,10 +4,7 @@ import HTTP_STATUS from "../constants/httpStatus.js";
 import PAGINATION from "../constants/pagination.js";
 import NOTIFICATION_TYPES from "../constants/notificationType.js";
 import logger from "../utils/logger.js";
-import {
-  enqueueNotification,
-  JOB_TYPES,
-} from "../queues/notification.queue.js";
+import withRetry, { isTransientError } from "../utils/retry.js";
 
 const TYPE_PREF_MAP = {
   [NOTIFICATION_TYPES.BOOKING]: "bookingNotifications",
@@ -35,7 +32,7 @@ class NotificationService {
 
   /**
    * Create an in-app notification if user preferences allow it.
-   * When Redis/BullMQ is available, jobs are queued unless `_fromQueue` is set.
+   * Retries transient DB failures inline (no Redis queue).
    * Never throws to callers (non-blocking).
    */
   async notify({
@@ -50,51 +47,30 @@ class NotificationService {
     priority = "normal",
     skipPreferenceCheck = false,
     _fromQueue = false,
-    jobId = undefined,
   }) {
     try {
       if (!userId) return null;
-
-      if (!_fromQueue) {
-        const job = await enqueueNotification(
-          JOB_TYPES.IN_APP,
-          {
-            userId,
-            title,
-            message,
-            type,
-            bookingId,
-            paymentId,
-            actionUrl,
-            metadata,
-            priority,
-            skipPreferenceCheck,
-            _fromQueue: true,
-          },
-          { jobId }
-        );
-
-        if (job) {
-          return { queued: true, jobId: job.id };
-        }
-      }
 
       if (!skipPreferenceCheck) {
         const allowed = await this.shouldNotify(userId, type);
         if (!allowed) return null;
       }
 
-      return await notificationRepository.create({
-        user: userId,
-        title,
-        message,
-        type,
-        booking: bookingId,
-        payment: paymentId,
-        actionUrl,
-        metadata,
-        priority,
-      });
+      return await withRetry(
+        () =>
+          notificationRepository.create({
+            user: userId,
+            title,
+            message,
+            type,
+            booking: bookingId,
+            payment: paymentId,
+            actionUrl,
+            metadata,
+            priority,
+          }),
+        { retries: 2, delayMs: 200, shouldRetry: isTransientError }
+      );
     } catch (error) {
       logger.warn(`Failed to create notification: ${error.message}`);
       return null;
@@ -269,7 +245,6 @@ class NotificationService {
   async updatePreferences(userId, data) {
     const allowed = [
       "emailNotification",
-      "smsNotification",
       "pushNotification",
       "whatsappNotification",
       "inAppNotification",

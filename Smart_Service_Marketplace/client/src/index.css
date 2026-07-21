@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 /* Screen-reader only utility (if not already present via Tailwind) */
 .sr-only {
   position: absolute;

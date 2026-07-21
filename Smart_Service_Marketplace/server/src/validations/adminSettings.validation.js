@@ -1,16 +1,8 @@
 import { body, param, query } from "express-validator";
 import ROLES from "../constants/roles.js";
-import {
-  BANNER_POSITION,
-  BANNER_AUDIENCE,
-} from "../constants/platformSettings.js";
 
 const categoryIdParam = [
   param("categoryId").isMongoId().withMessage("Invalid category ID."),
-];
-
-const bannerIdParam = [
-  param("bannerId").isMongoId().withMessage("Invalid banner ID."),
 ];
 
 const percentField = (field) =>
@@ -43,7 +35,6 @@ export const updatePlatformSettingsValidation = [
   body("fees.convenienceFeeFlat").optional().isFloat({ min: 0 }).toFloat(),
   body("fees.minimumBookingAmount").optional().isFloat({ min: 0 }).toFloat(),
   body("notifications.emailEnabled").optional().isBoolean().toBoolean(),
-  body("notifications.smsEnabled").optional().isBoolean().toBoolean(),
   body("notifications.pushEnabled").optional().isBoolean().toBoolean(),
   body("notifications.whatsappEnabled").optional().isBoolean().toBoolean(),
   body("notifications.bookingReminders").optional().isBoolean().toBoolean(),
@@ -99,62 +90,3 @@ export const listCategoriesValidation = [
   query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
 ];
 
-export const createBannerValidation = [
-  body("title").trim().notEmpty().isLength({ max: 150 }),
-  body("subtitle").optional().trim().isLength({ max: 300 }),
-  body("imageUrl").trim().notEmpty().isURL(),
-  body("linkUrl").optional({ values: "falsy" }).trim().isURL(),
-  body("position")
-    .optional()
-    .isIn(Object.values(BANNER_POSITION)),
-  body("targetAudience")
-    .optional()
-    .isIn(Object.values(BANNER_AUDIENCE)),
-  body("isActive").optional().isBoolean().toBoolean(),
-  body("sortOrder").optional().isInt({ min: 0 }).toInt(),
-  body("startsAt").optional().isISO8601(),
-  body("endsAt").optional().isISO8601(),
-];
-
-export const updateBannerValidation = [
-  ...bannerIdParam,
-  body("title").optional().trim().notEmpty().isLength({ max: 150 }),
-  body("subtitle").optional().trim().isLength({ max: 300 }),
-  body("imageUrl").optional().trim().isURL(),
-  body("linkUrl").optional({ values: "falsy" }).trim().isURL(),
-  body("position")
-    .optional()
-    .isIn(Object.values(BANNER_POSITION)),
-  body("targetAudience")
-    .optional()
-    .isIn(Object.values(BANNER_AUDIENCE)),
-  body("isActive").optional().isBoolean().toBoolean(),
-  body("sortOrder").optional().isInt({ min: 0 }).toInt(),
-  body("startsAt").optional().isISO8601(),
-  body("endsAt").optional().isISO8601(),
-];
-
-export const deleteBannerValidation = [...bannerIdParam];
-
-export const listBannersValidation = [
-  query("includeInactive").optional().isBoolean().toBoolean(),
-  query("position")
-    .optional()
-    .isIn(Object.values(BANNER_POSITION)),
-  query("audience")
-    .optional()
-    .isIn(Object.values(BANNER_AUDIENCE)),
-  query("q").optional().trim().isLength({ min: 1, max: 100 }),
-  query("search").optional().trim().isLength({ min: 1, max: 100 }),
-  query("page").optional().isInt({ min: 1 }).toInt(),
-  query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
-];
-
-export const publicSettingsValidation = [
-  query("position")
-    .optional()
-    .isIn(Object.values(BANNER_POSITION)),
-  query("audience")
-    .optional()
-    .isIn(Object.values(BANNER_AUDIENCE)),
-];

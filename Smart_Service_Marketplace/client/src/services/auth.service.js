@@ -1,5 +1,4 @@
 import * as authApi from "../api/auth.api";
-import * as messagingApi from "../api/messaging.api";
 
 const unwrap = (response) => response.data?.data ?? response.data;
 
@@ -22,7 +21,8 @@ export const verifyForgotOtp = async (data) =>
 export const reset = async (token, data) =>
   unwrap(await authApi.resetPassword(token, data));
 
-export const verify = async (token) => unwrap(await authApi.verifyEmail(token));
+export const verify = async (data) =>
+  unwrap(await authApi.verifyEmailOtp(data));
 
 export const sendVerification = async () =>
   unwrap(await authApi.sendVerificationEmail());
@@ -32,7 +32,5 @@ export const resendVerification = async (email) =>
 
 export const refresh = async () => unwrap(await authApi.refreshToken());
 
-export const sendOtp = async (data) => unwrap(await messagingApi.sendOtp(data));
-
-export const verifyOtpCode = async (data) =>
-  unwrap(await messagingApi.verifyOtp(data));
+export const updateDeviceToken = async (deviceToken) =>
+  unwrap(await authApi.updateDeviceToken(deviceToken));

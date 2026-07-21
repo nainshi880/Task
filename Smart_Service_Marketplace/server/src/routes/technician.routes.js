@@ -54,12 +54,6 @@ import {
   setOnlineStatus,
   setVacationMode,
   updateServiceAreas,
-  getEarningsSummary,
-  getMonthlyEarnings,
-  getPayoutHistory,
-  requestPayout,
-  listAdminPayouts,
-  processPayout,
 } from "../controllers/technicianAvailabilityEarnings.controller.js";
 
 import {
@@ -93,11 +87,6 @@ import {
   onlineStatusValidation,
   vacationModeValidation,
   serviceAreasValidation,
-  monthlyEarningsValidation,
-  payoutHistoryValidation,
-  requestPayoutValidation,
-  processPayoutValidation,
-  adminPayoutListValidation,
 } from "../validations/technicianAvailabilityEarnings.validation.js";
 
 import {
@@ -491,70 +480,6 @@ router.put(
   serviceAreasValidation,
   validate,
   updateServiceAreas
-);
-
-/*
-=====================================
-Earnings & Payouts
-=====================================
-*/
-
-router.get(
-  "/earnings/summary",
-  authenticate,
-  authorize(ROLES.TECHNICIAN),
-  getEarningsSummary
-);
-
-router.get(
-  "/earnings/monthly",
-  authenticate,
-  authorize(ROLES.TECHNICIAN),
-  monthlyEarningsValidation,
-  validate,
-  getMonthlyEarnings
-);
-
-router.get(
-  "/earnings/payouts",
-  authenticate,
-  authorize(ROLES.TECHNICIAN),
-  payoutHistoryValidation,
-  validate,
-  getPayoutHistory
-);
-
-router.post(
-  "/earnings/payouts",
-  authenticate,
-  authorize(ROLES.TECHNICIAN),
-  requestPayoutValidation,
-  validate,
-  requestPayout
-);
-
-/*
-=====================================
-Admin — Technician Payouts
-=====================================
-*/
-
-router.get(
-  "/admin/payouts",
-  authenticate,
-  authorize(ROLES.ADMIN),
-  adminPayoutListValidation,
-  validate,
-  listAdminPayouts
-);
-
-router.patch(
-  "/admin/payouts/:payoutId",
-  authenticate,
-  authorize(ROLES.ADMIN),
-  processPayoutValidation,
-  validate,
-  processPayout
 );
 
 /*

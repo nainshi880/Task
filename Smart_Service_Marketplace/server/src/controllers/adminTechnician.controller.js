@@ -132,17 +132,6 @@ export const updateTechnicianAvailability = asyncHandler(async (req, res) => {
   );
 });
 
-export const getTechnicianEarnings = asyncHandler(async (req, res) => {
-  const result = await adminTechnicianService.getEarnings(
-    req.params.technicianId,
-    req.query
-  );
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, "Technician earnings fetched.", result)
-  );
-});
-
 export const getTechnicianRatings = asyncHandler(async (req, res) => {
   const result = await adminTechnicianService.getRatings(
     req.params.technicianId

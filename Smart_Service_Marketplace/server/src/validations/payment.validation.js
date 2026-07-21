@@ -104,8 +104,8 @@ export const refundPaymentValidation = [
 
   body("method")
     .optional()
-    .isIn(["razorpay", "wallet", "manual"])
-    .withMessage("method must be razorpay, wallet, or manual."),
+    .isIn(["razorpay"])
+    .withMessage("method must be razorpay."),
 ];
 
 export const listAdminPaymentsValidation = [
@@ -115,7 +115,7 @@ export const listAdminPaymentsValidation = [
 
   query("purpose")
     .optional()
-    .isIn(["booking", "wallet_recharge"]),
+    .isIn(["booking"]),
 
   query("customerId")
     .optional()

@@ -5,7 +5,6 @@ import {
   Briefcase,
   CheckCircle2,
   Clock3,
-  IndianRupee,
   Star,
   Inbox,
 } from "lucide-react";
@@ -18,7 +17,6 @@ import * as notificationService from "../../services/notification.service";
 import useAuth from "../../hooks/useAuth";
 import { technicianKeys, notificationKeys } from "../../lib/queryClient";
 import {
-  formatCurrency,
   formatRelativeTime,
   getGreeting,
 } from "../../utils/format";
@@ -85,7 +83,6 @@ function TechnicianDashboard() {
   const data = dashboardQuery.data || {};
   const profile = data.profile || {};
   const overview = data.overview || {};
-  const earnings = data.earnings || {};
   const ratings = data.ratings || {};
   const lists = data.lists || {};
 
@@ -128,7 +125,7 @@ function TechnicianDashboard() {
           </h1>
           <p className="mt-2 text-slate-500">
             {isMissing
-              ? "Finish technician setup to view jobs and earnings."
+              ? "Finish technician setup to view your jobs."
               : dashboardQuery.error?.response?.data?.message ||
                 "We could not load your dashboard right now."}
           </p>
@@ -170,7 +167,7 @@ function TechnicianDashboard() {
                 <p className="mt-1 text-indigo-100">
                   {profile.workingCity
                     ? `Serving ${profile.workingCity}`
-                    : "Your jobs and earnings at a glance"}
+                    : "Your jobs at a glance"}
                   {profile.availability === false ? " · Currently unavailable" : ""}
                 </p>
               </div>
@@ -196,19 +193,11 @@ function TechnicianDashboard() {
                   {Number(ratings.average || 0).toFixed(1)}
                 </p>
               </div>
-              <div className="rounded-xl bg-white/15 px-4 py-3 backdrop-blur">
-                <p className="text-xs uppercase tracking-wide text-indigo-100">
-                  This month
-                </p>
-                <p className="text-2xl font-bold">
-                  {formatCurrency(earnings.monthly || 0)}
-                </p>
-              </div>
             </div>
           </div>
         </section>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Pending requests"
             value={overview.pendingRequests ?? 0}
@@ -233,12 +222,6 @@ function TechnicianDashboard() {
             icon={Clock3}
             accent="sky"
           />
-          <StatCard
-            label="Monthly earnings"
-            value={formatCurrency(earnings.monthly || 0)}
-            icon={IndianRupee}
-            accent="violet"
-          />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
@@ -254,23 +237,12 @@ function TechnicianDashboard() {
                 from {ratings.totalJobsCompleted ?? 0} completed jobs
               </p>
             </div>
-            <div className="mt-4 space-y-2 text-sm text-slate-600">
-              <p>Total earnings: {formatCurrency(earnings.total || 0)}</p>
-              <p>Pending payout: {formatCurrency(earnings.pending || 0)}</p>
-              <p>This week: {formatCurrency(earnings.weekly || 0)}</p>
-            </div>
             <div className="mt-4 flex flex-wrap gap-4 text-sm">
               <Link
                 to="/technician/reviews"
                 className="font-medium text-indigo-600 hover:underline"
               >
                 View reviews
-              </Link>
-              <Link
-                to="/technician/earnings"
-                className="font-medium text-indigo-600 hover:underline"
-              >
-                View earnings
               </Link>
             </div>
           </section>

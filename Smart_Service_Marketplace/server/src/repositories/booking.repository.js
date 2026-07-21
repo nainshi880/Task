@@ -137,6 +137,81 @@ class BookingRepository {
       );
   }
 
+  /**
+   * First-wins claim: only succeeds while booking is still Pending and unassigned.
+   */
+  async claimPendingBooking(bookingId, technicianId, session = null) {
+    return await Booking.findOneAndUpdate(
+      {
+        _id: bookingId,
+        status: "Pending",
+        $or: [{ technician: null }, { technician: { $exists: false } }],
+      },
+      {
+        $set: {
+          technician: technicianId,
+          status: "Assigned",
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+        session: session || undefined,
+      }
+    )
+      .populate("customer", "name email phone city")
+      .populate(
+        "technician",
+        "name email phone city availability rating skills maxWorkload"
+      );
+  }
+
+  /**
+   * Open marketplace jobs: Pending + unassigned, optionally filtered by skills/city.
+   */
+  async findOpenJobsForTechnician(
+    {
+      skills = [],
+      city = "",
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = {}
+  ) {
+    const filter = {
+      status: "Pending",
+      $or: [{ technician: null }, { technician: { $exists: false } }],
+    };
+
+    const skillList = (Array.isArray(skills) ? skills : [])
+      .map((s) => String(s || "").trim())
+      .filter(Boolean);
+
+    if (skillList.length) {
+      filter.serviceCategory = {
+        $in: skillList.map((s) => new RegExp(`^${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")),
+      };
+    }
+
+    const allowedSort = ["createdAt", "bookingDate", "amount", "serviceCategory"];
+    const sortField = allowedSort.includes(sortBy) ? sortBy : "createdAt";
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+    const skip = (page - 1) * limit;
+
+    const [bookings, total] = await Promise.all([
+      Booking.find(filter)
+        .sort({ [sortField]: sortDirection })
+        .skip(skip)
+        .limit(limit)
+        .populate("customer", "name email phone city")
+        .lean(),
+      Booking.countDocuments(filter),
+    ]);
+
+    return { bookings, total, cityFilter: city || null };
+  }
+
   async findByIdAndTechnician(bookingId, technicianId) {
     return await Booking.findOne({
       _id: bookingId,

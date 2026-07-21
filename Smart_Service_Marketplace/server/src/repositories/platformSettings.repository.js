@@ -8,18 +8,6 @@ function buildDefaults() {
     platformName: env.COMPANY_NAME || "Smart Service Marketplace",
     supportEmail: env.COMPANY_EMAIL || env.EMAIL_USER || "",
     supportPhone: env.COMPANY_PHONE || "",
-    gst: {
-      defaultRate: Number(env.DEFAULT_GST_RATE) || 18,
-      companyName: env.COMPANY_NAME || "",
-      gstin: env.COMPANY_GSTIN || "",
-      address: env.COMPANY_ADDRESS || "",
-      city: env.COMPANY_CITY || "",
-      state: env.COMPANY_STATE || "",
-      postalCode: env.COMPANY_POSTAL_CODE || "",
-      email: env.COMPANY_EMAIL || env.EMAIL_USER || "",
-      phone: env.COMPANY_PHONE || "",
-      pricesIncludeGst: true,
-    },
   };
 }
 

@@ -17,6 +17,14 @@ export const CHAT_EVENTS = {
   ERROR: "chat:error",
 };
 
+/** Booking / assignment realtime events (same Socket.IO connection). */
+export const BOOKING_EVENTS = {
+  ASSIGNED: "booking:assigned",
+  UPDATED: "booking:updated",
+  AVAILABLE: "booking:available",
+  CLAIMED: "booking:claimed",
+};
+
 export function getSocketBaseUrl() {
   const apiUrl =
     import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";

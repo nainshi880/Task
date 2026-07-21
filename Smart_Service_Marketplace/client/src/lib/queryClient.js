@@ -20,7 +20,6 @@ export const customerKeys = {
   profile: () => [...customerKeys.all, "profile"],
   addresses: () => [...customerKeys.all, "addresses"],
   dashboard: () => [...customerKeys.all, "dashboard"],
-  walletBalance: () => [...customerKeys.all, "wallet", "balance"],
 };
 
 export const serviceKeys = {
@@ -51,14 +50,6 @@ export const technicianKeys = {
   jobs: (filters) => [...technicianKeys.all, "jobs", filters],
   job: (id) => [...technicianKeys.all, "job", id],
   availability: () => [...technicianKeys.all, "availability"],
-  earningsSummary: () => [...technicianKeys.all, "earnings", "summary"],
-  earningsMonthly: (params) => [
-    ...technicianKeys.all,
-    "earnings",
-    "monthly",
-    params,
-  ],
-  payouts: (filters) => [...technicianKeys.all, "payouts", filters],
   reviews: (filters) => [...technicianKeys.all, "reviews", filters],
 };
 
@@ -95,13 +86,6 @@ export const adminKeys = {
   ],
   technicians: (params) => [...adminKeys.all, "technicians", params],
   technician: (id) => [...adminKeys.all, "technician", id],
-  technicianEarnings: (id, params) => [
-    ...adminKeys.all,
-    "technician",
-    id,
-    "earnings",
-    params,
-  ],
   technicianRatings: (id) => [
     ...adminKeys.all,
     "technician",
@@ -115,7 +99,6 @@ export const adminKeys = {
   payments: (params) => [...adminKeys.all, "payments", params],
   payment: (id) => [...adminKeys.all, "payment", id],
   refunds: (params) => [...adminKeys.all, "refunds", params],
-  payouts: (params) => [...adminKeys.all, "payouts", params],
   paymentReports: (params) => [...adminKeys.all, "payment-reports", params],
   reviews: (params) => [...adminKeys.all, "reviews", params],
   review: (id) => [...adminKeys.all, "review", id],
@@ -123,7 +106,6 @@ export const adminKeys = {
   bookingReports: (params) => [...adminKeys.all, "booking-reports", params],
   revenueReports: (params) => [...adminKeys.all, "revenue-reports", params],
   settings: () => [...adminKeys.all, "settings"],
-  banners: (params) => [...adminKeys.all, "banners", params],
   profile: () => [...adminKeys.all, "profile"],
 };
 

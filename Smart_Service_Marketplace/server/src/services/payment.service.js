@@ -1,4 +1,3 @@
-import couponService from "./coupon.service.js";
 import { getRazorpay, getRazorpayConfig } from "../config/razorpay.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
@@ -16,15 +15,11 @@ import { stableQueryKey } from "../utils/pagination.js";
 import auditRepository from "../repositories/audit.repository.js";
 import env from "../config/env.js";
 import logger from "../utils/logger.js";
-import { WALLET_TX_CATEGORY } from "../constants/walletTransaction.js";
 import notificationService from "./notification.service.js";
-import pushService from "./push.service.js";
 import emailService from "./email.service.js";
-import smsService from "./sms.service.js";
 import authRepository from "../repositories/auth.repository.js";
 import crypto from "crypto";
 import paymentRepository from "../repositories/payment.repository.js";
-import walletService from "./wallet.service.js";
 
 const MAX_PAYMENT_RETRIES = 5;
 
@@ -221,6 +216,13 @@ class PaymentService {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Payment order not found.");
     }
 
+    if (payment.purpose === "wallet_recharge") {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Wallet recharge payments are no longer supported."
+      );
+    }
+
     if (payment.customer._id.toString() !== customerId.toString()) {
       throw new ApiError(
         HTTP_STATUS.FORBIDDEN,
@@ -229,9 +231,6 @@ class PaymentService {
     }
 
     if (payment.status === PAYMENT_STATUS.PAID) {
-      if (payment.purpose === "wallet_recharge") {
-        await walletService.creditRechargeFromPayment(payment);
-      }
       return {
         alreadyPaid: true,
         payment,
@@ -280,79 +279,19 @@ class PaymentService {
         session
       );
 
-      if (payment.purpose !== "wallet_recharge") {
-        const bookingId = payment.booking?._id || payment.booking;
-        if (bookingId) {
-          await paymentRepository.updateBookingPaymentStatus(
-            bookingId,
-            "Paid",
-            session
-          );
-        }
+      const bookingId = payment.booking?._id || payment.booking;
+      if (bookingId) {
+        await paymentRepository.updateBookingPaymentStatus(
+          bookingId,
+          "Paid",
+          session
+        );
       }
 
       return paid;
     });
 
-    if (payment.purpose === "wallet_recharge") {
-      const credit = await walletService.creditRechargeFromPayment(updated);
-      await writePaymentAudit({
-        actorId: customerId,
-        action: AUDIT_ACTION.PAY,
-        resourceId: payment._id,
-        description: "Wallet recharge verified",
-        metadata: { purpose: "wallet_recharge" },
-        ipAddress: meta.ipAddress,
-        userAgent: meta.userAgent,
-      });
-      await notificationService.notifyPayment(customerId, {
-        title: "Wallet recharged",
-        message: `₹${payment.amount} has been added to your wallet.`,
-        paymentId: payment._id,
-        metadata: { purpose: "wallet_recharge" },
-      });
-      await pushService.notifyPaymentSuccess(customerId, {
-        amount: payment.amount,
-        paymentId: payment._id,
-      });
-      try {
-        const user = await authRepository.findById(customerId);
-        if (user) {
-          await Promise.allSettled([
-            emailService.sendPaymentReceipt({
-              user,
-              payment: updated || payment,
-              booking: null,
-            }),
-            user.phone
-              ? smsService.sendPaymentConfirmation({
-                  phone: user.phone,
-                  amount: payment.amount,
-                  userId: user._id,
-                })
-              : Promise.resolve(),
-          ]);
-        }
-      } catch {
-        // non-blocking
-      }
-      await invalidatePaymentCache(payment._id, customerId);
-      return {
-        alreadyPaid: false,
-        payment: updated,
-        purpose: "wallet_recharge",
-        walletTransaction: credit?.transaction || null,
-      };
-    }
-
     const bookingId = payment.booking?._id || payment.booking;
-    if (bookingId) {
-      try {
-        await couponService.markRedeemedForBooking(bookingId);
-      } catch {
-        // non-blocking
-      }
-    }
 
     await writePaymentAudit({
       actorId: customerId,
@@ -376,33 +315,18 @@ class PaymentService {
       metadata: { method, status: "Paid" },
     });
 
-    await pushService.notifyPaymentSuccess(customerId, {
-      amount: payment.amount,
-      paymentId: payment._id,
-      bookingId,
-    });
-
-    // Email receipt + SMS confirmation (non-blocking)
+    // Email receipt (non-blocking)
     try {
       const user = await authRepository.findById(customerId);
       if (user) {
         const bookingDoc = bookingId
           ? await paymentRepository.findBookingById(bookingId)
           : null;
-        await Promise.allSettled([
-          emailService.sendPaymentReceipt({
-            user,
-            payment: updated || payment,
-            booking: bookingDoc,
-          }),
-          user.phone
-            ? smsService.sendPaymentConfirmation({
-                phone: user.phone,
-                amount: payment.amount,
-                userId: user._id,
-              })
-            : Promise.resolve(),
-        ]);
+        await emailService.sendPaymentReceipt({
+          user,
+          payment: updated || payment,
+          booking: bookingDoc,
+        });
       }
     } catch {
       // non-blocking
@@ -430,6 +354,13 @@ class PaymentService {
 
     if (!payment) {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Payment not found.");
+    }
+
+    if (payment.purpose === "wallet_recharge") {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Wallet recharge payments are no longer supported."
+      );
     }
 
     if (payment.customer._id.toString() !== customerId.toString()) {
@@ -637,12 +568,6 @@ class PaymentService {
       },
     });
 
-    await pushService.notifyPaymentFailed(customerId, {
-      reason: updated.failureReason,
-      paymentId: payment._id,
-      bookingId: payment.booking?._id || payment.booking,
-    });
-
     await invalidatePaymentCache(payment._id, customerId);
     return updated;
   }
@@ -734,6 +659,13 @@ class PaymentService {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Payment not found.");
     }
 
+    if (payment.purpose === "wallet_recharge") {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Wallet recharge payments are no longer supported."
+      );
+    }
+
     if (!payment.razorpayOrderId) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
@@ -774,10 +706,6 @@ class PaymentService {
         session
       );
 
-      if (payment.purpose === "wallet_recharge") {
-        return paid;
-      }
-
       const bookingId = payment.booking?._id || payment.booking;
       if (bookingId) {
         await paymentRepository.updateBookingPaymentStatus(
@@ -789,19 +717,6 @@ class PaymentService {
 
       return paid;
     });
-
-    if (payment.purpose === "wallet_recharge") {
-      await walletService.creditRechargeFromPayment(updated);
-    } else {
-      const bookingId = payment.booking?._id || payment.booking;
-      if (bookingId) {
-        try {
-          await couponService.markRedeemedForBooking(bookingId);
-        } catch {
-          // non-blocking
-        }
-      }
-    }
 
     await writePaymentAudit({
       actorId: adminId,
@@ -888,49 +803,36 @@ class PaymentService {
       );
     }
 
-    const refundMethod = method || (payment.method === "wallet" ? "wallet" : "razorpay");
+    if (payment.method === "wallet" || method === "wallet") {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Wallet refunds are no longer supported."
+      );
+    }
+
+    const refundMethod = "razorpay";
     let razorpayRefundId = null;
 
-    if (refundMethod === "razorpay") {
-      if (!payment.razorpayPaymentId) {
-        throw new ApiError(
-          HTTP_STATUS.BAD_REQUEST,
-          "No Razorpay payment ID available. Use method=wallet for wallet credit refund."
-        );
-      }
-
-      const razorpay = this.ensureRazorpay();
-      const rpRefund = await withRetry(
-        () =>
-          razorpay.payments.refund(payment.razorpayPaymentId, {
-            amount: this.toPaise(refundAmount),
-            notes: {
-              reason: reason || "Admin refund",
-              paymentId: payment._id.toString(),
-            },
-          }),
-        { retries: 2, delayMs: 400, shouldRetry: isTransientError }
+    if (!payment.razorpayPaymentId) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "No Razorpay payment ID available for this refund."
       );
-      razorpayRefundId = rpRefund?.id || null;
-    } else if (refundMethod === "wallet") {
-      await withTransaction(async (session) => {
-        await walletService.creditWallet({
-          customerId: payment.customer._id || payment.customer,
-          amount: refundAmount,
-          category: WALLET_TX_CATEGORY.REFUND,
-          description:
-            reason ||
-            `Refund for payment ${payment._id}${
-              payment.booking ? ` / booking ${payment.booking._id || payment.booking}` : ""
-            }`,
-          bookingId: payment.booking?._id || payment.booking || null,
-          paymentId: payment._id,
-          referenceId: `pay_refund_${payment._id}_${Date.now()}`,
-          performedBy: actor._id,
-          session,
-        });
-      });
     }
+
+    const razorpay = this.ensureRazorpay();
+    const rpRefund = await withRetry(
+      () =>
+        razorpay.payments.refund(payment.razorpayPaymentId, {
+          amount: this.toPaise(refundAmount),
+          notes: {
+            reason: reason || "Admin refund",
+            paymentId: payment._id.toString(),
+          },
+        }),
+      { retries: 2, delayMs: 400, shouldRetry: isTransientError }
+    );
+    razorpayRefundId = rpRefund?.id || null;
 
     const newRefundedTotal = Number(
       (alreadyRefunded + refundAmount).toFixed(2)
@@ -1177,6 +1079,16 @@ class PaymentService {
       };
     }
 
+    if (payment.purpose === "wallet_recharge") {
+      logger.warn(`Ignoring retired wallet recharge payment ${payment._id}`);
+      return {
+        handled: false,
+        event: eventName,
+        reason: "wallet_recharge_unsupported",
+        eventId,
+      };
+    }
+
     await paymentRepository.pushWebhookEvent(
       payment._id,
       eventName,
@@ -1201,32 +1113,17 @@ class PaymentService {
               session
             );
 
-            if (payment.purpose !== "wallet_recharge") {
-              const bookingId = payment.booking?._id || payment.booking;
-              if (bookingId) {
-                await paymentRepository.updateBookingPaymentStatus(
-                  bookingId,
-                  "Paid",
-                  session
-                );
-              }
+            const bookingId = payment.booking?._id || payment.booking;
+            if (bookingId) {
+              await paymentRepository.updateBookingPaymentStatus(
+                bookingId,
+                "Paid",
+                session
+              );
             }
 
             return paid;
           });
-
-          if (payment.purpose === "wallet_recharge") {
-            await walletService.creditRechargeFromPayment(updated || payment);
-          } else {
-            const bookingId = payment.booking?._id || payment.booking;
-            if (bookingId) {
-              try {
-                await couponService.markRedeemedForBooking(bookingId);
-              } catch {
-                // non-blocking
-              }
-            }
-          }
 
           await writePaymentAudit({
             actorId: null,
@@ -1240,8 +1137,6 @@ class PaymentService {
             payment._id,
             payment.customer?._id || payment.customer
           );
-        } else if (payment.purpose === "wallet_recharge") {
-          await walletService.creditRechargeFromPayment(payment);
         }
         return { handled: true, event: eventName, status: "Paid", eventId };
       }

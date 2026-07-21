@@ -12,8 +12,7 @@ import LandingFooter from "../../components/landing/LandingFooter";
 
 function LandingPage() {
   return (
-    <div className="bg-slate-50">
-
+    <div className="min-h-screen w-full overflow-x-hidden bg-slate-50">
       <PublicNavbar />
       <Hero />
       <Services />
@@ -23,7 +22,6 @@ function LandingPage() {
       <Testimonials />
       <CTA />
       <LandingFooter />
-
     </div>
   );
 }

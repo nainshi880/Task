@@ -24,7 +24,7 @@ const assignmentHistorySchema = new mongoose.Schema(
 
     method: {
       type: String,
-      enum: ["Auto", "Manual"],
+      enum: ["Auto", "Manual", "Claim"],
       required: true,
       index: true,
     },

@@ -1,6 +1,4 @@
 import mongoose from "mongoose";
-import env from "../config/env.js";
-import { getRedisClient, isRedisReady } from "../config/redis.js";
 import metricsStore from "../utils/metrics.js";
 
 class HealthService {
@@ -13,41 +11,6 @@ class HealthService {
       host: mongoose.connection.host || null,
       name: mongoose.connection.name || null,
     };
-  }
-
-  async checkRedis() {
-    const client = getRedisClient();
-
-    if (!env.REDIS_URL) {
-      return {
-        status: "optional",
-        configured: false,
-        message: "Redis not configured — using in-memory fallback.",
-      };
-    }
-
-    if (!client || !isRedisReady()) {
-      return {
-        status: "degraded",
-        configured: true,
-        message: "Redis configured but not connected.",
-      };
-    }
-
-    try {
-      const pong = await client.ping();
-      return {
-        status: pong === "PONG" ? "up" : "degraded",
-        configured: true,
-        latencyMs: null,
-      };
-    } catch (error) {
-      return {
-        status: "down",
-        configured: true,
-        message: error.message,
-      };
-    }
   }
 
   async getHealth() {
@@ -66,25 +29,14 @@ class HealthService {
   }
 
   async getReadiness() {
-    const [mongo, redis] = await Promise.all([
-      this.checkMongo(),
-      this.checkRedis(),
-    ]);
-
-    const mongoReady = mongo.status === "up";
-    const redisReady =
-      redis.status === "up" ||
-      redis.status === "optional" ||
-      redis.status === "degraded";
-
-    const ready = mongoReady && redisReady;
+    const mongo = await this.checkMongo();
+    const ready = mongo.status === "up";
 
     return {
       status: ready ? "ready" : "not_ready",
       timestamp: new Date().toISOString(),
       checks: {
         mongo,
-        redis,
       },
     };
   }

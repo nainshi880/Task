@@ -9,7 +9,6 @@ export const ADMIN_PERMISSIONS = {
   MANAGE_BOOKINGS: "manage_bookings",
   MANAGE_PAYMENTS: "manage_payments",
   MANAGE_TECHNICIANS: "manage_technicians",
-  MANAGE_COUPONS: "manage_coupons",
   MANAGE_NOTIFICATIONS: "manage_notifications",
   VIEW_ANALYTICS: "view_analytics",
   MANAGE_SETTINGS: "manage_settings",

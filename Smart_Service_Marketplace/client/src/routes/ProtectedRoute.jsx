@@ -4,6 +4,7 @@ import useAuth from "../hooks/useAuth";
 import {
   getProfileSetupPath,
   getRoleHome,
+  needsEmailVerification,
   needsProfileSetup,
   ROLES,
 } from "../constants/roles";
@@ -12,7 +13,7 @@ import {
  * Requires any authenticated user.
  */
 export function ProtectedRoute({ children, redirectTo = "/login" }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -21,6 +22,10 @@ export function ProtectedRoute({ children, redirectTo = "/login" }) {
 
   if (!isAuthenticated) {
     return <Navigate to={redirectTo} replace state={{ from: location }} />;
+  }
+
+  if (needsEmailVerification(user) && !location.pathname.startsWith("/verify-email")) {
+    return <Navigate to="/verify-email" replace />;
   }
 
   return children ? children : <Outlet />;
@@ -45,6 +50,10 @@ export function RoleRoute({
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (needsEmailVerification(user)) {
+    return <Navigate to="/verify-email" replace />;
   }
 
   if (roles.length && !roles.includes(role)) {
@@ -80,6 +89,10 @@ export function ProfileSetupRoute({ role, children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (needsEmailVerification(user)) {
+    return <Navigate to="/verify-email" replace />;
   }
 
   if (userRole !== role) {

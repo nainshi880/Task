@@ -82,12 +82,36 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
     const status = error.response?.status;
+    const message = error.response?.data?.message || "";
+
+    if (
+      status === 403 &&
+      /verify your email/i.test(message) &&
+      !window.location.pathname.startsWith("/verify-email")
+    ) {
+      window.location.assign("/verify-email");
+      return Promise.reject(error);
+    }
 
     if (status !== 401 || !original || original._retry) {
       return Promise.reject(error);
     }
 
-    if (original.url?.includes("/auth/refresh") || original.url?.includes("/auth/login")) {
+    // Don't try to refresh after failed login/logout/auth flows
+    const url = String(original.url || "");
+    const skipRefresh =
+      url.includes("/auth/refresh") ||
+      url.includes("/auth/login") ||
+      url.includes("/admin/login") ||
+      url.includes("/admin/refresh") ||
+      url.includes("/auth/register") ||
+      url.includes("/auth/logout") ||
+      url.includes("/admin/logout") ||
+      url.includes("/forgot-password") ||
+      url.includes("/reset-password") ||
+      url.includes("/verify-email");
+
+    if (skipRefresh) {
       return Promise.reject(error);
     }
 
@@ -109,7 +133,8 @@ api.interceptors.response.use(
         window.location.assign("/login");
       }
 
-      return Promise.reject(refreshError);
+      // Prefer the original 401 message (e.g. invalid credentials)
+      return Promise.reject(error);
     }
   }
 );

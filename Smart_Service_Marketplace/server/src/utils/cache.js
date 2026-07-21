@@ -1,5 +1,3 @@
-import getRedisClient, { isRedisReady } from "../config/redis.js";
-
 const memoryCache = new Map();
 
 function memoryGet(key) {
@@ -17,9 +15,7 @@ function memoryGet(key) {
 function memorySet(key, value, ttlSeconds = 60) {
   memoryCache.set(key, {
     value,
-    expiresAt: ttlSeconds
-      ? Date.now() + ttlSeconds * 1000
-      : null,
+    expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : null,
   });
 }
 
@@ -36,81 +32,20 @@ function memoryDelByPrefix(prefix) {
 }
 
 class CacheService {
-  constructor() {
-    getRedisClient();
-  }
-
   async get(key) {
-    try {
-      const redis = getRedisClient();
-      if (redis && isRedisReady()) {
-        const raw = await redis.get(key);
-        return raw ? JSON.parse(raw) : null;
-      }
-    } catch {
-      // fall through to memory
-    }
-
     return memoryGet(key);
   }
 
   async set(key, value, ttlSeconds = 60) {
-    try {
-      const redis = getRedisClient();
-      if (redis && isRedisReady()) {
-        await redis.set(key, JSON.stringify(value), "EX", ttlSeconds);
-        return;
-      }
-    } catch {
-      // fall through to memory
-    }
-
     memorySet(key, value, ttlSeconds);
   }
 
   async del(key) {
-    try {
-      const redis = getRedisClient();
-      if (redis && isRedisReady()) {
-        await redis.del(key);
-      }
-    } catch {
-      // ignore
-    }
-
     memoryDel(key);
   }
 
   async invalidatePrefix(prefix) {
-    try {
-      const redis = getRedisClient();
-      if (redis && isRedisReady()) {
-        await this.scanDelete(redis, `${prefix}*`);
-      }
-    } catch {
-      // ignore
-    }
-
     memoryDelByPrefix(prefix);
-  }
-
-  async scanDelete(redis, pattern) {
-    let cursor = "0";
-
-    do {
-      const [nextCursor, keys] = await redis.scan(
-        cursor,
-        "MATCH",
-        pattern,
-        "COUNT",
-        100
-      );
-      cursor = nextCursor;
-
-      if (keys.length > 0) {
-        await redis.del(...keys);
-      }
-    } while (cursor !== "0");
   }
 
   async getOrSet(key, ttlSeconds, fetchFn) {

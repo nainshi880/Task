@@ -2,11 +2,13 @@ import authRepository from "../repositories/auth.repository.js";
 import technicianProfileRepository from "../repositories/technicianProfile.repository.js";
 import customerRepository from "../repositories/customer.repository.js";
 import Otp from "../models/Otp.js";
+import PendingRegistration, {
+  PENDING_REGISTRATION_TTL_MS,
+} from "../models/PendingRegistration.js";
 
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 
-import generateVerificationToken from "../utils/generateVerificationToken.js";
 import generateResetToken from "../utils/generateResetToken.js";
 import tokenService from "./token.service.js";
 import emailService from "./email.service.js";
@@ -16,6 +18,11 @@ import cloudinary from "../config/cloudinary.js";
 import ROLES, { isAdminRole } from "../constants/roles.js";
 import { defaultWorkingHours } from "../models/TechnicianProfile.js";
 import User from "../models/User.js";
+import CustomerProfile from "../models/CustomerProfile.js";
+import TechnicianProfile from "../models/TechnicianProfile.js";
+
+const EMAIL_OTP_TTL_MS = 10 * 60 * 1000;
+const EMAIL_OTP_MAX_ATTEMPTS = 5;
 
 class AuthService {
   sessionMeta(meta = {}) {
@@ -47,7 +54,149 @@ class AuthService {
     }
   }
 
-  async register(userData, meta = {}) {
+  async removeUnfinishedUser(user) {
+    if (!user?._id || user.isVerified || isAdminRole(user.role)) {
+      return false;
+    }
+
+    await Promise.all([
+      CustomerProfile.deleteOne({ user: user._id }).catch(() => {}),
+      TechnicianProfile.deleteOne({ user: user._id }).catch(() => {}),
+      User.deleteOne({ _id: user._id }).catch(() => {}),
+    ]);
+
+    return true;
+  }
+
+  async assertEmailAvailable(email) {
+    const existingUser = await authRepository.findByEmail(email);
+    if (!existingUser) return;
+
+    // Allow re-registering if the previous attempt never finished email OTP
+    const removed = await this.removeUnfinishedUser(existingUser);
+    if (removed) return;
+
+    throw new ApiError(
+      HTTP_STATUS.CONFLICT,
+      "User already exists with this email. Please log in."
+    );
+  }
+
+  async assertPhoneAvailable(phone) {
+    if (!phone) return;
+    const existingPhone = await authRepository.findByPhone(phone);
+    if (!existingPhone) return;
+
+    const removed = await this.removeUnfinishedUser(existingPhone);
+    if (removed) return;
+
+    throw new ApiError(
+      HTTP_STATUS.CONFLICT,
+      "User already exists with this phone number."
+    );
+  }
+
+  async upsertPendingRegistration({
+    email,
+    password,
+    name,
+    phone,
+    role,
+    technician = null,
+  }) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const passwordHash = await PendingRegistration.hashPassword(password);
+    const expiresAt = new Date(Date.now() + PENDING_REGISTRATION_TTL_MS);
+
+    return PendingRegistration.findOneAndUpdate(
+      { email: normalizedEmail },
+      {
+        $set: {
+          email: normalizedEmail,
+          passwordHash,
+          name,
+          phone: phone || "",
+          role,
+          technician: technician || undefined,
+          expiresAt,
+        },
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+        setDefaultsOnInsert: true,
+        runValidators: true,
+      }
+    );
+  }
+
+  async sendPendingVerificationOtp(pending) {
+    const email = pending.email.toLowerCase();
+    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+    const otpHash = crypto.createHash("sha256").update(otpCode).digest("hex");
+    const expiry = new Date(Date.now() + EMAIL_OTP_TTL_MS);
+
+    await Otp.updateMany(
+      { email, purpose: "verify_email", isUsed: false },
+      { isUsed: true }
+    );
+
+    await Otp.create({
+      email,
+      purpose: "verify_email",
+      codeHash: otpHash,
+      expiresAt: expiry,
+    });
+
+    const result = await emailService.sendEmailVerification({
+      user: { name: pending.name, email },
+      otpCode,
+    });
+
+    // if (!result.sent) {
+    //   if (result.reason === "not_configured") {
+    //     throw new ApiError(
+    //       HTTP_STATUS.SERVICE_UNAVAILABLE,
+    //       "Email is not configured. Set BREVO_API_KEY and EMAIL_FROM."
+    //     );
+    //   }
+
+    //   const reason = result.reason || "";
+    //   let brevoHint = "";
+    //   if (/Unauthorized IP/i.test(reason)) {
+    //     brevoHint =
+    //       " Brevo blocked this server IP. In Brevo → SMTP & API → authorize your IP, or set BREVO_API_KEY (xkeysib-...) and use the API instead of SMTP.";
+    //   } else if (/not yet activated|SMTP account/i.test(reason)) {
+    //     brevoHint =
+    //       " Brevo SMTP is not activated yet — request activation in Brevo, or use a BREVO_API_KEY (xkeysib-...) instead.";
+    //   }
+
+    //   throw new ApiError(
+    //     HTTP_STATUS.BAD_GATEWAY,
+    //     "Failed to send verification OTP email." + brevoHint
+    //   );
+    // }
+
+    if (!result.sent) {
+
+  console.error("Brevo Error:", result.reason);
+
+  throw new ApiError(
+    HTTP_STATUS.BAD_GATEWAY,
+    `Failed to send verification OTP email.\n${result.reason}`
+  );
+}
+   
+
+    return {
+      message: "Verification OTP sent to your email.",
+      email,
+      expiresInMinutes: 10,
+      pending: true,
+    };
+  }
+
+  async register(userData) {
     const name = this.resolveFullName(userData);
     const { email, password, phone } = userData;
 
@@ -58,56 +207,27 @@ class AuthService {
       );
     }
 
-    const existingUser = await authRepository.findByEmail(email);
+    await this.assertEmailAvailable(email);
+    await this.assertPhoneAvailable(phone);
 
-    if (existingUser) {
-      throw new ApiError(
-        HTTP_STATUS.CONFLICT,
-        "User already exists with this email."
-      );
-    }
-
-    const existingPhone = phone
-      ? await authRepository.findByPhone(phone)
-      : null;
-    if (existingPhone) {
-      throw new ApiError(
-        HTTP_STATUS.CONFLICT,
-        "User already exists with this phone number."
-      );
-    }
-
-    const user = await authRepository.createUser({
-      name,
+    const pending = await this.upsertPendingRegistration({
       email,
       password,
+      name,
       phone,
       role: ROLES.CUSTOMER,
     });
 
-    // Seed a draft CustomerProfile so GET /customer/profile works before setup.
-    await customerRepository.createProfile({
-      user: user._id,
-      fullName: name,
-      phone: phone || "",
-      profileCompleted: false,
-    }).catch(() => {});
-
-    const tokens = await tokenService.issueTokenPair(
-      user,
-      this.sessionMeta(meta)
-    );
-
-    emailService.sendWelcome({ user }).catch(() => {});
-    this.sendVerificationEmail(user._id).catch(() => {});
+    const emailVerification = await this.sendPendingVerificationOtp(pending);
 
     return {
-      user,
-      ...tokens,
+      pending: true,
+      email: pending.email,
+      emailVerification,
     };
   }
 
-  async registerTechnician(userData, files = {}, meta = {}) {
+  async registerTechnician(userData, files = {}) {
     const name = this.resolveFullName(userData);
     const {
       email,
@@ -121,26 +241,8 @@ class AuthService {
       pincode,
     } = userData;
 
-    const existingUser = await authRepository.findByEmail(email);
-
-    if (existingUser) {
-      throw new ApiError(
-        HTTP_STATUS.CONFLICT,
-        existingUser.role === ROLES.TECHNICIAN
-          ? "A technician account already exists with this email. Please log in."
-          : "This email is already registered. Use a different email or log in."
-      );
-    }
-
-    if (phone) {
-      const existingPhone = await authRepository.findByPhone(phone);
-      if (existingPhone) {
-        throw new ApiError(
-          HTTP_STATUS.CONFLICT,
-          "This phone number is already registered. Use a different number."
-        );
-      }
-    }
+    await this.assertEmailAvailable(email);
+    await this.assertPhoneAvailable(phone);
 
     const profileImage = files.profileImage?.[0] || files.profilePhoto?.[0];
     const identityProof = files.identityProof?.[0];
@@ -164,60 +266,115 @@ class AuthService {
       this.uploadLocalFile(identityProof, "technicians/identity"),
     ]);
 
-    let user;
-    try {
-      user = await authRepository.createUser({
-        name,
-        email,
-        password,
-        phone,
-        role: ROLES.TECHNICIAN,
-        city,
-        skills: [profession],
-        availability: false,
-        avatar: profilePhotoUrl,
-      });
-
-      const profile = await technicianProfileRepository.create({
-        user: user._id,
-        fullName: name,
-        phone,
+    const pending = await this.upsertPendingRegistration({
+      email,
+      password,
+      name,
+      phone,
+      role: ROLES.TECHNICIAN,
+      technician: {
         profession,
-        workingCity: city,
+        experience: Number(experience) || 0,
         address,
+        city,
         state,
         pincode,
-        skills: [profession],
-        serviceCategories: [profession],
-        experienceYears: Number(experience) || 0,
-        profilePhoto: profilePhotoUrl,
+        profilePhotoUrl,
         identityProofUrl,
-        availabilityStatus: false,
-        workingHours: defaultWorkingHours(),
-        profileCompleted: false,
-        applicationStatus: "pending",
-      });
+      },
+    });
 
-      const tokens = await tokenService.issueTokenPair(
-        user,
-        this.sessionMeta(meta)
+    const emailVerification = await this.sendPendingVerificationOtp(pending);
+
+    return {
+      pending: true,
+      email: pending.email,
+      emailVerification,
+    };
+  }
+
+  async completePendingRegistration(pending, meta = {}) {
+    const email = pending.email.toLowerCase();
+    const existing = await authRepository.findByEmail(email);
+    if (existing) {
+      await PendingRegistration.deleteOne({ _id: pending._id }).catch(() => {});
+      throw new ApiError(
+        HTTP_STATUS.CONFLICT,
+        "User already exists with this email. Please log in."
       );
+    }
 
-      emailService.sendWelcome({ user }).catch(() => {});
-      this.sendVerificationEmail(user._id).catch(() => {});
+    const user = new User({
+      name: pending.name,
+      email,
+      phone: pending.phone || "",
+      role: pending.role,
+      password: pending.passwordHash,
+      isVerified: true,
+      profileCompleted: false,
+      ...(pending.role === ROLES.TECHNICIAN
+        ? {
+            city: pending.technician?.city || "",
+            skills: pending.technician?.profession
+              ? [pending.technician.profession]
+              : [],
+            availability: false,
+            avatar: pending.technician?.profilePhotoUrl || null,
+          }
+        : {}),
+    });
+    user.$locals.passwordAlreadyHashed = true;
+    await user.save();
 
-      return {
-        user,
-        profile,
-        ...tokens,
-      };
-    } catch (error) {
-      // Avoid leaving an orphan User if profile creation fails.
-      if (user?._id) {
-        await User.findByIdAndDelete(user._id).catch(() => {});
+    try {
+      if (pending.role === ROLES.CUSTOMER) {
+        await customerRepository.createProfile({
+          user: user._id,
+          fullName: pending.name,
+          phone: pending.phone || "",
+          profileCompleted: false,
+        });
+      } else {
+        const tech = pending.technician || {};
+        await technicianProfileRepository.create({
+          user: user._id,
+          fullName: pending.name,
+          phone: pending.phone,
+          profession: tech.profession,
+          workingCity: tech.city,
+          address: tech.address,
+          state: tech.state,
+          pincode: tech.pincode,
+          skills: tech.profession ? [tech.profession] : [],
+          serviceCategories: tech.profession ? [tech.profession] : [],
+          experienceYears: Number(tech.experience) || 0,
+          profilePhoto: tech.profilePhotoUrl,
+          identityProofUrl: tech.identityProofUrl,
+          availabilityStatus: false,
+          workingHours: defaultWorkingHours(),
+          profileCompleted: false,
+          applicationStatus: "pending",
+        });
       }
+    } catch (error) {
+      await User.findByIdAndDelete(user._id).catch(() => {});
       throw error;
     }
+
+    await PendingRegistration.deleteOne({ _id: pending._id }).catch(() => {});
+
+    emailService.sendWelcome({ user }).catch(() => {});
+
+    const tokens = await tokenService.issueTokenPair(
+      user,
+      this.sessionMeta(meta)
+    );
+
+    return {
+      message: "Email verified successfully. Your account is ready.",
+      user,
+      ...tokens,
+    };
   }
 
   async login(email, password, meta = {}) {
@@ -303,14 +460,15 @@ class AuthService {
 
     await Otp.create({
       email: user.email.toLowerCase(),
-      phone: user.phone || "",
       user: user._id,
       purpose: "password_reset",
       codeHash: otpHash,
       expiresAt: expiry,
     });
 
-    const resetURL = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    const resetURL = isAdminRole(user.role)
+      ? `${process.env.CLIENT_URL}/reset-password/${resetToken}?from=admin`
+      : `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
 
     const result = await emailService.sendPasswordReset({
       user,
@@ -318,39 +476,24 @@ class AuthService {
       otpCode,
     });
 
-    const payload = {
-      message: "If an account exists, a password reset email has been sent.",
-      delivery: result.sent ? "email" : "pending",
-      expiresInMinutes: 15,
-    };
-
-    if (!result.sent && result.reason === "not_configured") {
-      if (process.env.NODE_ENV !== "production") {
-        payload.debugOtp = otpCode;
-        payload.debugResetToken = resetToken;
-        payload.delivery = "debug";
-      } else {
+    if (!result.sent) {
+      if (result.reason === "not_configured") {
         throw new ApiError(
           HTTP_STATUS.SERVICE_UNAVAILABLE,
-          "Email is not configured. Set EMAIL_HOST and EMAIL_USER."
+          "Email is not configured. Set BREVO_API_KEY and EMAIL_FROM."
         );
       }
+      throw new ApiError(
+        HTTP_STATUS.BAD_GATEWAY,
+        "Failed to send password reset email."
+      );
     }
 
-    if (!result.sent && result.reason !== "not_configured") {
-      if (process.env.NODE_ENV !== "production") {
-        payload.debugOtp = otpCode;
-        payload.debugResetToken = resetToken;
-        payload.delivery = "debug";
-      } else {
-        throw new ApiError(
-          HTTP_STATUS.BAD_GATEWAY,
-          "Failed to send password reset email."
-        );
-      }
-    }
-
-    return payload;
+    return {
+      message: "If an account exists, a password reset email has been sent.",
+      delivery: "email",
+      expiresInMinutes: 15,
+    };
   }
 
   async verifyForgotPasswordOtp(email, code) {
@@ -487,108 +630,182 @@ class AuthService {
       );
     }
 
-    const { verificationToken, hashedToken } = generateVerificationToken();
-    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    await authRepository.saveVerificationToken(userId, hashedToken, expiry);
-
-    const verifyURL = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
-
-    const result = await emailService.sendEmailVerification({
-      user,
-      verifyURL,
-    });
-
-    const payload = {
-      message: "Verification email sent successfully.",
+    // Legacy unverified users (pre-pending flow) — keep resend working
+    return this.sendPendingVerificationOtp({
       email: user.email,
-      expiresInHours: 24,
-    };
-
-    if (!result.sent) {
-      if (process.env.NODE_ENV !== "production") {
-        payload.debugVerifyURL = verifyURL;
-        payload.delivery = "debug";
-        payload.message =
-          "Email not configured — use debugVerifyURL in development.";
-        return payload;
-      }
-
-      if (result.reason === "not_configured") {
-        throw new ApiError(
-          HTTP_STATUS.SERVICE_UNAVAILABLE,
-          "Email is not configured. Set EMAIL_HOST and EMAIL_USER."
-        );
-      }
-
-      throw new ApiError(
-        HTTP_STATUS.BAD_GATEWAY,
-        "Failed to send verification email."
-      );
-    }
-
-    return payload;
+      name: user.name,
+    });
   }
 
   async resendVerificationByEmail(email) {
-    const user = await authRepository.findByEmail(email);
+    const normalized = String(email || "").trim().toLowerCase();
+    const user = await authRepository.findByEmail(normalized);
 
-    if (!user) {
-      return {
-        message:
-          "If an account exists and is unverified, a verification email has been sent.",
-      };
-    }
-
-    if (user.isVerified) {
+    if (user?.isVerified) {
       return {
         message: "Email is already verified. You can sign in.",
         alreadyVerified: true,
       };
     }
 
-    const result = await this.sendVerificationEmail(user._id);
+    if (user && !user.isVerified) {
+      return this.sendVerificationEmail(user._id);
+    }
 
-    return {
-      ...result,
-      message:
-        result.message ||
-        "If an account exists and is unverified, a verification email has been sent.",
-    };
+    const pending = await PendingRegistration.findOne({ email: normalized });
+    if (!pending) {
+      return {
+        message:
+          "If a signup is in progress for this email, a verification OTP has been sent.",
+      };
+    }
+
+    return this.sendPendingVerificationOtp(pending);
   }
 
-  async verifyEmail(token) {
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(token)
-      .digest("hex");
+  async consumeEmailOtp(normalizedEmail, normalizedCode) {
+    const otpDoc = await Otp.findOne({
+      email: normalizedEmail,
+      purpose: "verify_email",
+      isUsed: false,
+    }).sort({ createdAt: -1 });
 
-    const user = await authRepository.findByVerificationToken(hashedToken);
-
-    if (!user) {
+    if (!otpDoc) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
-        "Invalid or expired verification token."
+        "OTP not found or already used. Request a new code."
       );
     }
 
-    user.isVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpires = undefined;
+    if (otpDoc.expiresAt.getTime() < Date.now()) {
+      otpDoc.isUsed = true;
+      await otpDoc.save();
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "OTP has expired. Request a new code."
+      );
+    }
 
-    await user.save();
+    if (otpDoc.attempts >= EMAIL_OTP_MAX_ATTEMPTS) {
+      otpDoc.isUsed = true;
+      await otpDoc.save();
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Too many invalid attempts. Request a new OTP."
+      );
+    }
 
-    return {
-      message: "Email verified successfully.",
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        isVerified: true,
-      },
-    };
+    const codeHash = crypto
+      .createHash("sha256")
+      .update(normalizedCode)
+      .digest("hex");
+
+    if (otpDoc.codeHash !== codeHash) {
+      otpDoc.attempts += 1;
+      await otpDoc.save();
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, "Invalid OTP code.");
+    }
+
+    otpDoc.isUsed = true;
+    otpDoc.verifiedAt = new Date();
+    await otpDoc.save();
+    return otpDoc;
+  }
+
+  async verifyEmailOtp(email, code, meta = {}) {
+    const normalizedEmail = String(email || "")
+      .trim()
+      .toLowerCase();
+    const normalizedCode = String(code || "").trim();
+
+    if (!normalizedEmail || !normalizedCode) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Email and OTP code are required."
+      );
+    }
+
+    const user = await authRepository.findByEmail(normalizedEmail);
+
+    if (user?.isVerified) {
+      return {
+        message: "Email is already verified.",
+        alreadyVerified: true,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          isVerified: true,
+          profileCompleted: user.profileCompleted,
+        },
+      };
+    }
+
+    await this.consumeEmailOtp(normalizedEmail, normalizedCode);
+
+    const pending = await PendingRegistration.findOne({
+      email: normalizedEmail,
+    }).select("+passwordHash");
+
+    if (pending) {
+      return this.completePendingRegistration(pending, meta);
+    }
+
+    // Legacy path: user exists but was never verified
+    if (user) {
+      user.isVerified = true;
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
+      await user.save();
+
+      const tokens = await tokenService.issueTokenPair(
+        user,
+        this.sessionMeta(meta)
+      );
+
+      return {
+        message: "Email verified successfully.",
+        user,
+        ...tokens,
+      };
+    }
+
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      "No pending registration found for this email. Please register again."
+    );
+  }
+
+  /**
+   * Persist FCM/device token for push notifications (e.g. assignment alerts).
+   */
+  async updateDeviceToken(userId, deviceToken) {
+    const token = String(deviceToken || "").trim();
+    if (!token) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, "deviceToken is required.");
+    }
+
+    const user = await authRepository.findById(userId);
+    if (!user) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found.");
+    }
+
+    const tokens = Array.isArray(user.deviceTokens)
+      ? user.deviceTokens.filter(Boolean)
+      : [];
+    if (!tokens.includes(token)) {
+      tokens.push(token);
+    }
+
+    await authRepository.updateUser(userId, {
+      deviceToken: token,
+      deviceTokens: tokens.slice(-10),
+    });
+
+    return { deviceToken: token, registered: true };
   }
 }
+
 
 export default new AuthService();

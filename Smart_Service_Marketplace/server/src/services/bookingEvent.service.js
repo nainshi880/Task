@@ -4,9 +4,7 @@ import Booking from "../models/Booking.js";
 import cacheService, { CACHE_KEYS } from "../utils/cache.js";
 import { invalidateAdminAnalytics } from "../utils/cacheInvalidation.js";
 import notificationService from "./notification.service.js";
-import pushService from "./push.service.js";
 import emailService from "./email.service.js";
-import smsService from "./sms.service.js";
 import BOOKING_TIMELINE_EVENT from "../constants/bookingTimelineEvent.js";
 import logger from "../utils/logger.js";
 import User from "../models/User.js";
@@ -22,19 +20,14 @@ const BOOKING_NOTIFY_COPY = {
     title: "Technician assigned",
     message: (b) =>
       `A technician has been assigned to your ${b.serviceName} booking.`,
-    notify: ["customer", "technician"],
-    techTitle: "New job assigned",
-    techMessage: (b) =>
-      `You have been assigned to a ${b.serviceName} booking.`,
+    // Technician notify + socket live in assignment.service (centralized).
+    notify: ["customer"],
   },
   REASSIGNED: {
     title: "Technician reassigned",
     message: (b) =>
       `Your ${b.serviceName} booking has been reassigned to another technician.`,
-    notify: ["customer", "technician"],
-    techTitle: "Job reassigned to you",
-    techMessage: (b) =>
-      `You have been reassigned to a ${b.serviceName} booking.`,
+    notify: ["customer"],
   },
   ACCEPTED: {
     title: "Booking accepted",
@@ -190,8 +183,7 @@ class BookingEventService {
         );
       }
 
-      jobs.push(this.emitPushForEvent(event, booking));
-      jobs.push(this.emitEmailSmsForEvent(event, booking, metadata));
+      jobs.push(this.emitEmailForEvent(event, booking, metadata));
 
       await Promise.allSettled(jobs);
     } catch (error) {
@@ -199,7 +191,7 @@ class BookingEventService {
     }
   }
 
-  async emitEmailSmsForEvent(event, booking, metadata = {}) {
+  async emitEmailForEvent(event, booking, metadata = {}) {
     try {
       const customer = await User.findById(booking.customer).select(
         "name email phone"
@@ -208,54 +200,25 @@ class BookingEventService {
 
       switch (event) {
         case BOOKING_TIMELINE_EVENT.CREATED:
-          return Promise.allSettled([
-            emailService.sendBookingConfirmation({
-              user: customer,
-              booking,
-            }),
-            customer.phone
-              ? smsService.sendBookingUpdate({
-                  phone: customer.phone,
-                  booking,
-                  updateMessage: "Your booking has been confirmed.",
-                  userId: customer._id,
-                })
-              : Promise.resolve(),
-          ]);
+          return emailService.sendBookingConfirmation({
+            user: customer,
+            booking,
+          });
 
         case BOOKING_TIMELINE_EVENT.CANCELLED:
-          return Promise.allSettled([
-            emailService.sendBookingCancelled({
-              user: customer,
-              booking,
-              reason: metadata.reason || metadata.note || "",
-            }),
-            customer.phone
-              ? smsService.sendBookingUpdate({
-                  phone: customer.phone,
-                  booking,
-                  updateMessage: "Your booking was cancelled.",
-                  userId: customer._id,
-                })
-              : Promise.resolve(),
-          ]);
+          return emailService.sendBookingCancelled({
+            user: customer,
+            booking,
+            reason: metadata.reason || metadata.note || "",
+          });
 
         case BOOKING_TIMELINE_EVENT.ARRIVING:
-          return Promise.allSettled([
-            emailService.sendBookingUpdate({
-              user: customer,
-              booking,
-              updateTitle: "Technician Arriving",
-              updateMessage: `Your technician is on the way for ${booking.serviceName}.`,
-            }),
-            customer.phone
-              ? smsService.sendTechnicianArrival({
-                  phone: customer.phone,
-                  booking,
-                  userId: customer._id,
-                })
-              : Promise.resolve(),
-          ]);
+          return emailService.sendBookingUpdate({
+            user: customer,
+            booking,
+            updateTitle: "Technician Arriving",
+            updateMessage: `Your technician is on the way for ${booking.serviceName}.`,
+          });
 
         case BOOKING_TIMELINE_EVENT.ASSIGNED:
         case BOOKING_TIMELINE_EVENT.ACCEPTED:
@@ -276,22 +239,12 @@ class BookingEventService {
             [BOOKING_TIMELINE_EVENT.RESUMED]:
               "Work on your booking has resumed.",
           };
-          return Promise.allSettled([
-            emailService.sendBookingUpdate({
-              user: customer,
-              booking,
-              updateTitle: "Booking Update",
-              updateMessage: copy[event],
-            }),
-            customer.phone
-              ? smsService.sendBookingUpdate({
-                  phone: customer.phone,
-                  booking,
-                  updateMessage: copy[event],
-                  userId: customer._id,
-                })
-              : Promise.resolve(),
-          ]);
+          return emailService.sendBookingUpdate({
+            user: customer,
+            booking,
+            updateTitle: "Booking Update",
+            updateMessage: copy[event],
+          });
         }
 
         default:
@@ -299,47 +252,6 @@ class BookingEventService {
       }
     } catch (error) {
       logger.warn(`Booking email/SMS failed: ${error.message}`);
-      return null;
-    }
-  }
-
-  async emitPushForEvent(event, booking) {
-    try {
-      switch (event) {
-        case BOOKING_TIMELINE_EVENT.ACCEPTED:
-          return pushService.notifyBookingAccepted(booking.customer, booking);
-
-        case BOOKING_TIMELINE_EVENT.ASSIGNED:
-        case BOOKING_TIMELINE_EVENT.REASSIGNED:
-          return Promise.allSettled([
-            pushService.notifyBookingAssigned(booking.customer, booking),
-            booking.technician
-              ? pushService.notifyBookingAssigned(booking.technician, booking, {
-                  forTechnician: true,
-                })
-              : Promise.resolve(),
-          ]);
-
-        case BOOKING_TIMELINE_EVENT.ARRIVING:
-          return pushService.notifyTechnicianArriving(
-            booking.customer,
-            booking
-          );
-
-        case BOOKING_TIMELINE_EVENT.STARTED:
-          return pushService.notifyWorkStarted(booking.customer, booking);
-
-        case BOOKING_TIMELINE_EVENT.COMPLETED:
-          return Promise.allSettled([
-            pushService.notifyWorkCompleted(booking.customer, booking),
-            pushService.notifyReviewReminder(booking.customer, booking),
-          ]);
-
-        default:
-          return null;
-      }
-    } catch (error) {
-      logger.warn(`Booking push failed: ${error.message}`);
       return null;
     }
   }

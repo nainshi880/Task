@@ -48,15 +48,3 @@ export const completeSetup = (data) =>
 
 export const changePassword = (data) =>
   api.put("/technicians/change-password", data);
-
-export const getEarningsSummary = () =>
-  api.get("/technicians/earnings/summary");
-
-export const getMonthlyEarnings = (params) =>
-  api.get("/technicians/earnings/monthly", { params });
-
-export const getPayouts = (params) =>
-  api.get("/technicians/earnings/payouts", { params });
-
-export const requestPayout = (data) =>
-  api.post("/technicians/earnings/payouts", data);

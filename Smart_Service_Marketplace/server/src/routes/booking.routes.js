@@ -22,7 +22,7 @@ import {
   bookingWriteLimiter,
 } from "../middlewares/bookingRateLimit.middleware.js";
 import validate from "../middlewares/validation.middleware.js";
-import { authenticate } from "../middlewares/auth.middleware.js";
+import { authenticate, requireEmailVerified } from "../middlewares/auth.middleware.js";
 import authorize from "../middlewares/role.middleware.js";
 import ROLES from "../constants/roles.js";
 
@@ -37,6 +37,7 @@ Booking CRUD (Customer)
 router.post(
   "/",
   authenticate,
+  requireEmailVerified,
   authorize(ROLES.CUSTOMER),
   bookingWriteLimiter,
   optionalIssueImagesUpload,

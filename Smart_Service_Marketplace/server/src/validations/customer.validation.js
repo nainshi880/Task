@@ -55,10 +55,6 @@ export const customerProfileValidation = [
     .optional()
     .isBoolean(),
 
-  body("preferences.smsNotification")
-    .optional()
-    .isBoolean(),
-
   body("preferences.pushNotification")
     .optional()
     .isBoolean(),
@@ -86,10 +82,6 @@ export const changePasswordValidation = [
 export const preferencesValidation = [
 
   body("emailNotification")
-    .optional()
-    .isBoolean(),
-
-  body("smsNotification")
     .optional()
     .isBoolean(),
 

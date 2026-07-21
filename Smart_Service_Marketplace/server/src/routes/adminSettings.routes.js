@@ -10,10 +10,6 @@ import {
   createAdminCategory,
   updateAdminCategory,
   deleteAdminCategory,
-  listAdminBanners,
-  createAdminBanner,
-  updateAdminBanner,
-  deleteAdminBanner,
 } from "../controllers/adminSettings.controller.js";
 
 import {
@@ -24,10 +20,6 @@ import {
   updateCategoryValidation,
   deleteCategoryValidation,
   listCategoriesValidation,
-  createBannerValidation,
-  updateBannerValidation,
-  deleteBannerValidation,
-  listBannersValidation,
 } from "../validations/adminSettings.validation.js";
 
 import validate from "../middlewares/validation.middleware.js";
@@ -70,24 +62,6 @@ router.delete(
   deleteCategoryValidation,
   validate,
   deleteAdminCategory
-);
-
-router.get("/banners", listBannersValidation, validate, listAdminBanners);
-
-router.post("/banners", createBannerValidation, validate, createAdminBanner);
-
-router.patch(
-  "/banners/:bannerId",
-  updateBannerValidation,
-  validate,
-  updateAdminBanner
-);
-
-router.delete(
-  "/banners/:bannerId",
-  deleteBannerValidation,
-  validate,
-  deleteAdminBanner
 );
 
 export default router;

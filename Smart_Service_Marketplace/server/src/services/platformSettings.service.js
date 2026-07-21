@@ -73,24 +73,6 @@ class PlatformSettingsService {
 
     return true;
   }
-
-  getSellerInfo(settings) {
-    const gst = settings?.gst || {};
-    return {
-      name: gst.companyName || settings?.platformName || "Smart Service Marketplace",
-      gstin: gst.gstin || "",
-      address: gst.address || "",
-      city: gst.city || "",
-      state: gst.state || "",
-      postalCode: gst.postalCode || "",
-      email: gst.email || settings?.supportEmail || "",
-      phone: gst.phone || settings?.supportPhone || "",
-    };
-  }
-
-  getDefaultGstRate(settings) {
-    return settings?.gst?.defaultRate ?? 18;
-  }
 }
 
 export default new PlatformSettingsService();

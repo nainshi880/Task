@@ -5,17 +5,13 @@ import {
   getPublicTerms,
   getPublicPrivacy,
 } from "../controllers/adminSettings.controller.js";
-import { publicSettingsValidation } from "../validations/adminSettings.validation.js";
 import { publicCacheHeaders } from "../middlewares/cacheHeaders.middleware.js";
-import validate from "../middlewares/validation.middleware.js";
 
 const router = express.Router();
 
 router.get(
   "/public",
   publicCacheHeaders(120),
-  publicSettingsValidation,
-  validate,
   getPublicSettings
 );
 

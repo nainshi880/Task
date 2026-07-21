@@ -90,10 +90,6 @@ const customerProfileSchema = new mongoose.Schema(
         type: Boolean,
         default: true,
       },
-      smsNotification: {
-        type: Boolean,
-        default: true,
-      },
       pushNotification: {
         type: Boolean,
         default: true,

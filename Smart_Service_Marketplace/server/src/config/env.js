@@ -9,50 +9,38 @@ const env = {
   CLIENT_URL: process.env.CLIENT_URL,
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || "",
   COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || "",
-  REDIS_URL: process.env.REDIS_URL || "",
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || "",
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || "",
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+  // Brevo (preferred) — https://app.brevo.com/settings/keys/api
+  BREVO_API_KEY: process.env.BREVO_API_KEY || "",
+  // Sender must be verified in Brevo → Senders & Domains
+  EMAIL_FROM: process.env.EMAIL_FROM || process.env.COMPANY_EMAIL || "",
+  EMAIL_FROM_NAME:
+    process.env.EMAIL_FROM_NAME ||
+    process.env.COMPANY_NAME ||
+    "Smart Service Marketplace",
+  // Optional SMTP fallback (Brevo SMTP relay)
   EMAIL_HOST: process.env.EMAIL_HOST || "",
   EMAIL_PORT: Number(process.env.EMAIL_PORT) || 587,
   EMAIL_USER: process.env.EMAIL_USER || "",
   EMAIL_PASS: process.env.EMAIL_PASS || "",
   COMPANY_NAME: process.env.COMPANY_NAME || "Smart Service Marketplace",
-  COMPANY_GSTIN: process.env.COMPANY_GSTIN || "",
-  COMPANY_ADDRESS: process.env.COMPANY_ADDRESS || "",
-  COMPANY_CITY: process.env.COMPANY_CITY || "",
-  COMPANY_STATE: process.env.COMPANY_STATE || "",
-  COMPANY_POSTAL_CODE: process.env.COMPANY_POSTAL_CODE || "",
   COMPANY_EMAIL: process.env.COMPANY_EMAIL || "",
   COMPANY_PHONE: process.env.COMPANY_PHONE || "",
-  DEFAULT_GST_RATE: Number(process.env.DEFAULT_GST_RATE) || 18,
-  // Firebase Cloud Messaging
+  // Firebase Admin (FCM)
   FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "",
   FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || "",
   FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY || "",
-  FIREBASE_SERVICE_ACCOUNT_JSON: process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "",
-  // OneSignal (optional)
-  ONESIGNAL_APP_ID: process.env.ONESIGNAL_APP_ID || "",
-  ONESIGNAL_REST_API_KEY: process.env.ONESIGNAL_REST_API_KEY || "",
-  // SMS — Twilio
-  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID || "",
-  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN || "",
-  TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER || "",
-  // SMS — MSG91
-  MSG91_AUTH_KEY: process.env.MSG91_AUTH_KEY || "",
-  MSG91_SENDER_ID: process.env.MSG91_SENDER_ID || "",
-  MSG91_ROUTE: process.env.MSG91_ROUTE || "4",
-  SMS_PROVIDER: process.env.SMS_PROVIDER || "",
-  SMS_DEFAULT_COUNTRY_CODE: process.env.SMS_DEFAULT_COUNTRY_CODE || "91",
+  FIREBASE_SERVICE_ACCOUNT_JSON:
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "",
   // Chat production
   CHAT_ENCRYPTION_KEY: process.env.CHAT_ENCRYPTION_KEY || "",
   CHAT_SOCKET_ALLOW_QUERY_TOKEN:
     process.env.CHAT_SOCKET_ALLOW_QUERY_TOKEN === "true",
-  NOTIFICATION_WORKER_CONCURRENCY:
-    Number(process.env.NOTIFICATION_WORKER_CONCURRENCY) || 5,
   LOG_LEVEL: process.env.LOG_LEVEL || "info",
   LOG_DIR: process.env.LOG_DIR || "logs",
   LOG_MAX_FILES: process.env.LOG_MAX_FILES || "14d",

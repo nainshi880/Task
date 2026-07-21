@@ -5,15 +5,12 @@ import {
   CheckCircle2,
   Clock3,
   IndianRupee,
-  Wallet,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import Loader from "../../components/ui/Loader";
 import BookingStatusBadge from "../../components/customer/BookingStatusBadge";
-import RecommendedServices from "../../components/customer/dashboard/RecommendedServices";
 import * as customerService from "../../services/customer.service";
-import * as walletService from "../../services/wallet.service";
 import useAuth from "../../hooks/useAuth";
 import { customerKeys } from "../../lib/queryClient";
 import {
@@ -108,12 +105,6 @@ function CustomerDashboard() {
     retry: false,
   });
 
-  const walletQuery = useQuery({
-    queryKey: customerKeys.walletBalance(),
-    queryFn: walletService.getBalance,
-    retry: false,
-  });
-
   if (dashboardQuery.isLoading) {
     return (
       <DashboardLayout>
@@ -152,7 +143,6 @@ function CustomerDashboard() {
   const recent = data.recentBookings || [];
   const notifications = data.recentNotifications || [];
   const unreadCount = data.unreadNotifications || 0;
-  const wallet = walletQuery.data;
   const displayName = profile.fullName || user?.name || "there";
 
   return (
@@ -197,8 +187,8 @@ function CustomerDashboard() {
           </div>
         </section>
 
-        {/* Statistics + Wallet */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {/* Statistics */}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Total bookings"
             value={stats.totalBookings ?? 0}
@@ -228,24 +218,6 @@ function CustomerDashboard() {
             icon={IndianRupee}
             accent="violet"
           />
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Wallet balance</p>
-                <p className="mt-2 text-2xl font-bold text-slate-900">
-                  {walletQuery.isLoading
-                    ? "…"
-                    : formatCurrency(wallet?.balance ?? 0, wallet?.currency)}
-                </p>
-                {wallet?.isActive === false && (
-                  <p className="mt-1 text-xs text-amber-600">Wallet inactive</p>
-                )}
-              </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600">
-                <Wallet size={22} />
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Bookings */}
@@ -345,8 +317,6 @@ function CustomerDashboard() {
           )}
         </section>
 
-        {/* Recommended services */}
-        <RecommendedServices favoriteCategory={data.favoriteCategory} />
       </div>
     </DashboardLayout>
   );

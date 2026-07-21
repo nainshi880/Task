@@ -28,7 +28,7 @@ class TechnicianRepository {
       role: ROLES.TECHNICIAN,
       isDeleted: false,
     }).select(
-      "name email phone city role availability rating skills maxWorkload isActive isVerified avatar"
+      "name email phone city role availability rating skills maxWorkload isActive isVerified avatar deviceToken deviceTokens"
     );
   }
 

@@ -14,6 +14,7 @@ import {
   sendVerificationEmail,
   resendVerificationEmail,
   verifyEmail,
+  updateDeviceToken,
 } from "../controllers/auth.controller.js";
 
 import {
@@ -25,6 +26,8 @@ import {
   resetPasswordValidation,
   refreshTokenValidation,
   resendVerificationEmailValidation,
+  verifyEmailOtpValidation,
+  deviceTokenValidation,
 } from "../validations/auth.validation.js";
 
 import validate from "../middlewares/validation.middleware.js";
@@ -117,6 +120,20 @@ router.post(
   resendVerificationEmail
 );
 
-router.get("/verify-email/:token", verifyEmail);
+router.post(
+  "/verify-email/verify",
+  passwordResetLimiter,
+  verifyEmailOtpValidation,
+  validate,
+  verifyEmail
+);
+
+router.put(
+  "/device-token",
+  authenticate,
+  deviceTokenValidation,
+  validate,
+  updateDeviceToken
+);
 
 export default router;

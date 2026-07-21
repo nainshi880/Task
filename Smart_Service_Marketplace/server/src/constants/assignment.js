@@ -1,6 +1,7 @@
 const ASSIGNMENT_METHOD = {
   AUTO: "Auto",
   MANUAL: "Manual",
+  CLAIM: "Claim",
 };
 
 export const ASSIGNMENT_PRIORITY_WEIGHTS = {

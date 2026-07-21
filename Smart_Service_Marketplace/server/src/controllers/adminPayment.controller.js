@@ -98,23 +98,3 @@ export const recoverAdminPayment = asyncHandler(async (req, res) => {
   );
 });
 
-export const listAdminTechnicianPayouts = asyncHandler(async (req, res) => {
-  const result = await adminPaymentService.listTechnicianPayouts(req.query);
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, "Technician payouts fetched.", result)
-  );
-});
-
-export const processAdminTechnicianPayout = asyncHandler(async (req, res) => {
-  const result = await adminPaymentService.processTechnicianPayout(
-    req.user._id,
-    req.params.payoutId,
-    req.body,
-    actorContext(req)
-  );
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, "Payout processed successfully.", result)
-  );
-});

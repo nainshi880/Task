@@ -145,9 +145,15 @@ function TechnicianJobDetailPage() {
           throw new Error("Unknown action");
       }
     },
-    onSuccess: async (_data, variables) => {
+    onSuccess: async (data, variables) => {
+      const claimedOpen =
+        variables.action === "accept" &&
+        (data?.status === BOOKING_STATUS.ASSIGNED ||
+          data?.isOpenOffer);
       const messages = {
-        accept: "Booking accepted",
+        accept: claimedOpen
+          ? "Job claimed — you are now assigned"
+          : "Booking accepted",
         reject: "Booking rejected",
         arriving: "Marked as on the way",
         start: "Work started",
@@ -206,7 +212,12 @@ function TechnicianJobDetailPage() {
   const status = job.status;
   const busy = runAction.isPending;
 
-  const canAccept = status === BOOKING_STATUS.ASSIGNED;
+  const canAccept =
+    status === BOOKING_STATUS.ASSIGNED ||
+    (status === BOOKING_STATUS.PENDING && !job?.technician);
+  const canReject = status === BOOKING_STATUS.ASSIGNED;
+  const isOpenOffer =
+    status === BOOKING_STATUS.PENDING && !job?.technician;
   const canArrive = status === BOOKING_STATUS.ACCEPTED && !hasArriving;
   const canStart = status === BOOKING_STATUS.ACCEPTED;
   const canPause = status === BOOKING_STATUS.IN_PROGRESS;
@@ -286,15 +297,17 @@ function TechnicianJobDetailPage() {
                   loading={busy && runAction.variables?.action === "accept"}
                   onClick={() => runAction.mutate({ action: "accept" })}
                 >
-                  Accept booking
+                  {isOpenOffer ? "Accept this job" : "Accept booking"}
                 </Button>
-                <Button
-                  variant="danger"
-                  disabled={busy}
-                  onClick={() => setRejectOpen(true)}
-                >
-                  Reject booking
-                </Button>
+                {canReject && (
+                  <Button
+                    variant="danger"
+                    disabled={busy}
+                    onClick={() => setRejectOpen(true)}
+                  >
+                    Reject booking
+                  </Button>
+                )}
               </>
             )}
             {canArrive && (

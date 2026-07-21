@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Banknote, IndianRupee, Receipt, RotateCcw } from "lucide-react";
+import { IndianRupee, Receipt, RotateCcw } from "lucide-react";
 import toast from "react-hot-toast";
 import clsx from "clsx";
 
@@ -19,7 +19,6 @@ import {
 const TABS = [
   { id: "transactions", label: "Transactions", icon: Receipt },
   { id: "refunds", label: "Refund history", icon: RotateCcw },
-  { id: "payouts", label: "Technician payouts", icon: Banknote },
   { id: "revenue", label: "Revenue reports", icon: IndianRupee },
 ];
 
@@ -29,14 +28,6 @@ const PAYMENT_STATUSES = [
   "Paid",
   "Failed",
   "Refunded",
-];
-
-const PAYOUT_STATUSES = [
-  "Pending",
-  "Processing",
-  "Paid",
-  "Failed",
-  "Cancelled",
 ];
 
 function PaymentStatusPill({ status }) {
@@ -100,7 +91,6 @@ function AdminPaymentsPage() {
   const [searchInput, setSearchInput] = useState(searchParams.get("q") || "");
   const [selectedPaymentId, setSelectedPaymentId] = useState(null);
   const [refundPanel, setRefundPanel] = useState(null);
-  const [payoutPanel, setPayoutPanel] = useState(null);
 
   const page = Number(searchParams.get("page") || 1);
   const status = searchParams.get("status") || "";
@@ -152,17 +142,6 @@ function AdminPaymentsPage() {
     retry: false,
   });
 
-  const payoutsQuery = useQuery({
-    queryKey: adminKeys.payouts({ page, limit: 12, status }),
-    queryFn: () => {
-      const params = { page, limit: 12 };
-      if (status) params.status = status;
-      return adminService.listTechnicianPayouts(params);
-    },
-    enabled: tab === "payouts",
-    retry: false,
-  });
-
   const revenueQuery = useQuery({
     queryKey: adminKeys.revenue({ tab: "payments" }),
     queryFn: () => adminService.getRevenueAnalytics({}),
@@ -206,27 +185,11 @@ function AdminPaymentsPage() {
       toast.error(err.response?.data?.message || "Refund failed"),
   });
 
-  const payoutMutation = useMutation({
-    mutationFn: ({ payoutId, data }) =>
-      adminService.updateTechnicianPayout(payoutId, data),
-    onSuccess: () => {
-      toast.success("Payout updated");
-      setPayoutPanel(null);
-      queryClient.invalidateQueries({
-        queryKey: [...adminKeys.all, "payouts"],
-      });
-    },
-    onError: (err) =>
-      toast.error(err.response?.data?.message || "Payout update failed"),
-  });
-
   const txItems = transactionsQuery.data?.items || [];
   const txPagination = transactionsQuery.data?.pagination || {};
   const refundItems =
     refundsQuery.data?.items || refundsQuery.data?.refunds || [];
   const refundPagination = refundsQuery.data?.pagination || {};
-  const payoutItems = payoutsQuery.data?.items || [];
-  const payoutPagination = payoutsQuery.data?.pagination || {};
   const revenue = revenueQuery.data?.revenue || revenueQuery.data || {};
   const overview =
     reportsQuery.data?.overview || revenueQuery.data?.overview || {};
@@ -240,7 +203,7 @@ function AdminPaymentsPage() {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Payments</h1>
           <p className="mt-1 text-slate-500">
-            Transactions, refunds, technician payouts, and revenue reports.
+            Transactions, refunds, and revenue reports.
           </p>
         </div>
 
@@ -442,91 +405,6 @@ function AdminPaymentsPage() {
           </>
         )}
 
-        {tab === "payouts" && (
-          <>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <select
-                value={status}
-                onChange={(e) => updateParams({ status: e.target.value })}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
-              >
-                <option value="">Status: All</option>
-                {PAYOUT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {payoutsQuery.isLoading ? (
-              <Loader text="Loading payouts..." />
-            ) : payoutsQuery.isError ? (
-              <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
-                <p className="font-medium text-red-800">
-                  Could not load payouts
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="divide-y divide-slate-100">
-                  {payoutItems.length === 0 ? (
-                    <p className="p-8 text-center text-sm text-slate-500">
-                      No payouts found.
-                    </p>
-                  ) : (
-                    payoutItems.map((payout) => (
-                      <div
-                        key={payout._id}
-                        className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-slate-900">
-                              {formatCurrency(payout.amount || 0)}
-                            </p>
-                            <PaymentStatusPill status={payout.status} />
-                          </div>
-                          <p className="mt-1 text-sm text-slate-500">
-                            {payout.technician?.name ||
-                              payout.technicianName ||
-                              "Technician"}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {formatDateTime(payout.createdAt)}
-                          </p>
-                        </div>
-                        {["Pending", "Processing"].includes(payout.status) && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() =>
-                              setPayoutPanel({
-                                payoutId: payout._id,
-                                status: "Paid",
-                                transactionId: "",
-                                notes: "",
-                              })
-                            }
-                          >
-                            Update status
-                          </Button>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-                <Pagination
-                  pagination={payoutPagination}
-                  onPage={(p) =>
-                    updateParams({ page: p }, { resetPage: false })
-                  }
-                />
-              </div>
-            )}
-          </>
-        )}
-
         {tab === "revenue" && (
           <>
             {revenueQuery.isLoading || reportsQuery.isLoading ? (
@@ -705,7 +583,6 @@ function AdminPaymentsPage() {
                 className="rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm outline-none"
               >
                 <option value="razorpay">Razorpay</option>
-                <option value="wallet">Wallet</option>
                 <option value="manual">Manual</option>
               </select>
             </div>
@@ -749,71 +626,6 @@ function AdminPaymentsPage() {
           </div>
         )}
 
-        {payoutPanel && (
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 shadow-sm">
-            <p className="font-medium text-slate-900">Update payout status</p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <select
-                value={payoutPanel.status}
-                onChange={(e) =>
-                  setPayoutPanel((p) => ({ ...p, status: e.target.value }))
-                }
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none"
-              >
-                {PAYOUT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={payoutPanel.transactionId}
-                onChange={(e) =>
-                  setPayoutPanel((p) => ({
-                    ...p,
-                    transactionId: e.target.value,
-                  }))
-                }
-                placeholder="Transaction ID (optional)"
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none"
-              />
-            </div>
-            <textarea
-              value={payoutPanel.notes}
-              onChange={(e) =>
-                setPayoutPanel((p) => ({ ...p, notes: e.target.value }))
-              }
-              rows={2}
-              placeholder="Notes (optional)"
-              className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
-            />
-            <div className="mt-3 flex gap-2">
-              <Button
-                size="sm"
-                loading={payoutMutation.isPending}
-                onClick={() =>
-                  payoutMutation.mutate({
-                    payoutId: payoutPanel.payoutId,
-                    data: {
-                      status: payoutPanel.status,
-                      transactionId: payoutPanel.transactionId || undefined,
-                      notes: payoutPanel.notes || undefined,
-                    },
-                  })
-                }
-              >
-                Save
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPayoutPanel(null)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
     </DashboardLayout>
   );

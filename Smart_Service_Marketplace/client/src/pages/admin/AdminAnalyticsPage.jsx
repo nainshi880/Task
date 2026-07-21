@@ -314,7 +314,7 @@ function AdminAnalyticsPage() {
                   </Pie>
                   <Tooltip
                     formatter={(value, _name, props) => [
-                      `${value} bookings · ${formatCurrency(props.payload.revenue || 0)}`,
+                      `${value} bookings ?? ${formatCurrency(props.payload.revenue || 0)}`,
                       props.payload.name,
                     ]}
                     contentStyle={{ borderRadius: 12 }}

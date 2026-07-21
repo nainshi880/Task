@@ -100,12 +100,6 @@ export const refundPayment = (paymentId, data) =>
 export const listPaymentRefunds = (params) =>
   api.get("/admin/payments/refunds", { params });
 
-export const listTechnicianPayouts = (params) =>
-  api.get("/admin/payments/payouts", { params });
-
-export const updateTechnicianPayout = (payoutId, data) =>
-  api.patch(`/admin/payments/payouts/${payoutId}`, data);
-
 export const getPaymentReports = (params) =>
   api.get("/admin/payments/reports", { params });
 
@@ -133,9 +127,6 @@ export const suspendTechnician = (technicianId, data) =>
 
 export const unsuspendTechnician = (technicianId) =>
   api.patch(`/admin/technicians/${technicianId}/unsuspend`);
-
-export const getTechnicianEarnings = (technicianId, params) =>
-  api.get(`/admin/technicians/${technicianId}/earnings`, { params });
 
 export const getTechnicianRatings = (technicianId) =>
   api.get(`/admin/technicians/${technicianId}/ratings`);
@@ -195,18 +186,6 @@ export const updateTermsOfService = (data) =>
 
 export const updatePrivacyPolicy = (data) =>
   api.put("/admin/settings/privacy", data);
-
-export const listBanners = (params) =>
-  api.get("/admin/settings/banners", { params });
-
-export const createBanner = (data) =>
-  api.post("/admin/settings/banners", data);
-
-export const updateBanner = (bannerId, data) =>
-  api.patch(`/admin/settings/banners/${bannerId}`, data);
-
-export const deleteBanner = (bannerId) =>
-  api.delete(`/admin/settings/banners/${bannerId}`);
 
 /* ── Admin profile ── */
 export const updateAdminProfile = (data) => api.put("/admin/profile", data);

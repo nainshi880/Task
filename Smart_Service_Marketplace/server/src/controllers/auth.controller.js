@@ -23,14 +23,16 @@ function getRefreshToken(req) {
 export const register = asyncHandler(async (req, res) => {
   const result = await authService.register(req.body, sessionMeta(req));
 
-  setAuthCookies(res, { refreshToken: result.refreshToken });
-
   res.status(HTTP_STATUS.CREATED).json(
-    new ApiResponse(HTTP_STATUS.CREATED, "User registered successfully.", {
-      user: result.user,
-      token: result.token,
-      accessToken: result.accessToken,
-    })
+    new ApiResponse(
+      HTTP_STATUS.CREATED,
+      "Registration started. Please verify your email with the OTP.",
+      {
+        pending: true,
+        email: result.email,
+        emailVerification: result.emailVerification,
+      }
+    )
   );
 });
 
@@ -41,17 +43,14 @@ export const registerTechnician = asyncHandler(async (req, res) => {
     sessionMeta(req)
   );
 
-  setAuthCookies(res, { refreshToken: result.refreshToken });
-
   res.status(HTTP_STATUS.CREATED).json(
     new ApiResponse(
       HTTP_STATUS.CREATED,
-      "Technician application submitted successfully. Awaiting admin approval.",
+      "Registration started. Please verify your email with the OTP.",
       {
-        user: result.user,
-        profile: result.profile,
-        token: result.token,
-        accessToken: result.accessToken,
+        pending: true,
+        email: result.email,
+        emailVerification: result.emailVerification,
       }
     )
   );
@@ -168,9 +167,33 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
 });
 
 export const verifyEmail = asyncHandler(async (req, res) => {
-  const result = await authService.verifyEmail(req.params.token);
+  const result = await authService.verifyEmailOtp(
+    req.body.email,
+    req.body.code,
+    sessionMeta(req)
+  );
+
+  if (result.refreshToken) {
+    setAuthCookies(res, { refreshToken: result.refreshToken });
+  }
 
   res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result.message, result)
+    new ApiResponse(HTTP_STATUS.OK, result.message, {
+      user: result.user,
+      token: result.token,
+      accessToken: result.accessToken,
+      alreadyVerified: result.alreadyVerified,
+    })
+  );
+});
+
+export const updateDeviceToken = asyncHandler(async (req, res) => {
+  const result = await authService.updateDeviceToken(
+    req.user._id,
+    req.body.deviceToken
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Device token registered.", result)
   );
 });

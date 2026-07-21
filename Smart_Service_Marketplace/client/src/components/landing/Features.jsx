@@ -2,7 +2,7 @@ import {
   ShieldCheck,
   Clock3,
   MapPinned,
-  Wallet,
+  CreditCard,
   BadgeCheck,
   Headphones,
 } from "lucide-react";
@@ -27,7 +27,7 @@ const features = [
       "Automatically connects you with professionals near your location.",
   },
   {
-    icon: Wallet,
+    icon: CreditCard,
     title: "Secure Payments",
     description:
       "Multiple payment methods with encrypted and secure transactions.",

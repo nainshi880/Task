@@ -2,7 +2,6 @@ import User from "../models/User.js";
 import CustomerProfile from "../models/CustomerProfile.js";
 import TechnicianProfile from "../models/TechnicianProfile.js";
 import Booking from "../models/Booking.js";
-import Wallet from "../models/Wallet.js";
 import ROLES from "../constants/roles.js";
 
 class AdminUserRepository {
@@ -181,7 +180,7 @@ class AdminUserRepository {
 
     if (!user) return null;
 
-    const [profile, technicianProfile, bookingStats, wallet] = await Promise.all([
+    const [profile, technicianProfile, bookingStats] = await Promise.all([
       CustomerProfile.findOne({ user: userId }),
       TechnicianProfile.findOne({ user: userId }),
       Booking.aggregate([
@@ -193,7 +192,6 @@ class AdminUserRepository {
           },
         },
       ]),
-      Wallet.findOne({ user: userId }).select("balance currency"),
     ]);
 
     const bookings = {
@@ -208,9 +206,6 @@ class AdminUserRepository {
       profile,
       technicianProfile,
       bookings,
-      wallet: wallet
-        ? { balance: wallet.balance, currency: wallet.currency }
-        : null,
     };
   }
 

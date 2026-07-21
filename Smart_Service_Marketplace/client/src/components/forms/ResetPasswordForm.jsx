@@ -1,5 +1,5 @@
 import { useForm } from "react-hook-form";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import Button from "../ui/Button";
@@ -11,6 +11,13 @@ import { validateStrongPassword } from "../../utils/password";
 function ResetPasswordForm() {
   const navigate = useNavigate();
   const { token } = useParams();
+  const [searchParams] = useSearchParams();
+  const loginPath =
+    searchParams.get("from") === "admin" ? "/admin/login" : "/login";
+  const forgotPath =
+    searchParams.get("from") === "admin"
+      ? "/forgot-password?from=admin"
+      : "/forgot-password";
 
   const {
     register,
@@ -38,7 +45,7 @@ function ResetPasswordForm() {
       });
 
       toast.success("Password reset successfully. Please sign in.");
-      navigate("/login", { replace: true });
+      navigate(loginPath, { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.message || "Password reset failed");
     }
@@ -50,7 +57,7 @@ function ResetPasswordForm() {
         <p className="text-slate-600">
           This reset link is incomplete. Request a new password reset email.
         </p>
-        <Button className="w-full" onClick={() => navigate("/forgot-password")}>
+        <Button className="w-full" onClick={() => navigate(forgotPath)}>
           Request new link
         </Button>
       </div>

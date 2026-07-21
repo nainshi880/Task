@@ -10,8 +10,6 @@ import {
   listAdminFailedPayments,
   listAdminRecoverablePayments,
   recoverAdminPayment,
-  listAdminTechnicianPayouts,
-  processAdminTechnicianPayout,
 } from "../controllers/adminPayment.controller.js";
 
 import {
@@ -24,8 +22,6 @@ import {
   adminFailedPaymentsValidation,
   adminRecoverableListValidation,
   adminRecoverPaymentValidation,
-  adminPayoutsListValidation,
-  adminProcessPayoutValidation,
 } from "../validations/adminPayment.validation.js";
 
 import validate from "../middlewares/validation.middleware.js";
@@ -53,15 +49,6 @@ router.get(
 );
 
 router.get("/failed", adminFailedPaymentsValidation, validate, listAdminFailedPayments);
-
-router.get("/payouts", adminPayoutsListValidation, validate, listAdminTechnicianPayouts);
-
-router.patch(
-  "/payouts/:payoutId",
-  adminProcessPayoutValidation,
-  validate,
-  processAdminTechnicianPayout
-);
 
 router.get(
   "/transactions/:paymentId",

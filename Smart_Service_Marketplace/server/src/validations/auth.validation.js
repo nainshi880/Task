@@ -132,8 +132,27 @@ export const resendVerificationEmailValidation = [
   body("email").isEmail().withMessage("Valid email required"),
 ];
 
+export const verifyEmailOtpValidation = [
+  body("email").isEmail().withMessage("Valid email required"),
+  body("code")
+    .trim()
+    .notEmpty()
+    .withMessage("OTP code is required.")
+    .isLength({ min: 4, max: 8 })
+    .withMessage("Invalid OTP code."),
+];
+
 export const resetPasswordValidation = [strongPasswordRules("password")];
 
 export const refreshTokenValidation = [
   body("refreshToken").optional().trim().isLength({ min: 20 }),
+];
+
+export const deviceTokenValidation = [
+  body("deviceToken")
+    .trim()
+    .notEmpty()
+    .withMessage("deviceToken is required.")
+    .isLength({ min: 20, max: 512 })
+    .withMessage("Invalid device token."),
 ];

@@ -12,15 +12,8 @@ const paymentSchema = new mongoose.Schema(
 
     purpose: {
       type: String,
-      enum: ["booking", "wallet_recharge"],
+      enum: ["booking"],
       default: "booking",
-      index: true,
-    },
-
-    wallet: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Wallet",
-      default: null,
       index: true,
     },
 
@@ -138,7 +131,7 @@ const paymentSchema = new mongoose.Schema(
         reason: { type: String, trim: true },
         method: {
           type: String,
-          enum: ["razorpay", "wallet", "manual"],
+          enum: ["razorpay"],
           default: "razorpay",
         },
         createdAt: { type: Date, default: Date.now },

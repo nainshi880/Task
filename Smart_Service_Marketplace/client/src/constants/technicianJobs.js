@@ -50,6 +50,7 @@ export function bucketJobs(jobs = []) {
 
   for (const job of jobs) {
     switch (job.status) {
+      case BOOKING_STATUS.PENDING:
       case BOOKING_STATUS.ASSIGNED:
         incoming.push(job);
         break;

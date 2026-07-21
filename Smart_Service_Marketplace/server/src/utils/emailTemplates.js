@@ -103,25 +103,6 @@ export function bookingCancelledEmailTemplate({ name, booking, reason }) {
   };
 }
 
-export function invoiceEmailTemplate({ name, invoice }) {
-  const title = `Invoice ${invoice.invoiceNumber}`;
-  return {
-    subject: `${title} — ${brand()}`,
-    html: layout({
-      title,
-      bodyHtml: `
-        <p>Hi ${name || "there"},</p>
-        <p>Please find your tax invoice attached.</p>
-        <ul>
-          <li><strong>Invoice:</strong> ${invoice.invoiceNumber}</li>
-          <li><strong>Total:</strong> ₹${Number(invoice.totalAmount || 0).toFixed(2)}</li>
-          <li><strong>GST:</strong> ₹${Number(invoice.totalTax || 0).toFixed(2)}</li>
-        </ul>
-      `,
-    }),
-  };
-}
-
 export function paymentReceiptEmailTemplate({ name, payment, booking }) {
   const title = "Payment Receipt";
   return {
@@ -168,7 +149,7 @@ export function passwordResetEmailTemplate({ name, resetURL, otpCode }) {
   };
 }
 
-export function emailVerificationTemplate({ name, verifyURL }) {
+export function emailVerificationTemplate({ name, otpCode }) {
   const title = "Verify Your Email";
   return {
     subject: title,
@@ -176,8 +157,9 @@ export function emailVerificationTemplate({ name, verifyURL }) {
       title,
       bodyHtml: `
         <p>Hi ${name || "there"},</p>
-        <p>Please verify your email address to activate your account. This link expires in 24 hours.</p>
-        ${ctaButton(verifyURL, "Verify Email")}
+        <p>Use this one-time code to verify your email and activate your account. It expires in 10 minutes.</p>
+        <p style="font-size:28px;letter-spacing:6px;font-weight:700;color:#4f46e5;margin:24px 0;">${otpCode}</p>
+        <p style="color:#6b7280;font-size:13px;">If you did not create an account, you can ignore this email.</p>
       `,
     }),
   };
@@ -205,7 +187,6 @@ export default {
   welcomeEmailTemplate,
   bookingConfirmationEmailTemplate,
   bookingCancelledEmailTemplate,
-  invoiceEmailTemplate,
   paymentReceiptEmailTemplate,
   passwordResetEmailTemplate,
   emailVerificationTemplate,

@@ -56,7 +56,7 @@ export const adminRefundBookingValidation = [
   ...bookingIdParamValidation,
   body("amount").optional().isFloat({ min: 0.01 }),
   body("reason").optional().trim().isLength({ max: 500 }),
-  body("method").optional().isIn(["razorpay", "wallet"]),
+  body("method").optional().isIn(["razorpay"]),
 ];
 
 export const adminBookingReportsValidation = [

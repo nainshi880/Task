@@ -151,7 +151,6 @@ class NotificationRepository {
     // Technicians / users without CustomerProfile — default prefs
     return {
       emailNotification: true,
-      smsNotification: true,
       pushNotification: true,
       whatsappNotification: true,
       inAppNotification: true,

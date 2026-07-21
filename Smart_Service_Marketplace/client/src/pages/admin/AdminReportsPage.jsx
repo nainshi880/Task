@@ -267,10 +267,6 @@ function AdminReportsPage() {
                 value={formatCurrency(revenue.bookingRevenue ?? 0)}
               />
               <Stat
-                label="Wallet recharges"
-                value={formatCurrency(revenue.walletRecharges ?? 0)}
-              />
-              <Stat
                 label="Refunded"
                 value={formatCurrency(revenue.refundedAmount ?? 0)}
               />

@@ -55,7 +55,8 @@ function TechnicianJobsPage() {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">My Jobs</h1>
           <p className="mt-1 text-slate-500">
-            Accept incoming requests and manage bookings through completion.
+            Incoming includes open jobs matching your skills — accept first to
+            claim the work.
           </p>
         </div>
 

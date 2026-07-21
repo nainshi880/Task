@@ -1,7 +1,6 @@
 import adminSettingsService from "../services/adminSettings.service.js";
 import platformSettingsService from "../services/platformSettings.service.js";
 import serviceCategoryRepository from "../repositories/serviceCategory.repository.js";
-import bannerRepository from "../repositories/banner.repository.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
@@ -125,69 +124,16 @@ export const deleteAdminCategory = asyncHandler(async (req, res) => {
   );
 });
 
-export const listAdminBanners = asyncHandler(async (req, res) => {
-  const result = await adminSettingsService.listBanners(req.query);
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, "Banners fetched.", {
-      banners: result.items || result,
-      pagination: result.pagination,
-    })
-  );
-});
-
-export const createAdminBanner = asyncHandler(async (req, res) => {
-  const banner = await adminSettingsService.createBanner(
-    req.user._id,
-    req.body,
-    actorContext(req)
-  );
-
-  res.status(HTTP_STATUS.CREATED).json(
-    new ApiResponse(HTTP_STATUS.CREATED, "Banner created.", { banner })
-  );
-});
-
-export const updateAdminBanner = asyncHandler(async (req, res) => {
-  const banner = await adminSettingsService.updateBanner(
-    req.params.bannerId,
-    req.user._id,
-    req.body,
-    actorContext(req)
-  );
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, "Banner updated.", { banner })
-  );
-});
-
-export const deleteAdminBanner = asyncHandler(async (req, res) => {
-  const result = await adminSettingsService.deleteBanner(
-    req.params.bannerId,
-    req.user._id,
-    actorContext(req)
-  );
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result.message, result)
-  );
-});
-
 export const getPublicSettings = asyncHandler(async (req, res) => {
-  const [publicSettings, categoryResult, bannerResult] = await Promise.all([
+  const [publicSettings, categoryResult] = await Promise.all([
     platformSettingsService.getPublicSettings(),
     serviceCategoryRepository.list({ includeInactive: false }),
-    bannerRepository.list({
-      position: req.query.position,
-      audience: req.query.audience,
-    }),
   ]);
 
   res.status(HTTP_STATUS.OK).json(
     new ApiResponse(HTTP_STATUS.OK, "Public settings fetched.", {
       ...publicSettings,
       categories: categoryResult.items,
-      banners: bannerResult.items,
     })
   );
 });

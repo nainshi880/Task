@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, LogOut, UserCircle } from "lucide-react";
 
 import Sidebar from "../components/layout/Sidebar";
 import Footer from "../components/layout/Footer";
 import useAuth from "../hooks/useAuth";
+import useChatSocket from "../hooks/useChatSocket";
 import * as notificationService from "../services/notification.service";
-import { notificationKeys } from "../lib/queryClient";
+import {
+  notificationKeys,
+  technicianKeys,
+  chatKeys,
+} from "../lib/queryClient";
 import { ROLES, isAdminRole } from "../constants/roles";
+import { BOOKING_EVENTS } from "../constants/chat";
 
 function notificationsPath(role) {
   if (role === ROLES.TECHNICIAN) return "/technician/notifications";
@@ -20,6 +26,10 @@ function notificationsPath(role) {
 function DashboardLayout({ children }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { user, logout, role, isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
+  const { on } = useChatSocket({
+    enabled: Boolean(isAuthenticated),
+  });
 
   const unreadQuery = useQuery({
     queryKey: notificationKeys.unread(),
@@ -28,6 +38,26 @@ function DashboardLayout({ children }) {
     refetchInterval: (query) => (query.state.error ? false : 30_000),
     retry: false,
   });
+
+  useEffect(() => {
+    if (role !== ROLES.TECHNICIAN) return undefined;
+
+    const invalidateJobs = () => {
+      queryClient.invalidateQueries({ queryKey: technicianKeys.all });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      queryClient.invalidateQueries({ queryKey: chatKeys.all });
+    };
+
+    const offAssigned = on(BOOKING_EVENTS.ASSIGNED, invalidateJobs);
+    const offAvailable = on(BOOKING_EVENTS.AVAILABLE, invalidateJobs);
+    const offClaimed = on(BOOKING_EVENTS.CLAIMED, invalidateJobs);
+
+    return () => {
+      offAssigned?.();
+      offAvailable?.();
+      offClaimed?.();
+    };
+  }, [role, on, queryClient]);
 
   const unread =
     unreadQuery.data?.unreadCount ??

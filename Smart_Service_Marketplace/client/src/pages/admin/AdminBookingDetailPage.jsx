@@ -312,7 +312,6 @@ function AdminBookingDetailPage() {
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
                 >
                   <option value="razorpay">Razorpay</option>
-                  <option value="wallet">Wallet</option>
                 </select>
               </div>
             )}

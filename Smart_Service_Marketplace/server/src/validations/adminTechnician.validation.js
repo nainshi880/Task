@@ -79,13 +79,3 @@ export const assignCategoriesValidation = [
   body("serviceCategories.*").optional().isIn(SERVICE_CATEGORIES),
 ];
 
-export const adminTechnicianEarningsValidation = [
-  ...technicianIdParamValidation,
-  query("year").optional().isInt({ min: 2000, max: 2100 }).toInt(),
-  query("month").optional().isInt({ min: 1, max: 12 }).toInt(),
-  query("page").optional().isInt({ min: 1 }).toInt(),
-  query("limit")
-    .optional()
-    .isInt({ min: PAGINATION.MIN_LIMIT, max: PAGINATION.MAX_LIMIT })
-    .toInt(),
-];

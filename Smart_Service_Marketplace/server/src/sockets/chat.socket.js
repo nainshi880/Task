@@ -1,8 +1,6 @@
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
-import { createAdapter } from "@socket.io/redis-adapter";
 import env from "../config/env.js";
-import { createRedisPubSubPair } from "../config/queue.js";
 import authRepository from "../repositories/auth.repository.js";
 import chatService from "../services/chat.service.js";
 import { CHAT_EVENTS } from "../constants/chat.js";
@@ -71,7 +69,7 @@ function emitError(socket, message) {
 }
 
 /**
- * Attach Socket.IO to an HTTP server with optional Redis pub/sub adapter.
+ * Attach Socket.IO to an HTTP server (single-instance, no Redis adapter).
  */
 export async function initChatSocket(httpServer) {
   const io = new Server(httpServer, {
@@ -83,22 +81,10 @@ export async function initChatSocket(httpServer) {
     path: "/socket.io",
   });
 
-  const pair = createRedisPubSubPair();
-  if (pair) {
-    try {
-      await Promise.all([pair.pubClient.connect(), pair.subClient.connect()]);
-      io.adapter(createAdapter(pair.pubClient, pair.subClient));
-      logger.info("Socket.IO Redis adapter enabled (pub/sub multi-instance).");
-    } catch (error) {
-      logger.warn(
-        `Socket.IO Redis adapter unavailable — single-instance mode: ${error.message}`
-      );
-    }
-  } else {
-    logger.info("Socket.IO running without Redis adapter (single instance).");
-  }
+  logger.info("Socket.IO ready (single-instance mode).");
 
   io.use(authenticateSocket);
+
 
   io.on("connection", (socket) => {
     const user = socket.user;

@@ -16,7 +16,7 @@ import { authKeys } from "../../lib/queryClient";
 import { getRoleHome } from "../../constants/roles";
 
 const STEPS = [
-  { id: "photo", label: "Photo" },
+  { id: "details", label: "Details" },
   { id: "address", label: "Address" },
   { id: "phone", label: "Phone" },
 ];
@@ -29,9 +29,6 @@ function CustomerProfileSetupWizard() {
   const [step, setStep] = useState(0);
   const [avatarFile, setAvatarFile] = useState(null);
   const [formError, setFormError] = useState("");
-  const [cooldown, setCooldown] = useState(0);
-  const [otpSent, setOtpSent] = useState(false);
-  const [debugOtp, setDebugOtp] = useState("");
 
   const photoForm = useForm({
     defaultValues: {
@@ -56,28 +53,15 @@ function CustomerProfileSetupWizard() {
   const phoneForm = useForm({
     defaultValues: {
       phone: user?.phone || "",
-      code: "",
     },
   });
 
   const subtitle = useMemo(() => {
-    if (step === 0) return "Add a profile photo and a few personal details.";
+    if (step === 0)
+      return "Add your personal details. Profile photo is optional.";
     if (step === 1) return "Where should technicians visit you?";
-    return "Verify your phone number with a one-time code.";
+    return "Add your phone number so technicians can reach you.";
   }, [step]);
-
-  const startCooldown = (seconds = 30) => {
-    setCooldown(seconds);
-    const timer = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
 
   const refreshMe = async () => {
     const me = await authService.me();
@@ -88,10 +72,6 @@ function CustomerProfileSetupWizard() {
 
   const onPhotoSubmit = async (data) => {
     setFormError("");
-    if (!avatarFile) {
-      setFormError("Please upload a profile picture.");
-      return;
-    }
 
     try {
       await customerService.ensureProfile({
@@ -110,12 +90,16 @@ function CustomerProfileSetupWizard() {
         // Profile may already have matching data
       }
 
-      await customerService.uploadAvatar(avatarFile);
-      toast.success("Profile photo saved");
+      if (avatarFile) {
+        await customerService.uploadAvatar(avatarFile);
+        toast.success("Details and photo saved");
+      } else {
+        toast.success("Details saved");
+      }
       setStep(1);
     } catch (error) {
       const message =
-        error.response?.data?.message || "Could not save profile photo.";
+        error.response?.data?.message || "Could not save your details.";
       setFormError(message);
       toast.error(message);
     }
@@ -143,36 +127,9 @@ function CustomerProfileSetupWizard() {
     }
   };
 
-  const sendPhoneOtp = async () => {
-    const phone = phoneForm.getValues("phone")?.trim();
-    if (!phone || !/^[0-9]{10}$/.test(phone)) {
-      toast.error("Enter a valid 10-digit phone number");
-      return;
-    }
-
-    try {
-      const result = await authService.sendOtp({
-        phone,
-        purpose: "verify_phone",
-      });
-      if (result?.debugOtp) setDebugOtp(result.debugOtp);
-      setOtpSent(true);
-      startCooldown(30);
-      toast.success("OTP sent");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to send OTP");
-    }
-  };
-
   const onPhoneSubmit = async (data) => {
     setFormError("");
     try {
-      await authService.verifyOtpCode({
-        phone: data.phone.trim(),
-        code: data.code.trim(),
-        purpose: "verify_phone",
-      });
-
       await customerService.updateProfile({
         phone: data.phone.trim(),
         fullName: photoForm.getValues("fullName")?.trim() || user?.name,
@@ -185,7 +142,7 @@ function CustomerProfileSetupWizard() {
       navigate(getRoleHome("customer"), { replace: true });
     } catch (error) {
       const message =
-        error.response?.data?.message || "Phone verification failed.";
+        error.response?.data?.message || "Could not save phone number.";
       setFormError(message);
       toast.error(message);
     }
@@ -217,9 +174,9 @@ function CustomerProfileSetupWizard() {
           noValidate
         >
           <FileUpload
-            label="Profile picture"
+            label="Profile picture (optional)"
             accept="image/jpeg,image/png,image/webp"
-            hint="JPEG, PNG, or WEBP up to 5MB"
+            hint="Optional — JPEG, PNG, or WEBP up to 5MB. You can add this later."
             file={avatarFile}
             onChange={setAvatarFile}
           />
@@ -348,33 +305,6 @@ function CustomerProfileSetupWizard() {
                 value: /^[0-9]{10}$/,
                 message: "Enter a 10-digit phone number",
               },
-            })}
-          />
-
-          <div className="flex gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={sendPhoneOtp}
-              disabled={cooldown > 0}
-              className="flex-1"
-            >
-              {cooldown > 0 ? `Resend in ${cooldown}s` : otpSent ? "Resend OTP" : "Send OTP"}
-            </Button>
-          </div>
-
-          {debugOtp && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Dev OTP: <strong>{debugOtp}</strong>
-            </p>
-          )}
-
-          <Input
-            label="OTP code"
-            error={phoneForm.formState.errors.code?.message}
-            register={phoneForm.register("code", {
-              required: "OTP is required",
-              minLength: { value: 4, message: "Enter the OTP code" },
             })}
           />
 

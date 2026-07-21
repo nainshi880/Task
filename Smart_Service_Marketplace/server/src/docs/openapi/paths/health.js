@@ -26,7 +26,7 @@ export const healthPaths = {
     get: {
       tags: ["Health & Monitoring"],
       summary: "Readiness check",
-      description: "Checks MongoDB (required) and Redis (optional/degraded).",
+      description: "Checks MongoDB readiness.",
       security: [],
       responses: {
         200: jsonResponse("Service ready."),

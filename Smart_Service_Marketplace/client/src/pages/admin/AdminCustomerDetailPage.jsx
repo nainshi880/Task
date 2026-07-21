@@ -9,7 +9,6 @@ import {
   Phone,
   Trash2,
   UserCheck,
-  Wallet,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import clsx from "clsx";
@@ -130,7 +129,7 @@ function AdminCustomerDetailPage() {
     );
   }
 
-  const { user, profile, bookings, wallet } = detailQuery.data || {};
+  const { user, profile, bookings } = detailQuery.data || {};
   const name = profile?.fullName || user?.name || "Customer";
   const busy =
     blockMutation.isPending ||
@@ -220,7 +219,7 @@ function AdminCustomerDetailPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2 text-slate-500">
               <CalendarCheck size={18} />
@@ -228,17 +227,6 @@ function AdminCustomerDetailPage() {
             </div>
             <p className="mt-2 text-2xl font-bold text-slate-900">
               {bookings?.total ?? 0}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-500">
-              <Wallet size={18} />
-              <span className="text-sm">Wallet</span>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">
-              {wallet
-                ? formatCurrency(wallet.balance, wallet.currency || "INR")
-                : "—"}
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

@@ -3,7 +3,8 @@ import Loader from "../components/ui/Loader";
 import useAuth from "../hooks/useAuth";
 import {
   getProfileSetupPath,
-  getRoleHome,
+  getPostLoginRedirect,
+  needsEmailVerification,
   needsProfileSetup,
 } from "../constants/roles";
 
@@ -16,14 +17,19 @@ function GuestRoute() {
   }
 
   if (isAuthenticated) {
+    // Incomplete email verification should not trap guests on /verify-email
+    // via login/register — send them home; they can register again.
+    if (needsEmailVerification(user)) {
+      return <Navigate to="/" replace />;
+    }
+
     const setupPath = needsProfileSetup(user)
       ? getProfileSetupPath(role)
       : null;
 
     const redirectTo =
       setupPath ||
-      location.state?.from?.pathname ||
-      getRoleHome(role);
+      getPostLoginRedirect(role, location.state?.from?.pathname);
 
     return <Navigate to={redirectTo} replace />;
   }

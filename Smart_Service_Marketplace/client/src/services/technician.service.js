@@ -65,15 +65,3 @@ export const completeSetup = async (data) =>
 
 export const changePassword = async (data) =>
   unwrap(await technicianApi.changePassword(data));
-
-export const getEarningsSummary = async () =>
-  unwrap(await technicianApi.getEarningsSummary());
-
-export const getMonthlyEarnings = async (params) =>
-  unwrap(await technicianApi.getMonthlyEarnings(params));
-
-export const getPayouts = async (params) =>
-  unwrap(await technicianApi.getPayouts(params));
-
-export const requestPayout = async (data) =>
-  unwrap(await technicianApi.requestPayout(data));

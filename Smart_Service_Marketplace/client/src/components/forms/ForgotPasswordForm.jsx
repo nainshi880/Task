@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { Check, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
@@ -54,10 +54,12 @@ function Stepper({ currentStep }) {
 
 function ForgotPasswordForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const loginPath =
+    searchParams.get("from") === "admin" ? "/admin/login" : "/login";
   const [step, setStep] = useState(0);
   const [email, setEmail] = useState("");
   const [resetToken, setResetToken] = useState("");
-  const [debugOtp, setDebugOtp] = useState("");
   const [formError, setFormError] = useState("");
   const [cooldown, setCooldown] = useState(0);
 
@@ -90,14 +92,7 @@ function ForgotPasswordForm() {
   };
 
   const sendResetEmail = async (targetEmail) => {
-    const result = await authService.forgot(targetEmail);
-    if (result?.debugOtp) {
-      setDebugOtp(result.debugOtp);
-    }
-    if (result?.debugResetToken) {
-      setResetToken(result.debugResetToken);
-    }
-    return result;
+    return authService.forgot(targetEmail);
   };
 
   const onEmailSubmit = async (data) => {
@@ -228,14 +223,8 @@ function ForgotPasswordForm() {
         >
           <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
             We sent a reset link and OTP to <strong>{email}</strong>.
-            Enter the OTP below, or open the email link to continue.
+            Enter the OTP from your email below, or open the email link to continue.
           </div>
-
-          {debugOtp && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Dev mode OTP: <strong className="tracking-widest">{debugOtp}</strong>
-            </div>
-          )}
 
           <Input
             label="OTP code"
@@ -281,17 +270,6 @@ function ForgotPasswordForm() {
               {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend OTP"}
             </button>
           </div>
-
-          {resetToken && (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => setStep(2)}
-            >
-              I already have a reset token — continue
-            </Button>
-          )}
         </form>
       )}
 
@@ -352,7 +330,7 @@ function ForgotPasswordForm() {
           <p className="text-sm text-slate-500">
             You can now sign in with your new password.
           </p>
-          <Button className="w-full" size="lg" onClick={() => navigate("/login")}>
+          <Button className="w-full" size="lg" onClick={() => navigate(loginPath)}>
             Go to login
           </Button>
         </div>
@@ -361,7 +339,7 @@ function ForgotPasswordForm() {
       {step < 3 && (
         <div className="text-center">
           <Link
-            to="/login"
+            to={loginPath}
             className="text-sm font-semibold text-indigo-600 hover:underline"
           >
             Back to login

@@ -1,11 +1,13 @@
 import bookingRepository from "../repositories/booking.repository.js";
 import auditRepository from "../repositories/audit.repository.js";
 import technicianDashboardRepository from "../repositories/technicianDashboard.repository.js";
+import technicianRepository from "../repositories/technician.repository.js";
 import BookingTimeline from "../models/BookingTimeline.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import PAGINATION from "../constants/pagination.js";
 import AUDIT_ACTION from "../constants/auditAction.js";
+import BOOKING_STATUS from "../constants/bookingStatus.js";
 import cacheService, {
   CACHE_KEYS,
   CACHE_TTL,
@@ -116,11 +118,46 @@ class TechnicianJobsService {
         })
       : await bookingRepository.findByTechnician(technicianId, options);
 
+    // Include open marketplace jobs (Pending, unassigned) matching technician skills
+    let openItems = [];
+    const wantsOpen =
+      !options.status ||
+      options.status === BOOKING_STATUS.PENDING ||
+      String(options.status).toLowerCase() === "pending";
+
+    if (wantsOpen && !options.search) {
+      const technician = await technicianRepository.findById(technicianId);
+      const { bookings: openBookings } =
+        await bookingRepository.findOpenJobsForTechnician({
+          skills: technician?.skills || [],
+          city: technician?.city || "",
+          page: 1,
+          limit: Math.min(options.limit * 2, 40),
+          sortBy: options.sortBy,
+          sortOrder: options.sortOrder,
+        });
+      openItems = (openBookings || []).map((job) => ({
+        ...job,
+        isOpenOffer: true,
+      }));
+    }
+
+    const mergedMap = new Map();
+    for (const job of [...openItems, ...bookings]) {
+      mergedMap.set(String(job._id), job);
+    }
+    const merged = [...mergedMap.values()].sort((a, b) => {
+      const da = new Date(a.createdAt || a.bookingDate || 0).getTime();
+      const db = new Date(b.createdAt || b.bookingDate || 0).getTime();
+      return options.sortOrder === "asc" ? da - db : db - da;
+    });
+
+    const pageItems = merged.slice(0, options.limit);
     const result = this.formatPaginatedResponse(
-      bookings,
+      pageItems,
       options.page,
       options.limit,
-      total
+      total + openItems.length
     );
 
     await cacheService.set(cacheKey, result, CACHE_TTL.LIST);

@@ -19,8 +19,6 @@ import { validateStrongPassword } from "../../utils/password";
 const PREF_FIELDS = [
   { key: "inAppNotification", label: "In-app notifications" },
   { key: "emailNotification", label: "Email notifications" },
-  { key: "smsNotification", label: "SMS notifications" },
-  { key: "pushNotification", label: "Push notifications" },
   { key: "bookingNotifications", label: "Booking notifications" },
   { key: "paymentNotifications", label: "Payment notifications" },
   { key: "systemNotifications", label: "System notifications" },

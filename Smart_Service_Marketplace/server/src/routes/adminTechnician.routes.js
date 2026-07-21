@@ -10,7 +10,6 @@ import {
   suspendTechnician,
   unsuspendTechnician,
   updateTechnicianAvailability,
-  getTechnicianEarnings,
   getTechnicianRatings,
   assignTechnicianCategories,
 } from "../controllers/adminTechnician.controller.js";
@@ -22,7 +21,6 @@ import {
   suspendTechnicianValidation,
   adminAvailabilityValidation,
   assignCategoriesValidation,
-  adminTechnicianEarningsValidation,
 } from "../validations/adminTechnician.validation.js";
 
 import validate from "../middlewares/validation.middleware.js";
@@ -90,13 +88,6 @@ router.put(
   adminAvailabilityValidation,
   validate,
   updateTechnicianAvailability
-);
-
-router.get(
-  "/:technicianId/earnings",
-  adminTechnicianEarningsValidation,
-  validate,
-  getTechnicianEarnings
 );
 
 router.get(

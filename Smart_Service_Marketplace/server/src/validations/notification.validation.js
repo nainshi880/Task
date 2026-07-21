@@ -37,7 +37,6 @@ export const deleteNotificationsValidation = [
 
 export const notificationPreferencesValidation = [
   body("emailNotification").optional().isBoolean().toBoolean(),
-  body("smsNotification").optional().isBoolean().toBoolean(),
   body("pushNotification").optional().isBoolean().toBoolean(),
   body("whatsappNotification").optional().isBoolean().toBoolean(),
   body("inAppNotification").optional().isBoolean().toBoolean(),

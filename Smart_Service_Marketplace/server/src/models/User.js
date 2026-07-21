@@ -31,6 +31,17 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
+    deviceToken: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    deviceTokens: {
+      type: [String],
+      default: [],
+    },
+
     role: {
       type: String,
       enum: Object.values(ROLES),
@@ -199,6 +210,11 @@ userSchema.index({ role: 1, skills: 1 });
 
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) {
+    return;
+  }
+
+  // Allow creating users from an already-hashed pending registration password
+  if (this.$locals?.passwordAlreadyHashed) {
     return;
   }
 

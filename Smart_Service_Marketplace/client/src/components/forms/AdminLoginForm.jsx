@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { Mail, Lock, AlertCircle, Shield } from "lucide-react";
@@ -9,15 +9,19 @@ import Input from "../ui/Input";
 import * as adminService from "../../services/admin.service";
 import useAuth from "../../hooks/useAuth";
 import { getRememberPreference } from "../../utils/authStorage";
-import { getRoleHome } from "../../constants/roles";
+import {
+  getPostLoginRedirect,
+  isAdminRole,
+} from "../../constants/roles";
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 function AdminLoginForm() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { login, logout, isAuthenticated, role, isLoading } = useAuth();
   const [formError, setFormError] = useState("");
+  const [ready, setReady] = useState(false);
 
   const {
     register,
@@ -31,6 +35,33 @@ function AdminLoginForm() {
       rememberMe: getRememberPreference(),
     },
   });
+
+  // Clear customer/technician session so admin login is not blocked
+  useEffect(() => {
+    let cancelled = false;
+
+    async function prepare() {
+      if (isLoading) return;
+
+      if (isAuthenticated && !isAdminRole(role)) {
+        try {
+          await logout();
+        } catch {
+          // ignore
+        }
+      } else if (isAuthenticated && isAdminRole(role)) {
+        navigate(getPostLoginRedirect(role), { replace: true });
+        return;
+      }
+
+      if (!cancelled) setReady(true);
+    }
+
+    prepare();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isLoading, role, logout, navigate]);
 
   const onSubmit = async (data) => {
     setFormError("");
@@ -48,8 +79,10 @@ function AdminLoginForm() {
 
       toast.success("Admin login successful");
 
-      const redirectTo =
-        location.state?.from?.pathname || getRoleHome(response.user?.role);
+      const redirectTo = getPostLoginRedirect(
+        response.user?.role,
+        location.state?.from?.pathname
+      );
       navigate(redirectTo, { replace: true });
     } catch (error) {
       const message =
@@ -59,6 +92,14 @@ function AdminLoginForm() {
       toast.error(message);
     }
   };
+
+  if (!ready || isLoading) {
+    return (
+      <p className="py-8 text-center text-sm text-slate-500">
+        Preparing admin login...
+      </p>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
@@ -98,10 +139,19 @@ function AdminLoginForm() {
         })}
       />
 
-      <label className="flex items-center gap-2 text-sm text-slate-600">
-        <input type="checkbox" {...register("rememberMe")} className="h-4 w-4" />
-        Remember me
-      </label>
+      <div className="flex items-center justify-between text-sm">
+        <label className="flex items-center gap-2 text-slate-600">
+          <input type="checkbox" {...register("rememberMe")} className="h-4 w-4" />
+          Remember me
+        </label>
+
+        <Link
+          to="/forgot-password?from=admin"
+          className="font-medium text-indigo-600 hover:underline"
+        >
+          Forgot password?
+        </Link>
+      </div>
 
       <Button type="submit" loading={isSubmitting} className="w-full">
         Sign in to Admin

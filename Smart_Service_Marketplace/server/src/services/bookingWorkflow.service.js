@@ -1,6 +1,8 @@
 import bookingRepository from "../repositories/booking.repository.js";
 import assignmentRepository from "../repositories/assignment.repository.js";
+import technicianRepository from "../repositories/technician.repository.js";
 import bookingEventService from "./bookingEvent.service.js";
+import assignmentService from "./assignment.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import BOOKING_STATUS from "../constants/bookingStatus.js";
@@ -11,6 +13,8 @@ import withTransaction from "../utils/transaction.js";
 import withRetry, { isTransientError } from "../utils/retry.js";
 import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
+import logger from "../utils/logger.js";
+import cacheService, { CACHE_KEYS } from "../utils/cache.js";
 
 class BookingWorkflowService {
   async enrichBooking(booking) {
@@ -134,13 +138,36 @@ class BookingWorkflowService {
   }
 
   async getAssignedJobById(technicianId, bookingId) {
-    const booking = await bookingRepository.findByIdAndTechnician(
+    let booking = await bookingRepository.findByIdAndTechnician(
       bookingId,
       technicianId
     );
 
+    // Allow viewing open marketplace jobs the technician is eligible for
     if (!booking) {
-      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Job not found.");
+      booking = await bookingRepository.findById(bookingId);
+      if (
+        !booking ||
+        booking.status !== BOOKING_STATUS.PENDING ||
+        booking.technician
+      ) {
+        throw new ApiError(HTTP_STATUS.NOT_FOUND, "Job not found.");
+      }
+
+      const technician = await technicianRepository.findById(technicianId);
+      const { addressDetails } = await assignmentService.getBookingContext(
+        bookingId
+      );
+      const { candidates } = await assignmentService.getBroadcastCandidates(
+        booking,
+        addressDetails
+      );
+      const eligible = candidates.some(
+        (c) => String(c.technician._id) === String(technicianId)
+      );
+      if (!eligible || !technician) {
+        throw new ApiError(HTTP_STATUS.NOT_FOUND, "Job not found.");
+      }
     }
 
     return this.enrichBooking(booking);
@@ -155,6 +182,19 @@ class BookingWorkflowService {
 
     if (!booking) {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Booking not found.");
+    }
+
+    // Open marketplace: first technician to accept claims the Pending job
+    if (
+      booking.status === BOOKING_STATUS.PENDING &&
+      !booking.technician
+    ) {
+      const claimed = await assignmentService.claimOpenBooking(
+        bookingId,
+        technicianId
+      );
+      await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
+      return this.enrichBooking(claimed.booking);
     }
 
     this.assertAssignedTechnician(booking, technicianId);
@@ -288,6 +328,17 @@ class BookingWorkflowService {
       toStatus: BOOKING_STATUS.PENDING,
       note: rejectionReason.trim(),
     });
+
+    // Re-offer to other eligible technicians
+    try {
+      await assignmentService.broadcastOpenBooking(bookingId);
+      await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
+    } catch (error) {
+      logger.warn("Re-broadcast after reject failed", {
+        bookingId: String(bookingId),
+        message: error.message,
+      });
+    }
 
     return this.enrichBooking(updated);
   }

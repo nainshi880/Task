@@ -14,12 +14,17 @@ function TechnicianJobCard({ job, linkTo }) {
       to={href}
       className="block rounded-xl border border-slate-100 bg-slate-50/60 p-4 transition hover:border-indigo-100 hover:bg-white"
     >
-      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-semibold text-slate-900">
             {job.serviceName || job.serviceCategory}
           </p>
           <p className="mt-1 text-sm text-slate-500">{job.serviceCategory}</p>
+          {job.isOpenOffer || (job.status === "Pending" && !job.technician) ? (
+            <p className="mt-1 text-xs font-medium text-amber-700">
+              Open job — accept to claim
+            </p>
+          ) : null}
         </div>
         <BookingStatusBadge status={job.status} />
       </div>

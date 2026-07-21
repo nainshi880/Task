@@ -459,20 +459,6 @@ class PaymentRepository {
               ],
             },
           },
-          walletRechargeAmount: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ["$purpose", "wallet_recharge"] },
-                    { $eq: ["$status", PAYMENT_STATUS.PAID] },
-                  ],
-                },
-                "$amount",
-                0,
-              ],
-            },
-          },
           bookingPaymentAmount: {
             $sum: {
               $cond: [

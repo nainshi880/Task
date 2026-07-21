@@ -1,6 +1,5 @@
 import paymentRepository from "../repositories/payment.repository.js";
 import paymentService from "./payment.service.js";
-import technicianAvailabilityEarningsService from "./technicianAvailabilityEarnings.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import PAGINATION from "../constants/pagination.js";
@@ -71,7 +70,6 @@ class AdminPaymentService {
       revenue: {
         grossCollected: overview.paidAmount || 0,
         bookingRevenue: overview.bookingPaymentAmount || 0,
-        walletRecharges: overview.walletRechargeAmount || 0,
         refundedAmount: overview.refundedAmount || 0,
         netRevenue: Number(
           (
@@ -137,21 +135,6 @@ class AdminPaymentService {
     });
   }
 
-  async listTechnicianPayouts(query = {}) {
-    return await technicianAvailabilityEarningsService.listAdminPayouts(query);
-  }
-
-  async processTechnicianPayout(adminId, payoutId, body, actor = {}) {
-    return await technicianAvailabilityEarningsService.processPayout(
-      adminId,
-      payoutId,
-      body,
-      {
-        ipAddress: actor.ipAddress,
-        userAgent: actor.userAgent,
-      }
-    );
-  }
 }
 
 export default new AdminPaymentService();

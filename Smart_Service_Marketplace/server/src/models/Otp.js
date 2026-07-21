@@ -2,13 +2,6 @@ import mongoose from "mongoose";
 
 const otpSchema = new mongoose.Schema(
   {
-    phone: {
-      type: String,
-      trim: true,
-      default: "",
-      index: true,
-    },
-
     email: {
       type: String,
       trim: true,
@@ -26,15 +19,8 @@ const otpSchema = new mongoose.Schema(
 
     purpose: {
       type: String,
-      enum: [
-        "login",
-        "verify_phone",
-        "booking",
-        "payment",
-        "general",
-        "password_reset",
-      ],
-      default: "general",
+      enum: ["verify_email", "password_reset"],
+      required: true,
       index: true,
     },
 

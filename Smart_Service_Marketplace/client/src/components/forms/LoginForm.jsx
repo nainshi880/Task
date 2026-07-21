@@ -9,7 +9,12 @@ import Input from "../ui/Input";
 import * as authService from "../../services/auth.service";
 import useAuth from "../../hooks/useAuth";
 import { getRememberPreference } from "../../utils/authStorage";
-import { getProfileSetupPath, getRoleHome, needsProfileSetup } from "../../constants/roles";
+import {
+  getProfileSetupPath,
+  getPostLoginRedirect,
+  needsEmailVerification,
+  needsProfileSetup,
+} from "../../constants/roles";
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
@@ -49,14 +54,24 @@ function LoginForm() {
 
       toast.success("Login successful");
 
+      if (needsEmailVerification(response.user)) {
+        navigate("/verify-email", {
+          replace: true,
+          state: { email: response.user?.email },
+        });
+        return;
+      }
+
       const setupPath = needsProfileSetup(response.user)
         ? getProfileSetupPath(response.user?.role)
         : null;
 
       const redirectTo =
         setupPath ||
-        location.state?.from?.pathname ||
-        getRoleHome(response.user?.role);
+        getPostLoginRedirect(
+          response.user?.role,
+          location.state?.from?.pathname
+        );
       navigate(redirectTo, { replace: true });
     } catch (error) {
       const message =
@@ -141,16 +156,6 @@ function LoginForm() {
       >
         {isSubmitting ? "Signing in..." : "Sign in"}
       </Button>
-
-      <p className="text-center text-sm text-slate-500">
-        Prefer phone verification?{" "}
-        <Link
-          to="/verify-otp"
-          className="font-medium text-indigo-600 hover:underline"
-        >
-          Verify OTP
-        </Link>
-      </p>
     </form>
   );
 }

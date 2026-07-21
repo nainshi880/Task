@@ -1,6 +1,5 @@
 import platformSettingsRepository from "../repositories/platformSettings.repository.js";
 import serviceCategoryRepository from "../repositories/serviceCategory.repository.js";
-import bannerRepository from "../repositories/banner.repository.js";
 import platformSettingsService from "./platformSettings.service.js";
 import auditRepository from "../repositories/audit.repository.js";
 import ApiError from "../utils/ApiError.js";
@@ -37,16 +36,14 @@ class AdminSettingsService {
   }
 
   async getAllSettings() {
-    const [settings, categoryResult, bannerResult] = await Promise.all([
+    const [settings, categoryResult] = await Promise.all([
       platformSettingsService.getSettings(),
       serviceCategoryRepository.list({ includeInactive: true }),
-      bannerRepository.list({ includeInactive: true }),
     ]);
 
     return {
       settings,
       categories: categoryResult.items,
-      banners: bannerResult.items,
     };
   }
 
@@ -266,92 +263,6 @@ class AdminSettingsService {
     return updated;
   }
 
-  async listBanners(query = {}) {
-    const includeInactive =
-      query.includeInactive === true || query.includeInactive === "true";
-    const { page, limit } = parsePagination(query);
-
-    const result = await bannerRepository.list({
-      includeInactive,
-      position: query.position,
-      audience: query.audience,
-      page: query.page ? page : undefined,
-      limit: query.limit ? limit : undefined,
-      search: query.q || query.search,
-    });
-
-    if (!query.page) {
-      return result.items;
-    }
-
-    return formatPaginatedResponse(
-      result.items,
-      page,
-      limit,
-      result.total
-    );
-  }
-
-  async createBanner(adminId, body, actor = {}) {
-    const banner = await bannerRepository.create({
-      ...body,
-      createdBy: adminId,
-    });
-    await platformSettingsService.invalidateCache();
-
-    await this.writeAudit({
-      actorId: adminId,
-      action: AUDIT_ACTION.CREATE,
-      description: `Banner created: ${banner.title}`,
-      metadata: { bannerId: banner._id },
-      ip: actor.ipAddress,
-      userAgent: actor.userAgent,
-    });
-
-    return banner;
-  }
-
-  async updateBanner(bannerId, adminId, body, actor = {}) {
-    const banner = await bannerRepository.findById(bannerId);
-    if (!banner) {
-      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Banner not found.");
-    }
-
-    const updated = await bannerRepository.update(bannerId, body);
-    await platformSettingsService.invalidateCache();
-
-    await this.writeAudit({
-      actorId: adminId,
-      action: AUDIT_ACTION.UPDATE,
-      description: `Banner updated: ${updated.title}`,
-      metadata: { bannerId },
-      ip: actor.ipAddress,
-      userAgent: actor.userAgent,
-    });
-
-    return updated;
-  }
-
-  async deleteBanner(bannerId, adminId, actor = {}) {
-    const banner = await bannerRepository.findById(bannerId);
-    if (!banner) {
-      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Banner not found.");
-    }
-
-    await bannerRepository.remove(bannerId);
-    await platformSettingsService.invalidateCache();
-
-    await this.writeAudit({
-      actorId: adminId,
-      action: AUDIT_ACTION.DELETE,
-      description: `Banner deleted: ${banner.title}`,
-      metadata: { bannerId },
-      ip: actor.ipAddress,
-      userAgent: actor.userAgent,
-    });
-
-    return { message: "Banner deleted successfully." };
-  }
 }
 
 export default new AdminSettingsService();

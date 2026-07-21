@@ -1,12 +1,10 @@
-import sendEmail from "../utils/sendEmail.js";
-import env from "../config/env.js";
+import sendEmail, { isEmailConfigured } from "../utils/sendEmail.js";
 import logger from "../utils/logger.js";
 import notificationRepository from "../repositories/notification.repository.js";
 import {
   welcomeEmailTemplate,
   bookingConfirmationEmailTemplate,
   bookingCancelledEmailTemplate,
-  invoiceEmailTemplate,
   paymentReceiptEmailTemplate,
   passwordResetEmailTemplate,
   emailVerificationTemplate,
@@ -15,7 +13,7 @@ import {
 
 class EmailService {
   isConfigured() {
-    return Boolean(env.EMAIL_HOST && env.EMAIL_USER);
+    return isEmailConfigured();
   }
 
   async canSendEmail(userId) {
@@ -99,25 +97,9 @@ class EmailService {
     });
   }
 
-  async sendInvoice({ user, invoice, pdfBuffer, to }) {
-    const tpl = invoiceEmailTemplate({
-      name: user?.name || invoice.billTo?.name,
-      invoice,
-    });
-    return this.send({
-      to: to || user?.email || invoice.billTo?.email,
-      ...tpl,
-      attachments: pdfBuffer
-        ? [
-            {
-              filename: `${invoice.invoiceNumber}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf",
-            },
-          ]
-        : [],
-      userId: user?._id || invoice.customer,
-    });
+  async sendInvoice() {
+    logger.warn("Invoice email is unsupported because invoices were removed.");
+    return { sent: false, reason: "invoice_unsupported" };
   }
 
   async sendPaymentReceipt({ user, payment, booking }) {
@@ -153,10 +135,10 @@ class EmailService {
     }
   }
 
-  async sendEmailVerification({ user, verifyURL }) {
+  async sendEmailVerification({ user, otpCode }) {
     const tpl = emailVerificationTemplate({
       name: user.name,
-      verifyURL,
+      otpCode,
     });
     if (!this.isConfigured()) {
       return { sent: false, reason: "not_configured" };

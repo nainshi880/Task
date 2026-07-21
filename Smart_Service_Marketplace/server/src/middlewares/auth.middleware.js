@@ -2,46 +2,13 @@ import jwt from "jsonwebtoken";
 
 import env from "../config/env.js";
 import authRepository from "../repositories/auth.repository.js";
-import apiKeyService from "../services/apiKey.service.js";
-import { API_KEY_HEADER } from "../constants/security.js";
+import { isAdminRole } from "../constants/roles.js";
 
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 
-async function authenticateApiKey(req) {
-  const plainKey =
-    req.headers[API_KEY_HEADER] ||
-    req.headers[API_KEY_HEADER.toLowerCase()];
-
-  if (!plainKey) return false;
-
-  const result = await apiKeyService.verifyKey(String(plainKey).trim());
-
-  if (!result) {
-    throw new ApiError(HTTP_STATUS.UNAUTHORIZED, "Invalid API key.");
-  }
-
-  req.user = result.user;
-  req.apiKey = result.apiKey;
-  req.authMethod = "apiKey";
-  return true;
-}
-
 export const authenticate = async (req, res, next) => {
   try {
-    if (req.authMethod === "apiKey" && req.user) {
-      return next();
-    }
-
-    const apiKeyHeader =
-      req.headers[API_KEY_HEADER] ||
-      req.headers[API_KEY_HEADER.toLowerCase()];
-
-    if (apiKeyHeader) {
-      await authenticateApiKey(req);
-      return next();
-    }
-
     let token;
 
     const authHeader = req.headers.authorization;
@@ -104,4 +71,28 @@ export const authenticate = async (req, res, next) => {
 
     next(error);
   }
+};
+
+/**
+ * Requires authenticate first. Blocks customers/technicians until email is verified.
+ * Admins are exempt.
+ */
+export const requireEmailVerified = (req, res, next) => {
+  const user = req.user;
+  if (!user) {
+    return next(
+      new ApiError(HTTP_STATUS.UNAUTHORIZED, "Authentication required.")
+    );
+  }
+
+  if (isAdminRole(user.role) || user.isVerified) {
+    return next();
+  }
+
+  return next(
+    new ApiError(
+      HTTP_STATUS.FORBIDDEN,
+      "Please verify your email before continuing."
+    )
+  );
 };

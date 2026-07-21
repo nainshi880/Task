@@ -11,13 +11,8 @@ import bookingWorkflowRoutes from "./bookingWorkflow.routes.js";
 import bookingAnalyticsRoutes from "./bookingAnalytics.routes.js";
 import bookingTimelineRoutes from "./bookingTimeline.routes.js";
 import paymentRoutes from "./payment.routes.js";
-import walletRoutes from "./wallet.routes.js";
-import invoiceRoutes from "./invoice.routes.js";
-import couponRoutes from "./coupon.routes.js";
 import notificationRoutes from "./notification.routes.js";
 import chatRoutes from "./chat.routes.js";
-import pushRoutes from "./push.routes.js";
-import messagingRoutes from "./messaging.routes.js";
 import adminRoutes from "./admin.routes.js";
 import adminUserRoutes from "./adminUser.routes.js";
 import adminTechnicianRoutes from "./adminTechnician.routes.js";
@@ -28,11 +23,8 @@ import adminAnalyticsRoutes from "./adminAnalytics.routes.js";
 import adminReportsRoutes from "./adminReports.routes.js";
 import adminAuditRoutes from "./adminAudit.routes.js";
 import adminSettingsRoutes from "./adminSettings.routes.js";
-import adminApiKeyRoutes from "./adminApiKey.routes.js";
 import settingsRoutes from "./settings.routes.js";
-import batchRoutes from "./batch.routes.js";
 import reviewRoutes from "./review.routes.js";
-import favoriteRoutes from "./favorite.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
 import serviceRoutes from "./service.routes.js";
 
@@ -69,19 +61,9 @@ router.use("/technicians", technicianRoutes);
 
 router.use("/payments", paymentRoutes);
 
-router.use("/wallet", walletRoutes);
-
-router.use("/invoices", invoiceRoutes);
-
-router.use("/coupons", couponRoutes);
-
 router.use("/notifications", notificationRoutes);
 
 router.use("/chat", chatRoutes);
-
-router.use("/push", pushRoutes);
-
-router.use("/messaging", messagingRoutes);
 
 router.use("/admin", adminRoutes);
 
@@ -103,15 +85,9 @@ router.use("/admin/audit-logs", adminAuditRoutes);
 
 router.use("/admin/settings", adminSettingsRoutes);
 
-router.use("/admin/api-keys", adminApiKeyRoutes);
-
 router.use("/settings", settingsRoutes);
 
-router.use("/batch", batchRoutes);
-
 router.use("/reviews", reviewRoutes);
-
-router.use("/favorites", favoriteRoutes);
 
 router.use("/dashboard", dashboardRoutes);
 

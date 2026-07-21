@@ -1,5 +1,7 @@
 import bookingRepository from "../repositories/booking.repository.js";
 import technicianRepository from "../repositories/technician.repository.js";
+import adminRepository from "../repositories/admin.repository.js";
+import notificationService from "./notification.service.js";
 import assignmentRepository from "../repositories/assignment.repository.js";
 import bookingEventService from "./bookingEvent.service.js";
 import chatService from "./chat.service.js";
@@ -16,8 +18,13 @@ import ASSIGNMENT_METHOD, {
 } from "../constants/assignment.js";
 import PAGINATION from "../constants/pagination.js";
 import BOOKING_TIMELINE_EVENT from "../constants/bookingTimelineEvent.js";
+import BOOKING_SOCKET_EVENTS from "../constants/bookingSocketEvents.js";
 import AUDIT_ACTION from "../constants/auditAction.js";
+import NOTIFICATION_TYPES from "../constants/notificationType.js";
 import withTransaction from "../utils/transaction.js";
+import { isUserOnline } from "../sockets/presence.js";
+import { getIO } from "../sockets/io.js";
+import pushService from "./push.service.js";
 
 class AssignmentService {
   getBookingCity(addressDetails, customer) {
@@ -174,6 +181,136 @@ class AssignmentService {
     }
   }
 
+  getSocketIo() {
+    return getIO();
+  }
+
+  /**
+   * Collect FCM registration tokens from the technician user document.
+   */
+  extractDeviceTokens(technician = {}) {
+    const tokens = [];
+
+    const addToken = (value) => {
+      if (typeof value === "string") {
+        const normalized = value.trim();
+        if (normalized) tokens.push(normalized);
+      }
+    };
+
+    addToken(technician.deviceToken);
+    if (Array.isArray(technician.deviceTokens)) {
+      technician.deviceTokens.forEach(addToken);
+    }
+
+    return [...new Set(tokens)];
+  }
+
+  /**
+   * Emit realtime assignment event to the technician's user room when online.
+   */
+  async emitAssignmentSocketEvent(technicianId, payload) {
+    if (!technicianId) return false;
+
+    const io = this.getSocketIo();
+    if (!io) return false;
+
+    if (!isUserOnline(technicianId)) {
+      logger.debug("Technician offline — skip booking:assigned socket", {
+        technicianId: String(technicianId),
+      });
+      return false;
+    }
+
+    io.to(`user:${technicianId}`).emit(
+      BOOKING_SOCKET_EVENTS.ASSIGNED,
+      payload
+    );
+    return true;
+  }
+
+  /**
+   * Send FCM push via Firebase Admin when the technician has a device token.
+   */
+  async sendAssignmentPushNotification(technician, payload) {
+    const technicianId = technician?._id || technician?.id;
+    if (!technicianId) return null;
+
+    return pushService.sendToUser(technicianId, {
+      title: payload.title,
+      body: payload.message,
+      data: payload.data || {},
+    });
+  }
+
+  /**
+   * Centralized post-assignment actions (chat → in-app → socket → FCM).
+   */
+  async handleAssignmentFollowUps({
+    booking,
+    bookingId,
+    technicianId,
+    assignmentMethod,
+    assignmentRecord,
+    metadata = {},
+    bookingUpdated,
+  }) {
+    await this.ensureChatRoom(bookingId);
+
+    const technicianRecord =
+      await technicianRepository.findById(technicianId);
+    const serviceLabel =
+      booking.serviceName || booking.serviceCategory || "service";
+    const isReassign = Boolean(metadata.previousTechnician);
+
+    const notificationPayload = {
+      title: isReassign ? "Job reassigned to you" : "New Service Assigned",
+      message: isReassign
+        ? `You have been reassigned to a ${serviceLabel} booking.`
+        : `A customer has booked a ${serviceLabel} service.`,
+      bookingId: bookingUpdated?._id || bookingId,
+      actionUrl: `/technician/jobs/${bookingId}`,
+      metadata: {
+        serviceCategory: booking.serviceCategory,
+        serviceName: booking.serviceName,
+        customerId: booking.customer?._id || booking.customer,
+        assignmentMethod,
+        assignmentId: assignmentRecord?._id,
+        ...metadata,
+      },
+    };
+
+    await notificationService.notifyBooking(technicianId, notificationPayload);
+
+    const socketPayload = {
+      bookingId: String(bookingUpdated?._id || bookingId),
+      status: BOOKING_STATUS.ASSIGNED,
+      assignmentMethod,
+      assignmentId: assignmentRecord?._id
+        ? String(assignmentRecord._id)
+        : undefined,
+      serviceCategory: booking.serviceCategory,
+      serviceName: booking.serviceName,
+      bookingDate: booking.bookingDate,
+      bookingTime: booking.bookingTime,
+      isReassign,
+    };
+
+    await this.emitAssignmentSocketEvent(technicianId, socketPayload);
+    await this.sendAssignmentPushNotification(technicianRecord, {
+      title: notificationPayload.title,
+      message: notificationPayload.message,
+      data: {
+        type: BOOKING_SOCKET_EVENTS.ASSIGNED,
+        bookingId: String(bookingUpdated?._id || bookingId),
+        technicianId: String(technicianId),
+        assignmentMethod,
+        actionUrl: notificationPayload.actionUrl || `/technician/jobs/${bookingId}`,
+        link: notificationPayload.actionUrl || `/technician/jobs/${bookingId}`,
+      },
+    });
+  }
+
   async getBookingContext(bookingId) {
     const booking = await bookingRepository.findById(bookingId);
 
@@ -191,6 +328,326 @@ class AssignmentService {
       );
 
     return { booking, addressDetails, customerId };
+  }
+
+  async emitToUser(technicianId, event, payload) {
+    if (!technicianId) return false;
+    const io = this.getSocketIo();
+    if (!io) return false;
+    if (!isUserOnline(technicianId)) return false;
+    io.to(`user:${technicianId}`).emit(event, payload);
+    return true;
+  }
+
+  /**
+   * Eligible technicians for an open booking (skill-first, then city, then all).
+   */
+  async getBroadcastCandidates(booking, addressDetails) {
+    const { ranked, city, skill } = await this.rankTechnicians(
+      booking,
+      addressDetails
+    );
+
+    const skillMatched = ranked.filter((r) => r.matchDetails.skillMatch);
+    const cityMatched = ranked.filter((r) => r.matchDetails.cityMatch);
+    const candidates = skillMatched.length
+      ? skillMatched
+      : cityMatched.length
+        ? cityMatched
+        : ranked;
+
+    return { candidates, city, skill };
+  }
+
+  async notifyTechnicianJobOffer(technicianId, booking, bookingId) {
+    const serviceLabel =
+      booking.serviceName || booking.serviceCategory || "service";
+    const title = "New job available";
+    const message = `A ${serviceLabel} booking is open — accept it before another technician claims it.`;
+    const actionUrl = `/technician/jobs/${bookingId}`;
+    const payload = {
+      bookingId: String(bookingId),
+      status: BOOKING_STATUS.PENDING,
+      serviceCategory: booking.serviceCategory,
+      serviceName: booking.serviceName,
+      bookingDate: booking.bookingDate,
+      bookingTime: booking.bookingTime,
+      actionUrl,
+    };
+
+    await notificationService.notifyBooking(technicianId, {
+      title,
+      message,
+      bookingId,
+      actionUrl,
+      metadata: {
+        offer: true,
+        serviceCategory: booking.serviceCategory,
+        serviceName: booking.serviceName,
+      },
+    });
+
+    await this.emitToUser(
+      technicianId,
+      BOOKING_SOCKET_EVENTS.AVAILABLE,
+      payload
+    );
+
+    await this.sendAssignmentPushNotification(
+      { _id: technicianId },
+      {
+        title,
+        message,
+        data: {
+          type: BOOKING_SOCKET_EVENTS.AVAILABLE,
+          bookingId: String(bookingId),
+          actionUrl,
+          link: actionUrl,
+        },
+      }
+    );
+  }
+
+  async notifyAdminsOfAssignment(booking, bookingId, technician) {
+    const admins = await adminRepository.listAdmins();
+    const serviceLabel =
+      booking.serviceName || booking.serviceCategory || "service";
+    const techName = technician?.name || "A technician";
+
+    await Promise.all(
+      (admins || []).map((admin) =>
+        notificationService.notify({
+          userId: admin._id,
+          title: "Booking claimed",
+          message: `${techName} accepted a ${serviceLabel} booking.`,
+          type: NOTIFICATION_TYPES.BOOKING,
+          bookingId,
+          actionUrl: `/admin/bookings/${bookingId}`,
+          metadata: {
+            technicianId: technician?._id,
+            technicianName: techName,
+          },
+        })
+      )
+    );
+  }
+
+  async withdrawOfferFromOthers(technicianIds, bookingId, claimedBy) {
+    const payload = {
+      bookingId: String(bookingId),
+      claimedBy: String(claimedBy),
+      status: BOOKING_STATUS.ASSIGNED,
+    };
+
+    await Promise.all(
+      technicianIds.map(async (id) => {
+        const technicianId = id?._id || id;
+        if (String(technicianId) === String(claimedBy)) return;
+
+        await notificationService.notifyBooking(technicianId, {
+          title: "Job no longer available",
+          message: "Another technician accepted this booking first.",
+          bookingId,
+          actionUrl: "/technician/jobs",
+          metadata: { withdrawn: true, claimedBy: String(claimedBy) },
+        });
+
+        await this.emitToUser(
+          technicianId,
+          BOOKING_SOCKET_EVENTS.CLAIMED,
+          payload
+        );
+      })
+    );
+  }
+
+  /**
+   * No preferred technician — keep Pending and notify all eligible techs.
+   * First technician to claim/accept wins.
+   */
+  async broadcastOpenBooking(bookingId) {
+    const { booking, addressDetails } =
+      await this.getBookingContext(bookingId);
+
+    if (booking.status !== BOOKING_STATUS.PENDING) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Only Pending bookings can be offered to technicians."
+      );
+    }
+
+    if (booking.technician) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Booking already has a technician assigned."
+      );
+    }
+
+    const { candidates, city, skill } = await this.getBroadcastCandidates(
+      booking,
+      addressDetails
+    );
+
+    if (!candidates.length) {
+      logger.warn("No eligible technicians to offer open booking", {
+        bookingId: String(bookingId),
+        city,
+        skill,
+      });
+      return { booking, notified: 0, technicianIds: [] };
+    }
+
+    const technicianIds = candidates.map((c) => c.technician._id);
+
+    await Promise.all(
+      candidates.map((c) =>
+        this.notifyTechnicianJobOffer(c.technician._id, booking, bookingId)
+      )
+    );
+
+    logger.info("Open booking offered to eligible technicians", {
+      bookingId: String(bookingId),
+      notified: technicianIds.length,
+      city,
+      skill,
+    });
+
+    return {
+      booking,
+      notified: technicianIds.length,
+      technicianIds,
+      city,
+      skill,
+    };
+  }
+
+  /**
+   * First technician to claim a Pending unassigned booking wins.
+   */
+  async claimOpenBooking(bookingId, technicianId) {
+    const { booking, addressDetails } =
+      await this.getBookingContext(bookingId);
+
+    if (booking.status !== BOOKING_STATUS.PENDING || booking.technician) {
+      throw new ApiError(
+        HTTP_STATUS.CONFLICT,
+        "This job was already accepted by another technician."
+      );
+    }
+
+    const technician = await technicianRepository.findById(technicianId);
+    if (!technician || technician.role !== "technician") {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Technician not found.");
+    }
+    if (!technician.isActive) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Technician account is inactive."
+      );
+    }
+    if (technician.availability === false) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Technician is currently unavailable."
+      );
+    }
+
+    const workload = await technicianRepository.getWorkload(technicianId);
+    const maxWorkload = technician.maxWorkload || 5;
+    if (workload >= maxWorkload) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "You have reached your maximum workload."
+      );
+    }
+
+    const { candidates } = await this.getBroadcastCandidates(
+      booking,
+      addressDetails
+    );
+    const eligibleIds = new Set(
+      candidates.map((c) => String(c.technician._id))
+    );
+    if (!eligibleIds.has(String(technicianId))) {
+      throw new ApiError(
+        HTTP_STATUS.FORBIDDEN,
+        "You are not eligible for this job."
+      );
+    }
+
+    const { updated, history } = await withTransaction(async (session) => {
+      const claimed = await bookingRepository.claimPendingBooking(
+        bookingId,
+        technicianId,
+        session
+      );
+
+      if (!claimed) {
+        throw new ApiError(
+          HTTP_STATUS.CONFLICT,
+          "This job was already accepted by another technician."
+        );
+      }
+
+      const assignmentHistory = await assignmentRepository.create(
+        {
+          booking: bookingId,
+          technician: technicianId,
+          assignedBy: technicianId,
+          method: ASSIGNMENT_METHOD.CLAIM,
+          reason: "Claimed by technician (first to accept).",
+          matchScore: 0,
+          matchDetails: {},
+          previousTechnician: null,
+          status: "Assigned",
+        },
+        session
+      );
+
+      return { updated: claimed, history: assignmentHistory };
+    });
+
+    await bookingEventService.record({
+      bookingId,
+      event: BOOKING_TIMELINE_EVENT.ASSIGNED,
+      actorId: technicianId,
+      actorRole: "technician",
+      action: AUDIT_ACTION.ASSIGN,
+      fromStatus: BOOKING_STATUS.PENDING,
+      toStatus: BOOKING_STATUS.ASSIGNED,
+      note: `Technician ${technician.name} claimed the job`,
+      metadata: {
+        method: ASSIGNMENT_METHOD.CLAIM,
+        technicianId,
+      },
+    });
+
+    await this.handleAssignmentFollowUps({
+      booking,
+      bookingId,
+      technicianId,
+      assignmentMethod: ASSIGNMENT_METHOD.CLAIM,
+      assignmentRecord: history,
+      metadata: {
+        claimed: true,
+        selectedTechnicianName: technician.name,
+      },
+      bookingUpdated: updated,
+    });
+
+    // Customer already notified via bookingEvent ASSIGNED; also alert admins
+    // and withdraw the offer from other eligible technicians.
+    await this.notifyAdminsOfAssignment(booking, bookingId, technician);
+    await this.withdrawOfferFromOthers(
+      [...eligibleIds],
+      bookingId,
+      technicianId
+    );
+
+    return {
+      booking: updated,
+      assignment: history,
+    };
   }
 
   // ======================================
@@ -263,7 +720,20 @@ class AssignmentService {
       },
     });
 
-    await this.ensureChatRoom(bookingId);
+    await this.handleAssignmentFollowUps({
+      booking,
+      bookingId,
+      technicianId: best.technician._id,
+      assignmentMethod: ASSIGNMENT_METHOD.AUTO,
+      assignmentRecord: history,
+      metadata: {
+        priorityScore: best.priorityScore,
+        matchDetails: best.matchDetails,
+        previousTechnician,
+        selectedTechnicianName: best.technician.name,
+      },
+      bookingUpdated: updated,
+    });
 
     return {
       booking: updated,
@@ -383,10 +853,109 @@ class AssignmentService {
       },
     });
 
-    await this.ensureChatRoom(bookingId);
+    await this.handleAssignmentFollowUps({
+      booking,
+      bookingId,
+      technicianId,
+      assignmentMethod: ASSIGNMENT_METHOD.MANUAL,
+      assignmentRecord: history,
+      metadata: {
+        priorityScore: matchDetails.priorityScore,
+        matchDetails,
+        previousTechnician,
+        selectedTechnicianName: technician.name,
+      },
+      bookingUpdated: updated,
+    });
 
     return {
       booking: updated,
+      assignment: history,
+      selected: {
+        technician,
+        priorityScore: matchDetails.priorityScore,
+        matchDetails,
+      },
+    };
+  }
+
+  /**
+   * Preferred technician already set on booking create — record history/timeline
+   * then run the same centralized follow-ups as auto/manual assign.
+   */
+  async finalizePreferredAssignment(bookingId, technicianId, customerId) {
+    const { booking, addressDetails } =
+      await this.getBookingContext(bookingId);
+
+    const technician =
+      await technicianRepository.findById(technicianId);
+
+    if (!technician) {
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        "Technician not found."
+      );
+    }
+
+    const city = this.getBookingCity(addressDetails, booking.customer);
+    const skill = booking.serviceCategory;
+    const workload =
+      await technicianRepository.getWorkload(technicianId);
+    const matchDetails = this.calculatePriorityScore(technician, {
+      city,
+      skill,
+      workload,
+    });
+
+    const history = await assignmentRepository.create({
+      booking: bookingId,
+      technician: technicianId,
+      assignedBy: customerId,
+      method: ASSIGNMENT_METHOD.MANUAL,
+      reason: "Preferred technician selected by customer.",
+      matchScore: matchDetails.priorityScore,
+      matchDetails: {
+        ...matchDetails,
+        priorityScore: matchDetails.priorityScore,
+      },
+      previousTechnician: null,
+      status: "Assigned",
+    });
+
+    await bookingEventService.record({
+      bookingId,
+      event: BOOKING_TIMELINE_EVENT.ASSIGNED,
+      actorId: customerId,
+      actorRole: "customer",
+      action: AUDIT_ACTION.ASSIGN,
+      fromStatus: BOOKING_STATUS.PENDING,
+      toStatus: BOOKING_STATUS.ASSIGNED,
+      note: `Preferred technician ${technician.name}`,
+      metadata: {
+        method: ASSIGNMENT_METHOD.MANUAL,
+        preferred: true,
+        technicianId,
+        priorityScore: matchDetails.priorityScore,
+      },
+    });
+
+    await this.handleAssignmentFollowUps({
+      booking,
+      bookingId,
+      technicianId,
+      assignmentMethod: ASSIGNMENT_METHOD.MANUAL,
+      assignmentRecord: history,
+      metadata: {
+        priorityScore: matchDetails.priorityScore,
+        matchDetails,
+        preferred: true,
+        selectedTechnicianName: technician.name,
+      },
+      bookingUpdated: booking,
+    });
+
+    return {
+      booking,
       assignment: history,
       selected: {
         technician,

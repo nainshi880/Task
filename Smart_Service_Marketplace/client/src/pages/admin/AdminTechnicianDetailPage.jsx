@@ -6,7 +6,6 @@ import {
   BadgeCheck,
   ExternalLink,
   FileText,
-  IndianRupee,
   Mail,
   MapPin,
   Phone,
@@ -80,13 +79,6 @@ function AdminTechnicianDetailPage() {
   const detailQuery = useQuery({
     queryKey: adminKeys.technician(id),
     queryFn: () => adminService.getTechnicianDetails(id),
-    enabled: Boolean(id),
-    retry: false,
-  });
-
-  const earningsQuery = useQuery({
-    queryKey: adminKeys.technicianEarnings(id, {}),
-    queryFn: () => adminService.getTechnicianEarnings(id, { limit: 5 }),
     enabled: Boolean(id),
     retry: false,
   });
@@ -192,7 +184,6 @@ function AdminTechnicianDetailPage() {
 
   const { user, profile } = detailQuery.data || {};
   const name = profile?.fullName || user?.name || "Technician";
-  const summary = earningsQuery.data?.summary || {};
   const ratings = ratingsQuery.data || {};
   const certifications = profile?.certifications || [];
   const skills = profile?.skills || profile?.serviceCategories || [];
@@ -338,7 +329,7 @@ function AdminTechnicianDetailPage() {
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2 text-slate-500">
               <Star size={18} />
@@ -355,21 +346,6 @@ function AdminTechnicianDetailPage() {
             <p className="mt-1 text-xs text-slate-400">
               {ratings.totalJobsCompleted ?? profile?.totalJobsCompleted ?? 0}{" "}
               jobs completed
-            </p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-500">
-              <IndianRupee size={18} />
-              <span className="text-sm">Total earnings</span>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">
-              {earningsQuery.isLoading
-                ? "…"
-                : formatCurrency(summary.grossEarnings ?? 0)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Available{" "}
-              {formatCurrency(summary.availableForPayout ?? 0)}
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -538,42 +514,6 @@ function AdminTechnicianDetailPage() {
           </section>
         </div>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Earnings summary
-          </h2>
-          {earningsQuery.isLoading ? (
-            <div className="py-6">
-              <Loader text="Loading earnings..." />
-            </div>
-          ) : earningsQuery.isError ? (
-            <p className="mt-3 text-sm text-rose-600">
-              {earningsQuery.error?.response?.data?.message ||
-                "Could not load earnings."}
-            </p>
-          ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { label: "Gross", value: summary.grossEarnings },
-                { label: "Paid jobs", value: summary.paidEarnings },
-                { label: "Available", value: summary.availableForPayout },
-                { label: "Paid out", value: summary.totalPaidOut },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3"
-                >
-                  <p className="text-xs uppercase tracking-wide text-slate-500">
-                    {stat.label}
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">
-                    {formatCurrency(stat.value ?? 0)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
       </div>
     </DashboardLayout>
   );
