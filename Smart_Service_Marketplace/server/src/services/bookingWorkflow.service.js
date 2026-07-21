@@ -154,7 +154,8 @@ class BookingWorkflowService {
         throw new ApiError(HTTP_STATUS.NOT_FOUND, "Job not found.");
       }
 
-      const technician = await technicianRepository.findById(technicianId);
+      await technicianRepository.ensureTechnicianReady(technicianId);
+
       const { addressDetails } = await assignmentService.getBookingContext(
         bookingId
       );
@@ -165,7 +166,7 @@ class BookingWorkflowService {
       const eligible = candidates.some(
         (c) => String(c.technician._id) === String(technicianId)
       );
-      if (!eligible || !technician) {
+      if (!eligible) {
         throw new ApiError(HTTP_STATUS.NOT_FOUND, "Job not found.");
       }
     }
@@ -178,6 +179,8 @@ class BookingWorkflowService {
   // ======================================
 
   async acceptJob(technicianId, bookingId) {
+    await technicianRepository.ensureTechnicianReady(technicianId);
+
     const booking = await bookingRepository.findById(bookingId);
 
     if (!booking) {

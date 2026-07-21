@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as authService from "../services/auth.service";
 import { useAuthStore } from "../store/authStore";
 import { authKeys } from "../lib/queryClient";
-import { getRoleHome, isAdminRole } from "../constants/roles";
+import { getRoleHome } from "../constants/roles";
 
 export default function useAuth() {
   const queryClient = useQueryClient();
@@ -38,10 +38,9 @@ export default function useAuth() {
     }
 
     if (meQuery.isError) {
-      // Auth failures always clear. Network / server-down on first load also
-      // clears a stale token so a restart returns the user to a clean guest state.
+      // Only clear session on auth failures — not network blips / server restarts.
       const status = meQuery.error?.response?.status;
-      if (status === 401 || status === 403 || !user) {
+      if (status === 401 || status === 403) {
         clearSession();
         queryClient.removeQueries({ queryKey: authKeys.all });
       } else {
@@ -51,23 +50,11 @@ export default function useAuth() {
     }
 
     if (meQuery.data) {
-      // Incomplete signups must not stay logged in (account exists only after OTP)
-      if (
-        !isAdminRole(meQuery.data.role) &&
-        meQuery.data.isVerified === false
-      ) {
-        clearSession();
-        queryClient.removeQueries({ queryKey: authKeys.all });
-        setLoading(false);
-        return;
-      }
-
       setUser(meQuery.data);
       setLoading(false);
     }
   }, [
     token,
-    user,
     meQuery.isLoading,
     meQuery.isFetching,
     meQuery.isError,

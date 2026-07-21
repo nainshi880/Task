@@ -2,6 +2,7 @@ import Notification from "../models/Notification.js";
 import CustomerProfile from "../models/CustomerProfile.js";
 import User from "../models/User.js";
 import ROLES from "../constants/roles.js";
+import NOTIFICATION_TYPES from "../constants/notificationType.js";
 
 class NotificationRepository {
   async create(data) {
@@ -106,6 +107,36 @@ class NotificationRepository {
         readAt: new Date(),
       }
     );
+    return result.modifiedCount;
+  }
+
+  /**
+   * Mark unread Chat notifications for a specific room as read.
+   */
+  async markChatRoomRead(userId, roomId) {
+    if (!userId || !roomId) return 0;
+
+    const roomKey = String(roomId);
+    const result = await Notification.updateMany(
+      {
+        user: userId,
+        type: NOTIFICATION_TYPES.CHAT,
+        isRead: false,
+        isDeleted: false,
+        $or: [
+          { "metadata.roomId": roomKey },
+          { actionUrl: `/chat/${roomKey}` },
+          { actionUrl: new RegExp(`/chat/${roomKey}(?:\\?|$)`) },
+        ],
+      },
+      {
+        $set: {
+          isRead: true,
+          readAt: new Date(),
+        },
+      }
+    );
+
     return result.modifiedCount;
   }
 

@@ -17,7 +17,7 @@ import Button from "../../components/ui/Button";
 import * as chatService from "../../services/chat.service";
 import useAuth from "../../hooks/useAuth";
 import useChatSocket from "../../hooks/useChatSocket";
-import { chatKeys } from "../../lib/queryClient";
+import { chatKeys, notificationKeys } from "../../lib/queryClient";
 import { CHAT_EVENTS } from "../../constants/chat";
 import { ROLES } from "../../constants/roles";
 import { formatDateTime, formatRelativeTime } from "../../utils/format";
@@ -63,6 +63,9 @@ function ChatRoomPage() {
   const [peerTyping, setPeerTyping] = useState(false);
   const [messages, setMessages] = useState([]);
 
+  const clearChatNotifications = () => {
+    queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+  };
   const {
     connected,
     isOnline,
@@ -107,7 +110,10 @@ function ChatRoomPage() {
     joinRoom(roomId)
       .then(() => {
         if (!active) return;
-        chatService.markRoomRead(roomId).catch(() => {});
+        chatService
+          .markRoomRead(roomId)
+          .then(() => clearChatNotifications())
+          .catch(() => {});
         markRead({ roomId });
       })
       .catch(() => {});
@@ -117,7 +123,7 @@ function ChatRoomPage() {
       leaveRoom(roomId);
       stopTyping(roomId);
     };
-  }, [roomId, connected, joinRoom, leaveRoom, markRead, stopTyping]);
+  }, [roomId, connected, joinRoom, leaveRoom, markRead, stopTyping, queryClient]);
 
   useEffect(() => {
     const offNew = on(CHAT_EVENTS.MESSAGE_NEW, (payload) => {
@@ -134,6 +140,11 @@ function ChatRoomPage() {
       if (senderId && senderId !== myId) {
         markDelivered(message._id);
         markRead({ messageId: message._id });
+        // Recipient is viewing this chat — clear chat notification badge
+        chatService
+          .markRoomRead(roomId)
+          .then(() => clearChatNotifications())
+          .catch(() => {});
       }
 
       queryClient.invalidateQueries({ queryKey: chatKeys.all });

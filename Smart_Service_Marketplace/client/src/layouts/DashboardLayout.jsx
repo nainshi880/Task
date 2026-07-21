@@ -15,7 +15,7 @@ import {
   chatKeys,
 } from "../lib/queryClient";
 import { ROLES, isAdminRole } from "../constants/roles";
-import { BOOKING_EVENTS } from "../constants/chat";
+import { BOOKING_EVENTS, CHAT_EVENTS } from "../constants/chat";
 
 function notificationsPath(role) {
   if (role === ROLES.TECHNICIAN) return "/technician/notifications";
@@ -58,6 +58,16 @@ function DashboardLayout({ children }) {
       offClaimed?.();
     };
   }, [role, on, queryClient]);
+
+  // Refresh notification badge when a new chat message arrives
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+
+    return on(CHAT_EVENTS.MESSAGE_NEW, () => {
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      queryClient.invalidateQueries({ queryKey: chatKeys.all });
+    });
+  }, [isAuthenticated, on, queryClient]);
 
   const unread =
     unreadQuery.data?.unreadCount ??

@@ -13,10 +13,13 @@ import {
   isChatEncryptionEnabled,
 } from "../utils/messageCrypto.js";
 import {
-  queueChatOfflineNotification,
+  queueInAppNotification,
+  queuePushNotification,
 } from "./notificationQueue.service.js";
+import notificationService from "./notification.service.js";
 import NOTIFICATION_TYPES from "../constants/notificationType.js";
-import { isUserOnline } from "../sockets/presence.js";
+import { CHAT_EVENTS } from "../constants/chat.js";
+import logger from "../utils/logger.js";
 
 class ChatService {
   assertParticipant(room, userId) {
@@ -398,34 +401,54 @@ class ChatService {
 
     const formatted = this.formatMessage(populated);
 
-    // Offline peer → queue in-app notification
-    if (!isUserOnline(peerId)) {
-      const notifPayload = {
+    const notifTitle = "New chat message";
+    const notifBody =
+      type === MESSAGE_TYPE.TEXT
+        ? `${user.name}: ${content.slice(0, 80)}`
+        : `${user.name} sent a ${type}`;
+    const actionUrl = `/chat/${room._id}`;
+    const bookingId = room.booking._id || room.booking;
+
+    // Every new message notifies the recipient (in-app + push)
+    try {
+      await queueInAppNotification({
         userId: peerId,
-        title: "New chat message",
-        message:
-          type === MESSAGE_TYPE.TEXT
-            ? `${user.name}: ${content.slice(0, 80)}`
-            : `${user.name} sent a ${type}`,
+        title: notifTitle,
+        message: notifBody,
         type: NOTIFICATION_TYPES.CHAT,
-        bookingId: room.booking._id || room.booking,
-        actionUrl: `/chat/${room._id}`,
+        bookingId,
+        actionUrl,
         metadata: {
           roomId: room._id.toString(),
           messageId: message._id.toString(),
+          senderId: user._id.toString(),
+          senderName: user.name,
         },
-        jobId: `chat-msg-${message._id}`,
-      };
+      });
 
-      await queueChatOfflineNotification(notifPayload);
+      await queuePushNotification({
+        userId: peerId,
+        title: notifTitle,
+        body: notifBody,
+        data: {
+          type: NOTIFICATION_TYPES.CHAT,
+          roomId: room._id.toString(),
+          messageId: message._id.toString(),
+          bookingId: bookingId ? String(bookingId) : "",
+          actionUrl,
+          link: actionUrl,
+        },
+      });
+    } catch (error) {
+      logger.warn(`Chat recipient notification failed: ${error.message}`);
     }
 
     if (io) {
-      io.to(`room:${room._id}`).emit("chat:message:new", {
+      io.to(`room:${room._id}`).emit(CHAT_EVENTS.MESSAGE_NEW, {
         message: formatted,
       });
 
-      io.to(`user:${peerId}`).emit("chat:message:new", {
+      io.to(`user:${peerId}`).emit(CHAT_EVENTS.MESSAGE_NEW, {
         message: formatted,
         roomId: room._id,
       });
@@ -562,8 +585,22 @@ class ChatService {
         : { technicianUnreadCount: 0 }),
     });
 
+    // Clear chat notification badge for this conversation
+    let notificationsCleared = 0;
+    try {
+      const result = await notificationService.markChatRoomAsRead(
+        user._id,
+        room._id
+      );
+      notificationsCleared = result.modifiedCount || 0;
+    } catch (error) {
+      logger.warn(
+        `Failed to mark chat notifications read for room ${room._id}: ${error.message}`
+      );
+    }
+
     if (io && updatedIds.length) {
-      io.to(`room:${room._id}`).emit("chat:message:read", {
+      io.to(`room:${room._id}`).emit(CHAT_EVENTS.MESSAGE_READ, {
         roomId: room._id,
         messageIds: updatedIds,
         readerId: user._id,
@@ -571,7 +608,11 @@ class ChatService {
       });
     }
 
-    return { roomId: room._id, readCount: updatedIds.length };
+    return {
+      roomId: room._id,
+      readCount: updatedIds.length,
+      notificationsCleared,
+    };
   }
 
   async deleteMessage(user, messageId, io = null) {

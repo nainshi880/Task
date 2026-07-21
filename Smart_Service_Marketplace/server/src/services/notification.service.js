@@ -32,7 +32,6 @@ class NotificationService {
 
   /**
    * Create an in-app notification if user preferences allow it.
-   * Retries transient DB failures inline (no Redis queue).
    * Never throws to callers (non-blocking).
    */
   async notify({
@@ -128,6 +127,19 @@ class NotificationService {
     });
   }
 
+  async notifyChat(userId, { title, message, bookingId, metadata, actionUrl }) {
+    return this.notify({
+      userId,
+      title,
+      message,
+      type: NOTIFICATION_TYPES.CHAT,
+      bookingId,
+      metadata,
+      actionUrl: actionUrl || "",
+      priority: "normal",
+    });
+  }
+
   // ======================================
   // List / Read / Delete
   // ======================================
@@ -209,6 +221,15 @@ class NotificationService {
 
   async markAllAsRead(userId) {
     const modifiedCount = await notificationRepository.markAllRead(userId);
+    const unreadCount = await notificationRepository.countUnread(userId);
+    return { modifiedCount, unreadCount };
+  }
+
+  async markChatRoomAsRead(userId, roomId) {
+    const modifiedCount = await notificationRepository.markChatRoomRead(
+      userId,
+      roomId
+    );
     const unreadCount = await notificationRepository.countUnread(userId);
     return { modifiedCount, unreadCount };
   }
