@@ -1,21 +1,28 @@
 export const BOOKING_STATUS = {
+  PENDING_PAYMENT: "Pending Payment",
   PENDING: "Pending",
+  CONFIRMED: "Confirmed",
   ASSIGNED: "Assigned",
   ACCEPTED: "Accepted",
   IN_PROGRESS: "In Progress",
   PAUSED: "Paused",
+  AWAITING_CONFIRMATION: "Awaiting Confirmation",
   COMPLETED: "Completed",
   CLOSED: "Closed",
   CANCELLED: "Cancelled",
 };
 
 export const EDITABLE_BOOKING_STATUSES = [
+  BOOKING_STATUS.PENDING_PAYMENT,
   BOOKING_STATUS.PENDING,
+  BOOKING_STATUS.CONFIRMED,
   BOOKING_STATUS.ASSIGNED,
 ];
 
 export const CANCELLABLE_BOOKING_STATUSES = [
+  BOOKING_STATUS.PENDING_PAYMENT,
   BOOKING_STATUS.PENDING,
+  BOOKING_STATUS.CONFIRMED,
   BOOKING_STATUS.ASSIGNED,
 ];
 
@@ -30,6 +37,7 @@ export const TRACKABLE_BOOKING_STATUSES = [
   BOOKING_STATUS.ACCEPTED,
   BOOKING_STATUS.IN_PROGRESS,
   BOOKING_STATUS.PAUSED,
+  BOOKING_STATUS.AWAITING_CONFIRMATION,
 ];
 
 export const BOOKING_TABS = {
@@ -62,6 +70,22 @@ export function canCancelBooking(status) {
 
 export function shouldTrackLive(status) {
   return TRACKABLE_BOOKING_STATUSES.includes(status);
+}
+
+export function needsPayment(booking) {
+  if (!booking) return false;
+  return (
+    booking.paymentStatus !== "Paid" &&
+    (booking.status === BOOKING_STATUS.PENDING_PAYMENT ||
+      booking.status === BOOKING_STATUS.PENDING)
+  );
+}
+
+export function canConfirmCompletion(booking) {
+  return (
+    booking?.status === BOOKING_STATUS.AWAITING_CONFIRMATION &&
+    !booking?.customerConfirmed
+  );
 }
 
 export function bucketBookings(bookings = []) {

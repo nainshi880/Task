@@ -138,13 +138,13 @@ class BookingRepository {
   }
 
   /**
-   * First-wins claim: only succeeds while booking is still Pending and unassigned.
+   * First-wins claim: only succeeds while booking is Confirmed (or legacy Pending) and unassigned.
    */
   async claimPendingBooking(bookingId, technicianId, session = null) {
     return await Booking.findOneAndUpdate(
       {
         _id: bookingId,
-        status: "Pending",
+        status: { $in: ["Confirmed", "Pending"] },
         $or: [{ technician: null }, { technician: { $exists: false } }],
       },
       {
@@ -167,7 +167,7 @@ class BookingRepository {
   }
 
   /**
-   * Open marketplace jobs: Pending + unassigned, optionally filtered by skills/city.
+   * Open marketplace jobs: Confirmed (paid) + unassigned.
    */
   async findOpenJobsForTechnician(
     {
@@ -180,7 +180,8 @@ class BookingRepository {
     } = {}
   ) {
     const filter = {
-      status: "Pending",
+      status: { $in: ["Confirmed", "Pending"] },
+      paymentStatus: { $ne: "Refunded" },
       $or: [{ technician: null }, { technician: { $exists: false } }],
     };
 

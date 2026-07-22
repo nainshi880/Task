@@ -59,7 +59,7 @@ function BookingConfirmPage() {
       setCreatedBooking(booking);
       queryClient.invalidateQueries({ queryKey: bookingKeys.all });
       queryClient.invalidateQueries({ queryKey: customerKeys.dashboard() });
-      toast.success("Booking confirmed!");
+      toast.success("Booking created — complete payment to confirm.");
     },
     onError: (error) => {
       const message =
@@ -99,18 +99,15 @@ function BookingConfirmPage() {
             <CheckCircle2 size={28} />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-slate-900">
-            Booking confirmed
+            Booking created
           </h1>
           <p className="mt-2 text-slate-500">
             Your request for{" "}
             <span className="font-medium text-slate-800">
               {createdBooking.serviceName}
             </span>{" "}
-            is submitted
-            {createdBooking.technician?.name
-              ? ` and assigned to ${createdBooking.technician.name}`
-              : ". A technician will be assigned soon"}
-            .
+            is saved with status Pending Payment. Pay from booking details to
+            confirm and notify technicians.
           </p>
           <p className="mt-3 text-sm text-slate-600">
             {formatDate(createdBooking.bookingDate)} ·{" "}
@@ -127,7 +124,7 @@ function BookingConfirmPage() {
                 )
               }
             >
-              View booking
+              Pay &amp; view booking
             </Button>
             <Button
               type="button"

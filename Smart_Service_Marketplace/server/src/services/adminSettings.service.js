@@ -1,5 +1,6 @@
 import platformSettingsRepository from "../repositories/platformSettings.repository.js";
 import serviceCategoryRepository from "../repositories/serviceCategory.repository.js";
+import serviceRepository from "../repositories/service.repository.js";
 import platformSettingsService from "./platformSettings.service.js";
 import auditRepository from "../repositories/audit.repository.js";
 import ApiError from "../utils/ApiError.js";
@@ -263,6 +264,53 @@ class AdminSettingsService {
     return updated;
   }
 
+  async listCatalogServices(query = {}) {
+    const includeInactive =
+      query.includeInactive === true || query.includeInactive === "true";
+    const { page, limit } = parsePagination(query);
+
+    const result = await serviceRepository.listAdmin({
+      search: query.q || query.search,
+      category: query.category,
+      includeInactive,
+      page: query.page ? page : 1,
+      limit: query.limit ? limit : 100,
+    });
+
+    return formatPaginatedResponse(
+      result.items,
+      result.page,
+      result.limit,
+      result.total
+    );
+  }
+
+  async updateCatalogService(serviceId, adminId, body, actor = {}) {
+    const existing = await serviceRepository.findByIdAdmin(serviceId);
+    if (!existing) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Service not found.");
+    }
+
+    const updated = await serviceRepository.updateById(serviceId, body);
+    if (!updated) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Service not found.");
+    }
+
+    await this.writeAudit({
+      actorId: adminId,
+      action: AUDIT_ACTION.UPDATE,
+      description: `Catalog service updated: ${updated.name}`,
+      metadata: {
+        serviceId,
+        basePrice: updated.basePrice,
+        fields: Object.keys(body),
+      },
+      ip: actor.ipAddress,
+      userAgent: actor.userAgent,
+    });
+
+    return updated;
+  }
 }
 
 export default new AdminSettingsService();

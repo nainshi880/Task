@@ -10,6 +10,8 @@ import {
   createAdminCategory,
   updateAdminCategory,
   deleteAdminCategory,
+  listAdminCatalogServices,
+  updateAdminCatalogService,
 } from "../controllers/adminSettings.controller.js";
 
 import {
@@ -20,6 +22,8 @@ import {
   updateCategoryValidation,
   deleteCategoryValidation,
   listCategoriesValidation,
+  listCatalogServicesValidation,
+  updateCatalogServiceValidation,
 } from "../validations/adminSettings.validation.js";
 
 import validate from "../middlewares/validation.middleware.js";
@@ -45,6 +49,20 @@ router.patch(
 router.put("/terms", legalDocumentValidation, validate, updateAdminTerms);
 
 router.put("/privacy", legalDocumentValidation, validate, updateAdminPrivacy);
+
+router.get(
+  "/catalog-services",
+  listCatalogServicesValidation,
+  validate,
+  listAdminCatalogServices
+);
+
+router.patch(
+  "/catalog-services/:serviceId",
+  updateCatalogServiceValidation,
+  validate,
+  updateAdminCatalogService
+);
 
 router.get("/categories", listCategoriesValidation, validate, listAdminCategories);
 

@@ -128,6 +128,13 @@ export const updateServiceCategory = async (categoryId, data) =>
 export const deleteServiceCategory = async (categoryId) =>
   unwrap(await adminApi.deleteServiceCategory(categoryId));
 
+/* ── Catalog services ── */
+export const listCatalogServices = async (params) =>
+  unwrap(await adminApi.listCatalogServices(params));
+
+export const updateCatalogService = async (serviceId, data) =>
+  unwrap(await adminApi.updateCatalogService(serviceId, data));
+
 /* ── Payments ── */
 export const listPaymentTransactions = async (params) =>
   unwrap(await adminApi.listPaymentTransactions(params));

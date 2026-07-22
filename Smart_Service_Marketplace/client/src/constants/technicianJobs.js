@@ -23,6 +23,9 @@ export function getJobFlowStepIndex(status, hasArriving = false) {
   ) {
     return 4;
   }
+  if (status === BOOKING_STATUS.AWAITING_CONFIRMATION) {
+    return 4;
+  }
   if (
     status === BOOKING_STATUS.IN_PROGRESS ||
     status === BOOKING_STATUS.PAUSED
@@ -35,7 +38,11 @@ export function getJobFlowStepIndex(status, hasArriving = false) {
   if (status === BOOKING_STATUS.ACCEPTED) {
     return 1;
   }
-  if (status === BOOKING_STATUS.ASSIGNED) {
+  if (
+    status === BOOKING_STATUS.ASSIGNED ||
+    status === BOOKING_STATUS.CONFIRMED ||
+    status === BOOKING_STATUS.PENDING
+  ) {
     return 0;
   }
   return -1;
@@ -51,6 +58,7 @@ export function bucketJobs(jobs = []) {
   for (const job of jobs) {
     switch (job.status) {
       case BOOKING_STATUS.PENDING:
+      case BOOKING_STATUS.CONFIRMED:
       case BOOKING_STATUS.ASSIGNED:
         incoming.push(job);
         break;
@@ -61,6 +69,7 @@ export function bucketJobs(jobs = []) {
       case BOOKING_STATUS.PAUSED:
         ongoing.push(job);
         break;
+      case BOOKING_STATUS.AWAITING_CONFIRMATION:
       case BOOKING_STATUS.COMPLETED:
       case BOOKING_STATUS.CLOSED:
         completed.push(job);

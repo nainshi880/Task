@@ -15,3 +15,6 @@ export const cancelBooking = (bookingId, data) =>
 
 export const getBookingTimeline = (bookingId) =>
   api.get(`/bookings/${bookingId}/timeline`);
+
+export const confirmCompletion = (bookingId) =>
+  api.patch(`/bookings/${bookingId}/confirm-completion`);

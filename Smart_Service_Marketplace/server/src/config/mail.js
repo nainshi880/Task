@@ -2,25 +2,24 @@ import nodemailer from "nodemailer";
 import env from "./env.js";
 
 /**
- * Nodemailer transport for Brevo SMTP (or any SMTP).
+ * Nodemailer transport for Google SMTP (Gmail).
  *
- * Brevo SMTP:
- *   host: smtp-relay.brevo.com
- *   port: 587
- *   user: your Brevo login / SMTP login email
- *   pass: SMTP key (xsmtpsib-...) from Brevo → SMTP & API → SMTP
+ * Setup:
+ *   1. Use a Google account with 2-Step Verification enabled
+ *   2. Create an App Password: Google Account → Security → App passwords
+ *   3. Set in .env:
+ *        EMAIL_HOST=smtp.gmail.com
+ *        EMAIL_PORT=587
+ *        EMAIL_USER=your@gmail.com
+ *        EMAIL_PASS=your-16-char-app-password
+ *        EMAIL_FROM=your@gmail.com
+ *        EMAIL_FROM_NAME=Smart Service Marketplace
  *
- * For the REST API, use BREVO_API_KEY with an API key (xkeysib-...), not an SMTP key.
+ * EMAIL_FROM should usually match EMAIL_USER for Gmail.
  */
 function resolveSmtpAuth() {
   const user = env.EMAIL_USER || env.EMAIL_FROM || env.COMPANY_EMAIL;
-  // Allow putting the SMTP key in BREVO_API_KEY by mistake (xsmtpsib-...)
-  const pass =
-    env.EMAIL_PASS ||
-    (String(env.BREVO_API_KEY || "").startsWith("xsmtpsib-")
-      ? env.BREVO_API_KEY
-      : "");
-
+  const pass = env.EMAIL_PASS;
   return { user, pass };
 }
 
@@ -30,8 +29,17 @@ function createTransporter() {
     return null;
   }
 
-  const host = env.EMAIL_HOST || "smtp-relay.brevo.com";
-  const port = env.EMAIL_PORT || 587;
+  const host = env.EMAIL_HOST || "smtp.gmail.com";
+  const port = Number(env.EMAIL_PORT) || 587;
+  const isGmail =
+    /gmail\.com$/i.test(host) || host.toLowerCase() === "smtp.gmail.com";
+
+  if (isGmail) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass },
+    });
+  }
 
   return nodemailer.createTransport({
     host,

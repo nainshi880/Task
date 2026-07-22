@@ -43,7 +43,7 @@ function RescheduleBookingModal({
     <Modal isOpen={isOpen} onClose={onClose} title="Reschedule booking">
       <form onSubmit={handleSubmit} className="space-y-5">
         <p className="text-sm text-slate-600">
-          Reschedule is available while the booking is Pending or Assigned.
+          Reschedule is available while the booking is awaiting payment, confirmed, or assigned.
         </p>
 
         <div>

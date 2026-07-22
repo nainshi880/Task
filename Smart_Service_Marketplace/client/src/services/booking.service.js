@@ -19,3 +19,6 @@ export const cancelBooking = async (bookingId, data) =>
 
 export const getBookingTimeline = async (bookingId) =>
   unwrap(await bookingApi.getBookingTimeline(bookingId));
+
+export const confirmCompletion = async (bookingId) =>
+  unwrap(await bookingApi.confirmCompletion(bookingId));

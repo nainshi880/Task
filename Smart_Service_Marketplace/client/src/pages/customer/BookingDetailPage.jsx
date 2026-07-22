@@ -21,9 +21,13 @@ import RescheduleBookingModal from "../../components/customer/bookings/Reschedul
 import * as bookingService from "../../services/booking.service";
 import * as chatService from "../../services/chat.service";
 import { bookingKeys, customerKeys } from "../../lib/queryClient";
+import * as paymentService from "../../services/payment.service";
+import { useAuthStore } from "../../store/authStore";
 import {
   canCancelBooking,
+  canConfirmCompletion,
   canEditBooking,
+  needsPayment,
   shouldTrackLive,
 } from "../../constants/bookingStatus";
 import { formatCurrency, formatDate, formatRelativeTime } from "../../utils/format";
@@ -46,9 +50,11 @@ function BookingDetailPage() {
   const { bookingId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [paying, setPaying] = useState(false);
 
   const detailQuery = useQuery({
     queryKey: bookingKeys.detail(bookingId),
@@ -140,6 +146,50 @@ function BookingDetailPage() {
     },
   });
 
+  const confirmCompletionMutation = useMutation({
+    mutationFn: () => bookingService.confirmCompletion(bookingId),
+    onSuccess: async () => {
+      toast.success("Service marked as completed. Thank you!");
+      await invalidateBooking();
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Could not confirm completion."
+      );
+    },
+  });
+
+  const handlePay = async () => {
+    if (!booking) return;
+    setPaying(true);
+    try {
+      await paymentService.payForBooking({
+        bookingId,
+        amount: booking.amount,
+        customerName: user?.name,
+        customerEmail: user?.email,
+        customerPhone: user?.phone,
+        description: booking.serviceName || "Booking payment",
+      });
+      toast.success("Payment successful. Finding a technician…");
+      await invalidateBooking();
+    } catch (error) {
+      if (error?.message === "Payment cancelled.") {
+        toast("Payment cancelled.");
+      } else {
+        toast.error(
+          error.response?.data?.message ||
+            error.message ||
+            "Payment failed. Please try again."
+        );
+      }
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const booking = detailQuery.data;
   const timeline = useMemo(() => {
     const events = timelineQuery.data?.timeline || [];
@@ -180,6 +230,8 @@ function BookingDetailPage() {
 
   const editable = canEditBooking(booking.status);
   const cancellable = canCancelBooking(booking.status);
+  const showPay = needsPayment(booking);
+  const showConfirm = canConfirmCompletion(booking);
 
   return (
     <DashboardLayout>
@@ -203,6 +255,11 @@ function BookingDetailPage() {
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <BookingStatusBadge status={booking.status} />
+                {booking.paymentStatus && (
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Payment: {booking.paymentStatus}
+                  </span>
+                )}
                 {booking.amount > 0 && (
                   <span className="text-sm font-semibold text-slate-800">
                     {formatCurrency(booking.amount)}
@@ -212,6 +269,25 @@ function BookingDetailPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              {showPay && (
+                <Button
+                  type="button"
+                  loading={paying}
+                  onClick={handlePay}
+                  disabled={!booking.amount || booking.amount <= 0}
+                >
+                  Pay {formatCurrency(booking.amount || 0)}
+                </Button>
+              )}
+              {showConfirm && (
+                <Button
+                  type="button"
+                  loading={confirmCompletionMutation.isPending}
+                  onClick={() => confirmCompletionMutation.mutate()}
+                >
+                  Confirm completion
+                </Button>
+              )}
               {editable && (
                 <Button
                   type="button"
@@ -233,6 +309,26 @@ function BookingDetailPage() {
             </div>
           </div>
         </div>
+
+        {showPay && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+            <p className="font-semibold">Payment required</p>
+            <p className="mt-1">
+              Pay securely with Razorpay to confirm this booking. Technicians are
+              notified only after payment succeeds.
+            </p>
+          </div>
+        )}
+
+        {showConfirm && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
+            <p className="font-semibold">Technician finished the job</p>
+            <p className="mt-1">
+              Review the work, then confirm completion to mark this booking as
+              completed.
+            </p>
+          </div>
+        )}
 
         <BookingTrackingPanel
           booking={booking}

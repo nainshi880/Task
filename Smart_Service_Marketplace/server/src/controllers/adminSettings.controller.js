@@ -124,6 +124,30 @@ export const deleteAdminCategory = asyncHandler(async (req, res) => {
   );
 });
 
+export const listAdminCatalogServices = asyncHandler(async (req, res) => {
+  const result = await adminSettingsService.listCatalogServices(req.query);
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Catalog services fetched.", {
+      services: result.items,
+      pagination: result.pagination,
+    })
+  );
+});
+
+export const updateAdminCatalogService = asyncHandler(async (req, res) => {
+  const service = await adminSettingsService.updateCatalogService(
+    req.params.serviceId,
+    req.user._id,
+    req.body,
+    actorContext(req)
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Catalog service updated.", { service })
+  );
+});
+
 export const getPublicSettings = asyncHandler(async (req, res) => {
   const [publicSettings, categoryResult] = await Promise.all([
     platformSettingsService.getPublicSettings(),

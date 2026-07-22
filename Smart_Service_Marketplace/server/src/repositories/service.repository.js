@@ -120,7 +120,7 @@ const DEFAULT_SERVICES = [
     shortDescription: "Assemble flat-pack and custom furniture.",
     description:
       "Expert assembly of beds, wardrobes, desks, and modular furniture.",
-    basePrice: 449,
+    basePrice: 1,
     durationMinutes: 90,
     features: ["Tool kit included", "Hardware check", "Leveling"],
     faqs: DEFAULT_FAQS,
@@ -309,6 +309,80 @@ class ServiceRepository {
       serviceCount: countMap[name] || 0,
       sortOrder: index,
     }));
+  }
+
+  /** Admin: list catalog services (includes inactive). */
+  async listAdmin({
+    search,
+    category,
+    includeInactive = true,
+    page = 1,
+    limit = 50,
+  } = {}) {
+    await this.seedDefaults();
+
+    const filter = {};
+    if (!includeInactive) filter.isActive = true;
+
+    if (category && SERVICE_CATEGORIES.includes(category)) {
+      filter.category = category;
+    }
+
+    if (search?.trim()) {
+      const term = search.trim();
+      filter.$or = [
+        { name: { $regex: term, $options: "i" } },
+        { shortDescription: { $regex: term, $options: "i" } },
+        { category: { $regex: term, $options: "i" } },
+      ];
+    }
+
+    const skip = (Math.max(page, 1) - 1) * limit;
+    const [items, total] = await Promise.all([
+      Service.find(filter)
+        .sort({ sortOrder: 1, name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Service.countDocuments(filter),
+    ]);
+
+    return { items, total, page: Number(page), limit: Number(limit) };
+  }
+
+  async findByIdAdmin(serviceId) {
+    return await Service.findById(serviceId).lean();
+  }
+
+  async updateById(serviceId, data) {
+    const allowed = [
+      "name",
+      "shortDescription",
+      "description",
+      "basePrice",
+      "durationMinutes",
+      "imageUrl",
+      "features",
+      "isPopular",
+      "isActive",
+      "sortOrder",
+      "rating",
+    ];
+
+    const update = {};
+    for (const key of allowed) {
+      if (data[key] !== undefined) update[key] = data[key];
+    }
+
+    if (update.name) {
+      update.slug = toSlug(update.name);
+    }
+
+    return await Service.findByIdAndUpdate(
+      serviceId,
+      { $set: update },
+      { new: true, runValidators: true }
+    ).lean();
   }
 }
 

@@ -12,7 +12,9 @@ import {
   parsePagination,
   formatPaginatedResponse,
 } from "../utils/pagination.js";
-import BOOKING_STATUS from "../constants/bookingStatus.js";
+import BOOKING_STATUS, {
+  OPEN_FOR_CLAIM_STATUSES,
+} from "../constants/bookingStatus.js";
 import ASSIGNMENT_METHOD, {
   ASSIGNMENT_PRIORITY_WEIGHTS,
 } from "../constants/assignment.js";
@@ -22,6 +24,7 @@ import BOOKING_SOCKET_EVENTS from "../constants/bookingSocketEvents.js";
 import AUDIT_ACTION from "../constants/auditAction.js";
 import NOTIFICATION_TYPES from "../constants/notificationType.js";
 import withTransaction from "../utils/transaction.js";
+import cacheService, { CACHE_KEYS } from "../utils/cache.js";
 import { isUserOnline } from "../sockets/presence.js";
 import { getIO } from "../sockets/io.js";
 import pushService from "./push.service.js";
@@ -161,22 +164,23 @@ class AssignmentService {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Booking not found.");
     }
 
+    if (booking.status === BOOKING_STATUS.CANCELLED) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Cannot assign technician to a cancelled booking."
+      );
+    }
+
     if (
       ![
+        BOOKING_STATUS.CONFIRMED,
         BOOKING_STATUS.PENDING,
         BOOKING_STATUS.ASSIGNED,
       ].includes(booking.status)
     ) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
-        "Technician can only be assigned when booking is Pending or Assigned."
-      );
-    }
-
-    if (booking.status === BOOKING_STATUS.CANCELLED) {
-      throw new ApiError(
-        HTTP_STATUS.BAD_REQUEST,
-        "Cannot assign technician to a cancelled booking."
+        "Technician can only be assigned when booking is Confirmed, Pending, or Assigned."
       );
     }
   }
@@ -367,7 +371,7 @@ class AssignmentService {
     const actionUrl = `/technician/jobs/${bookingId}`;
     const payload = {
       bookingId: String(bookingId),
-      status: BOOKING_STATUS.PENDING,
+      status: booking.status || BOOKING_STATUS.CONFIRMED,
       serviceCategory: booking.serviceCategory,
       serviceName: booking.serviceName,
       bookingDate: booking.bookingDate,
@@ -462,17 +466,100 @@ class AssignmentService {
   }
 
   /**
-   * No preferred technician — keep Pending and notify all eligible techs.
-   * First technician to claim/accept wins.
+   * Paid booking → Confirmed, then preferred assign or broadcast to eligible techs.
+   * Idempotent: second call (webhook after verify) does not re-notify.
+   */
+  async activateBookingAfterPayment(bookingId) {
+    const { booking } = await this.getBookingContext(bookingId);
+
+    if (booking.technician) {
+      return { booking, activated: false, reason: "already_assigned" };
+    }
+
+    if (booking.status === BOOKING_STATUS.CONFIRMED) {
+      return { booking, activated: false, reason: "already_confirmed" };
+    }
+
+    if (
+      booking.status !== BOOKING_STATUS.PENDING_PAYMENT &&
+      booking.status !== BOOKING_STATUS.PENDING
+    ) {
+      logger.info("Skip post-payment activation — booking already in progress", {
+        bookingId: String(bookingId),
+        status: booking.status,
+      });
+      return { booking, activated: false };
+    }
+
+    const fromStatus = booking.status;
+    const confirmed = await bookingRepository.updateById(bookingId, {
+      status: BOOKING_STATUS.CONFIRMED,
+    });
+
+    await bookingEventService.record({
+      bookingId,
+      event: BOOKING_TIMELINE_EVENT.PAYMENT_CONFIRMED,
+      actorId: booking.customer?._id || booking.customer,
+      actorRole: "customer",
+      action: AUDIT_ACTION.PAY,
+      fromStatus,
+      toStatus: BOOKING_STATUS.CONFIRMED,
+      note: "Payment successful — booking confirmed",
+    });
+
+    const preferredId =
+      confirmed.preferredTechnician?._id || confirmed.preferredTechnician;
+
+    if (preferredId) {
+      try {
+        const result = await this.finalizePreferredAssignment(
+          bookingId,
+          preferredId,
+          booking.customer?._id || booking.customer
+        );
+        await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
+        return {
+          booking: result.booking || confirmed,
+          activated: true,
+          mode: "preferred",
+        };
+      } catch (error) {
+        logger.warn("Preferred assign after payment failed — broadcasting", {
+          bookingId: String(bookingId),
+          message: error.message,
+        });
+      }
+    }
+
+    try {
+      const result = await this.broadcastOpenBooking(bookingId);
+      await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
+      return {
+        booking: result.booking || confirmed,
+        activated: true,
+        mode: "broadcast",
+        notified: result.notified,
+      };
+    } catch (error) {
+      logger.warn("Broadcast after payment failed", {
+        bookingId: String(bookingId),
+        message: error.message,
+      });
+      return { booking: confirmed, activated: true, mode: "confirmed_only" };
+    }
+  }
+
+  /**
+   * Paid + Confirmed booking — notify all eligible techs. First to accept wins.
    */
   async broadcastOpenBooking(bookingId) {
     const { booking, addressDetails } =
       await this.getBookingContext(bookingId);
 
-    if (booking.status !== BOOKING_STATUS.PENDING) {
+    if (!OPEN_FOR_CLAIM_STATUSES.includes(booking.status)) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
-        "Only Pending bookings can be offered to technicians."
+        "Only confirmed (paid) bookings can be offered to technicians."
       );
     }
 
@@ -505,6 +592,8 @@ class AssignmentService {
       )
     );
 
+    await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
+
     logger.info("Open booking offered to eligible technicians", {
       bookingId: String(bookingId),
       notified: technicianIds.length,
@@ -522,13 +611,18 @@ class AssignmentService {
   }
 
   /**
-   * First technician to claim a Pending unassigned booking wins.
+   * First technician to claim a Confirmed unassigned booking wins.
    */
   async claimOpenBooking(bookingId, technicianId) {
+    await technicianRepository.ensureTechnicianReady(technicianId);
+
     const { booking, addressDetails } =
       await this.getBookingContext(bookingId);
 
-    if (booking.status !== BOOKING_STATUS.PENDING || booking.technician) {
+    if (
+      !OPEN_FOR_CLAIM_STATUSES.includes(booking.status) ||
+      booking.technician
+    ) {
       throw new ApiError(
         HTTP_STATUS.CONFLICT,
         "This job was already accepted by another technician."
@@ -613,7 +707,7 @@ class AssignmentService {
       actorId: technicianId,
       actorRole: "technician",
       action: AUDIT_ACTION.ASSIGN,
-      fromStatus: BOOKING_STATUS.PENDING,
+      fromStatus: booking.status,
       toStatus: BOOKING_STATUS.ASSIGNED,
       note: `Technician ${technician.name} claimed the job`,
       metadata: {
@@ -880,8 +974,7 @@ class AssignmentService {
   }
 
   /**
-   * Preferred technician already set on booking create — record history/timeline
-   * then run the same centralized follow-ups as auto/manual assign.
+   * Preferred technician after payment — assign on booking, then follow-ups.
    */
   async finalizePreferredAssignment(bookingId, technicianId, customerId) {
     const { booking, addressDetails } =
@@ -897,6 +990,13 @@ class AssignmentService {
       );
     }
 
+    if (technician.availability === false) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Preferred technician is currently unavailable."
+      );
+    }
+
     const city = this.getBookingCity(addressDetails, booking.customer);
     const skill = booking.serviceCategory;
     const workload =
@@ -907,19 +1007,35 @@ class AssignmentService {
       workload,
     });
 
-    const history = await assignmentRepository.create({
-      booking: bookingId,
-      technician: technicianId,
-      assignedBy: customerId,
-      method: ASSIGNMENT_METHOD.MANUAL,
-      reason: "Preferred technician selected by customer.",
-      matchScore: matchDetails.priorityScore,
-      matchDetails: {
-        ...matchDetails,
-        priorityScore: matchDetails.priorityScore,
-      },
-      previousTechnician: null,
-      status: "Assigned",
+    const fromStatus = booking.status;
+
+    const { updated, history } = await withTransaction(async (session) => {
+      const updatedBooking = await bookingRepository.assignTechnician(
+        bookingId,
+        technicianId,
+        BOOKING_STATUS.ASSIGNED,
+        session
+      );
+
+      const assignmentHistory = await assignmentRepository.create(
+        {
+          booking: bookingId,
+          technician: technicianId,
+          assignedBy: customerId,
+          method: ASSIGNMENT_METHOD.MANUAL,
+          reason: "Preferred technician selected by customer.",
+          matchScore: matchDetails.priorityScore,
+          matchDetails: {
+            ...matchDetails,
+            priorityScore: matchDetails.priorityScore,
+          },
+          previousTechnician: null,
+          status: "Assigned",
+        },
+        session
+      );
+
+      return { updated: updatedBooking, history: assignmentHistory };
     });
 
     await bookingEventService.record({
@@ -928,7 +1044,7 @@ class AssignmentService {
       actorId: customerId,
       actorRole: "customer",
       action: AUDIT_ACTION.ASSIGN,
-      fromStatus: BOOKING_STATUS.PENDING,
+      fromStatus,
       toStatus: BOOKING_STATUS.ASSIGNED,
       note: `Preferred technician ${technician.name}`,
       metadata: {
@@ -951,11 +1067,11 @@ class AssignmentService {
         preferred: true,
         selectedTechnicianName: technician.name,
       },
-      bookingUpdated: booking,
+      bookingUpdated: updated,
     });
 
     return {
-      booking,
+      booking: updated,
       assignment: history,
       selected: {
         technician,

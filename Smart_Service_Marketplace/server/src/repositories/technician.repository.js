@@ -4,6 +4,8 @@ import TechnicianProfile from "../models/TechnicianProfile.js";
 import ROLES from "../constants/roles.js";
 import { ACTIVE_WORKLOAD_STATUSES } from "../constants/assignment.js";
 import TECHNICIAN_APPLICATION_STATUS from "../constants/technicianApplication.js";
+import ApiError from "../utils/ApiError.js";
+import HTTP_STATUS from "../constants/httpStatus.js";
 
 class TechnicianRepository {
   async getApprovedTechnicianIds() {
@@ -30,6 +32,45 @@ class TechnicianRepository {
     }).select(
       "name email phone city role availability rating skills maxWorkload isActive isVerified avatar deviceToken deviceTokens"
     );
+  }
+
+  /**
+   * Ensures technician account is active, available, and approved for jobs.
+   */
+  async ensureTechnicianReady(technicianId) {
+    const technician = await this.findById(technicianId);
+
+    if (!technician) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Technician not found.");
+    }
+
+    if (technician.isActive === false) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Technician account is inactive."
+      );
+    }
+
+    if (technician.availability === false) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Technician is currently unavailable."
+      );
+    }
+
+    const approvedIds = await this.getApprovedTechnicianIds();
+    const isApproved = approvedIds.some(
+      (id) => String(id) === String(technicianId)
+    );
+
+    if (!isApproved) {
+      throw new ApiError(
+        HTTP_STATUS.FORBIDDEN,
+        "Technician profile is not approved for jobs yet."
+      );
+    }
+
+    return technician;
   }
 
   async findEligibleTechnicians({ city, skill } = {}) {

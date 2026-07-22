@@ -15,16 +15,13 @@ const env = {
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || "",
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || "",
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || "",
-  // Brevo (preferred) — https://app.brevo.com/settings/keys/api
-  BREVO_API_KEY: process.env.BREVO_API_KEY || "",
-  // Sender must be verified in Brevo → Senders & Domains
+  // Nodemailer + Google SMTP (Gmail App Password)
   EMAIL_FROM: process.env.EMAIL_FROM || process.env.COMPANY_EMAIL || "",
   EMAIL_FROM_NAME:
     process.env.EMAIL_FROM_NAME ||
     process.env.COMPANY_NAME ||
     "Smart Service Marketplace",
-  // Optional SMTP fallback (Brevo SMTP relay)
-  EMAIL_HOST: process.env.EMAIL_HOST || "",
+  EMAIL_HOST: process.env.EMAIL_HOST || "smtp.gmail.com",
   EMAIL_PORT: Number(process.env.EMAIL_PORT) || 587,
   EMAIL_USER: process.env.EMAIL_USER || "",
   EMAIL_PASS: process.env.EMAIL_PASS || "",

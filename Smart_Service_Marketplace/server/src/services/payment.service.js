@@ -20,6 +20,8 @@ import emailService from "./email.service.js";
 import authRepository from "../repositories/auth.repository.js";
 import crypto from "crypto";
 import paymentRepository from "../repositories/payment.repository.js";
+import assignmentService from "./assignment.service.js";
+import BOOKING_STATUS from "../constants/bookingStatus.js";
 
 const MAX_PAYMENT_RETRIES = 5;
 
@@ -104,6 +106,16 @@ class PaymentService {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
         "Booking is already paid."
+      );
+    }
+
+    if (
+      booking.status !== BOOKING_STATUS.PENDING_PAYMENT &&
+      booking.status !== BOOKING_STATUS.PENDING
+    ) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Payment is only available for bookings awaiting payment."
       );
     }
 
@@ -231,9 +243,23 @@ class PaymentService {
     }
 
     if (payment.status === PAYMENT_STATUS.PAID) {
+      const bookingId = payment.booking?._id || payment.booking;
+      let activation = null;
+      if (bookingId) {
+        try {
+          activation = await assignmentService.activateBookingAfterPayment(
+            bookingId
+          );
+        } catch {
+          // non-blocking — may already be activated
+        }
+      }
       return {
         alreadyPaid: true,
         payment,
+        bookingPaymentStatus: "Paid",
+        bookingStatus: activation?.booking?.status,
+        activation,
       };
     }
 
@@ -334,10 +360,26 @@ class PaymentService {
 
     await invalidatePaymentCache(payment._id, customerId);
 
+    let activation = null;
+    if (bookingId) {
+      try {
+        activation = await assignmentService.activateBookingAfterPayment(
+          bookingId
+        );
+      } catch (error) {
+        logger.warn("Post-payment booking activation failed", {
+          bookingId: String(bookingId),
+          message: error.message,
+        });
+      }
+    }
+
     return {
       alreadyPaid: false,
       payment: updated,
       bookingPaymentStatus: "Paid",
+      bookingStatus: activation?.booking?.status || BOOKING_STATUS.CONFIRMED,
+      activation,
     };
   }
 
@@ -1100,7 +1142,7 @@ class PaymentService {
       case "payment.captured":
       case "order.paid": {
         if (payment.status !== PAYMENT_STATUS.PAID) {
-          const updated = await withTransaction(async (session) => {
+          await withTransaction(async (session) => {
             const paid = await paymentRepository.markPaid(
               payment._id,
               {
@@ -1137,6 +1179,20 @@ class PaymentService {
             payment._id,
             payment.customer?._id || payment.customer
           );
+        }
+
+        {
+          const bookingId = payment.booking?._id || payment.booking;
+          if (bookingId) {
+            try {
+              await assignmentService.activateBookingAfterPayment(bookingId);
+            } catch (error) {
+              logger.warn("Webhook post-payment activation failed", {
+                bookingId: String(bookingId),
+                message: error.message,
+              });
+            }
+          }
         }
         return { handled: true, event: eventName, status: "Paid", eventId };
       }

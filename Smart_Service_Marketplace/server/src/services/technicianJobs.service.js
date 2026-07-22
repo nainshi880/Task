@@ -7,7 +7,9 @@ import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import PAGINATION from "../constants/pagination.js";
 import AUDIT_ACTION from "../constants/auditAction.js";
-import BOOKING_STATUS from "../constants/bookingStatus.js";
+import BOOKING_STATUS, {
+  OPEN_FOR_CLAIM_STATUSES,
+} from "../constants/bookingStatus.js";
 import cacheService, {
   CACHE_KEYS,
   CACHE_TTL,
@@ -118,12 +120,13 @@ class TechnicianJobsService {
         })
       : await bookingRepository.findByTechnician(technicianId, options);
 
-    // Include open marketplace jobs (Pending, unassigned) matching technician skills
+    // Include open marketplace jobs (Confirmed/Pending, unassigned) matching skills
     let openItems = [];
     const wantsOpen =
       !options.status ||
-      options.status === BOOKING_STATUS.PENDING ||
-      String(options.status).toLowerCase() === "pending";
+      OPEN_FOR_CLAIM_STATUSES.includes(options.status) ||
+      String(options.status).toLowerCase() === "pending" ||
+      String(options.status).toLowerCase() === "confirmed";
 
     if (wantsOpen && !options.search) {
       const technician = await technicianRepository.findById(technicianId);

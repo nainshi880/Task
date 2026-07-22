@@ -87,6 +87,13 @@ export const updateServiceCategory = (categoryId, data) =>
 export const deleteServiceCategory = (categoryId) =>
   api.delete(`/admin/settings/categories/${categoryId}`);
 
+/* ── Catalog services (prices) ── */
+export const listCatalogServices = (params) =>
+  api.get("/admin/settings/catalog-services", { params });
+
+export const updateCatalogService = (serviceId, data) =>
+  api.patch(`/admin/settings/catalog-services/${serviceId}`, data);
+
 /* ── Payments ── */
 export const listPaymentTransactions = (params) =>
   api.get("/admin/payments/transactions", { params });

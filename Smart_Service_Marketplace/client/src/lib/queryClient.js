@@ -96,6 +96,7 @@ export const adminKeys = {
   booking: (id) => [...adminKeys.all, "booking", id],
   bookingTimeline: (id) => [...adminKeys.all, "booking", id, "timeline"],
   categories: (params) => [...adminKeys.all, "categories", params],
+  catalogServices: (params) => [...adminKeys.all, "catalog-services", params],
   payments: (params) => [...adminKeys.all, "payments", params],
   payment: (id) => [...adminKeys.all, "payment", id],
   refunds: (params) => [...adminKeys.all, "refunds", params],

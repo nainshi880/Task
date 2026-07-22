@@ -153,39 +153,14 @@ class AuthService {
       otpCode,
     });
 
-    // if (!result.sent) {
-    //   if (result.reason === "not_configured") {
-    //     throw new ApiError(
-    //       HTTP_STATUS.SERVICE_UNAVAILABLE,
-    //       "Email is not configured. Set BREVO_API_KEY and EMAIL_FROM."
-    //     );
-    //   }
-
-    //   const reason = result.reason || "";
-    //   let brevoHint = "";
-    //   if (/Unauthorized IP/i.test(reason)) {
-    //     brevoHint =
-    //       " Brevo blocked this server IP. In Brevo → SMTP & API → authorize your IP, or set BREVO_API_KEY (xkeysib-...) and use the API instead of SMTP.";
-    //   } else if (/not yet activated|SMTP account/i.test(reason)) {
-    //     brevoHint =
-    //       " Brevo SMTP is not activated yet — request activation in Brevo, or use a BREVO_API_KEY (xkeysib-...) instead.";
-    //   }
-
-    //   throw new ApiError(
-    //     HTTP_STATUS.BAD_GATEWAY,
-    //     "Failed to send verification OTP email." + brevoHint
-    //   );
-    // }
-
     if (!result.sent) {
+      console.error("Email send error:", result.reason);
 
-  console.error("Brevo Error:", result.reason);
-
-  throw new ApiError(
-    HTTP_STATUS.BAD_GATEWAY,
-    `Failed to send verification OTP email.\n${result.reason}`
-  );
-}
+      throw new ApiError(
+        HTTP_STATUS.BAD_GATEWAY,
+        `Failed to send verification OTP email.\n${result.reason}`
+      );
+    }
    
 
     return {
@@ -480,7 +455,7 @@ class AuthService {
       if (result.reason === "not_configured") {
         throw new ApiError(
           HTTP_STATUS.SERVICE_UNAVAILABLE,
-          "Email is not configured. Set BREVO_API_KEY and EMAIL_FROM."
+          "Email is not configured. Set EMAIL_USER, EMAIL_PASS (Gmail App Password), and EMAIL_FROM."
         );
       }
       throw new ApiError(

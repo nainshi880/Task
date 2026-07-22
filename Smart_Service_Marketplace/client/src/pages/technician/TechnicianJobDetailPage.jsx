@@ -214,10 +214,14 @@ function TechnicianJobDetailPage() {
 
   const canAccept =
     status === BOOKING_STATUS.ASSIGNED ||
-    (status === BOOKING_STATUS.PENDING && !job?.technician);
+    ((status === BOOKING_STATUS.CONFIRMED ||
+      status === BOOKING_STATUS.PENDING) &&
+      !job?.technician);
   const canReject = status === BOOKING_STATUS.ASSIGNED;
   const isOpenOffer =
-    status === BOOKING_STATUS.PENDING && !job?.technician;
+    (status === BOOKING_STATUS.CONFIRMED ||
+      status === BOOKING_STATUS.PENDING) &&
+    !job?.technician;
   const canArrive = status === BOOKING_STATUS.ACCEPTED && !hasArriving;
   const canStart = status === BOOKING_STATUS.ACCEPTED;
   const canPause = status === BOOKING_STATUS.IN_PROGRESS;
@@ -227,6 +231,8 @@ function TechnicianJobDetailPage() {
   const canComplete =
     status === BOOKING_STATUS.IN_PROGRESS &&
     (job.completionImages?.length || 0) > 0;
+  const awaitingCustomer =
+    status === BOOKING_STATUS.AWAITING_CONFIRMATION;
   const canAddNote = [
     BOOKING_STATUS.ACCEPTED,
     BOOKING_STATUS.IN_PROGRESS,
@@ -355,15 +361,21 @@ function TechnicianJobDetailPage() {
                   })
                 }
               >
-                Mark completed
+                Finish work
               </Button>
+            )}
+            {awaitingCustomer && (
+              <p className="text-sm text-violet-700">
+                Work submitted. Waiting for the customer to confirm completion.
+              </p>
             )}
             {!canAccept &&
               !canArrive &&
               !canStart &&
               !canPause &&
               !canResume &&
-              !canComplete && (
+              !canComplete &&
+              !awaitingCustomer && (
                 <p className="text-sm text-slate-500">
                   No status actions available for this booking right now.
                 </p>

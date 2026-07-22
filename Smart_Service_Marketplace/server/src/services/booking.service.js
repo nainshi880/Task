@@ -174,8 +174,8 @@ class BookingService {
     const preferredTechnicianId =
       data.technician || data.preferredTechnician || null;
 
-    let technicianId = null;
-    let status = BOOKING_STATUS.PENDING;
+    let preferredTechnician = null;
+    const status = BOOKING_STATUS.PENDING_PAYMENT;
 
     if (preferredTechnicianId) {
       const technician = await technicianRepository.findById(
@@ -193,15 +193,15 @@ class BookingService {
           "Selected technician is currently unavailable."
         );
       }
-      technicianId = technician._id;
-      status = BOOKING_STATUS.ASSIGNED;
+      preferredTechnician = technician._id;
     }
 
     const booking = await withTransaction(async (session) => {
       return await bookingRepository.create(
         {
           customer: customerId,
-          technician: technicianId,
+          technician: null,
+          preferredTechnician,
           serviceCategory: data.serviceCategory,
           serviceName: data.serviceName,
           description: data.description,
@@ -212,6 +212,7 @@ class BookingService {
           amount: data.amount || 0,
           issueImages,
           status,
+          paymentStatus: "Pending",
         },
         session
       );
@@ -225,49 +226,20 @@ class BookingService {
       action: AUDIT_ACTION.CREATE,
       fromStatus: null,
       toStatus: status,
-      note: technicianId
-        ? "Booking created with preferred technician"
-        : "Booking created",
+      note: preferredTechnician
+        ? "Booking created — awaiting payment (preferred technician selected)"
+        : "Booking created — awaiting payment",
       metadata: {
         serviceCategory: data.serviceCategory,
         serviceName: data.serviceName,
-        preferredTechnician: technicianId,
+        preferredTechnician,
       },
       ipAddress: actorMeta.ipAddress,
       userAgent: actorMeta.userAgent,
     });
 
-    let finalBooking = booking;
-
-    if (technicianId) {
-      // Preferred technician already on booking — same centralized follow-ups.
-      try {
-        await assignmentService.finalizePreferredAssignment(
-          booking._id,
-          technicianId,
-          customerId
-        );
-        await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
-      } catch (error) {
-        logger.warn("Preferred assignment follow-up failed", {
-          bookingId: String(booking._id),
-          message: error.message,
-        });
-      }
-    } else {
-      // No preference — offer to all eligible technicians; first to accept wins.
-      try {
-        await assignmentService.broadcastOpenBooking(booking._id);
-        await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
-      } catch (error) {
-        logger.warn("Open booking broadcast failed after create", {
-          bookingId: String(booking._id),
-          message: error.message,
-        });
-      }
-    }
-
-    return this.enrichBooking(finalBooking, customerId);
+    // Do not notify technicians until payment succeeds.
+    return this.enrichBooking(booking, customerId);
   }
 
   // ======================================

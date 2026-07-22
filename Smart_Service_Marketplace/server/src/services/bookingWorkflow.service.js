@@ -5,7 +5,9 @@ import bookingEventService from "./bookingEvent.service.js";
 import assignmentService from "./assignment.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
-import BOOKING_STATUS from "../constants/bookingStatus.js";
+import BOOKING_STATUS, {
+  OPEN_FOR_CLAIM_STATUSES,
+} from "../constants/bookingStatus.js";
 import PAGINATION from "../constants/pagination.js";
 import BOOKING_TIMELINE_EVENT from "../constants/bookingTimelineEvent.js";
 import AUDIT_ACTION from "../constants/auditAction.js";
@@ -148,7 +150,7 @@ class BookingWorkflowService {
       booking = await bookingRepository.findById(bookingId);
       if (
         !booking ||
-        booking.status !== BOOKING_STATUS.PENDING ||
+        !OPEN_FOR_CLAIM_STATUSES.includes(booking.status) ||
         booking.technician
       ) {
         throw new ApiError(HTTP_STATUS.NOT_FOUND, "Job not found.");
@@ -187,9 +189,9 @@ class BookingWorkflowService {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Booking not found.");
     }
 
-    // Open marketplace: first technician to accept claims the Pending job
+    // Open marketplace: first technician to accept claims the Confirmed job
     if (
-      booking.status === BOOKING_STATUS.PENDING &&
+      OPEN_FOR_CLAIM_STATUSES.includes(booking.status) &&
       !booking.technician
     ) {
       const claimed = await assignmentService.claimOpenBooking(
@@ -295,7 +297,7 @@ class BookingWorkflowService {
         bookingId,
         {
           technician: null,
-          status: BOOKING_STATUS.PENDING,
+          status: BOOKING_STATUS.CONFIRMED,
           rejectionReason: rejectionReason.trim(),
           rejectedAt: new Date(),
         },
@@ -328,7 +330,7 @@ class BookingWorkflowService {
       actorRole: "technician",
       action: AUDIT_ACTION.REJECT,
       fromStatus: BOOKING_STATUS.ASSIGNED,
-      toStatus: BOOKING_STATUS.PENDING,
+      toStatus: BOOKING_STATUS.CONFIRMED,
       note: rejectionReason.trim(),
     });
 
@@ -409,12 +411,13 @@ class BookingWorkflowService {
       ![
         BOOKING_STATUS.IN_PROGRESS,
         BOOKING_STATUS.PAUSED,
+        BOOKING_STATUS.AWAITING_CONFIRMATION,
         BOOKING_STATUS.COMPLETED,
       ].includes(booking.status)
     ) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
-        "Completion images can only be uploaded for In Progress, Paused, or Completed bookings."
+        "Completion images can only be uploaded for In Progress, Paused, or Awaiting Confirmation bookings."
       );
     }
 
@@ -484,7 +487,7 @@ class BookingWorkflowService {
     }
 
     const updateData = {
-      status: BOOKING_STATUS.COMPLETED,
+      status: BOOKING_STATUS.AWAITING_CONFIRMATION,
       completedAt: new Date(),
       customerConfirmed: false,
       customerConfirmedAt: null,
@@ -508,13 +511,13 @@ class BookingWorkflowService {
 
     await bookingEventService.record({
       bookingId,
-      event: BOOKING_TIMELINE_EVENT.COMPLETED,
+      event: BOOKING_TIMELINE_EVENT.AWAITING_CONFIRMATION,
       actorId: technicianId,
       actorRole: "technician",
       action: AUDIT_ACTION.COMPLETE,
       fromStatus: BOOKING_STATUS.IN_PROGRESS,
-      toStatus: BOOKING_STATUS.COMPLETED,
-      note: workNotes || "Work completed",
+      toStatus: BOOKING_STATUS.AWAITING_CONFIRMATION,
+      note: workNotes || "Work finished — awaiting customer confirmation",
     });
 
     return this.enrichBooking(updated);
@@ -664,10 +667,10 @@ class BookingWorkflowService {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Booking not found.");
     }
 
-    if (booking.status !== BOOKING_STATUS.COMPLETED) {
+    if (booking.status !== BOOKING_STATUS.AWAITING_CONFIRMATION) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
-        "Only Completed bookings can be confirmed."
+        "Only bookings awaiting confirmation can be confirmed."
       );
     }
 
@@ -679,6 +682,7 @@ class BookingWorkflowService {
     }
 
     const updated = await bookingRepository.updateById(bookingId, {
+      status: BOOKING_STATUS.COMPLETED,
       customerConfirmed: true,
       customerConfirmedAt: new Date(),
     });
@@ -689,7 +693,7 @@ class BookingWorkflowService {
       actorId: customerId,
       actorRole: "customer",
       action: AUDIT_ACTION.CONFIRM,
-      fromStatus: BOOKING_STATUS.COMPLETED,
+      fromStatus: BOOKING_STATUS.AWAITING_CONFIRMATION,
       toStatus: BOOKING_STATUS.COMPLETED,
       note: "Customer confirmed completion",
     });

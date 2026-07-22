@@ -18,6 +18,13 @@ const bookingSchema = new mongoose.Schema(
       index: true,
     },
 
+    preferredTechnician: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+
     serviceCategory: {
       type: String,
       required: true,
@@ -68,7 +75,7 @@ const bookingSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: Object.values(BOOKING_STATUS),
-      default: BOOKING_STATUS.PENDING,
+      default: BOOKING_STATUS.PENDING_PAYMENT,
       index: true,
     },
 

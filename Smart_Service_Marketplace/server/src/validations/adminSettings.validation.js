@@ -90,3 +90,25 @@ export const listCategoriesValidation = [
   query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
 ];
 
+export const listCatalogServicesValidation = [
+  query("includeInactive").optional().isBoolean().toBoolean(),
+  query("q").optional().trim().isLength({ min: 1, max: 100 }),
+  query("search").optional().trim().isLength({ min: 1, max: 100 }),
+  query("category").optional().trim().isLength({ max: 100 }),
+  query("page").optional().isInt({ min: 1 }).toInt(),
+  query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
+];
+
+export const updateCatalogServiceValidation = [
+  param("serviceId").isMongoId().withMessage("Invalid service ID."),
+  body("name").optional().trim().notEmpty().isLength({ max: 120 }),
+  body("shortDescription").optional().trim().isLength({ max: 300 }),
+  body("description").optional().trim().isLength({ max: 2000 }),
+  body("basePrice").optional().isFloat({ min: 0 }).toFloat(),
+  body("durationMinutes").optional().isInt({ min: 15, max: 480 }).toInt(),
+  body("imageUrl").optional({ values: "falsy" }).trim().isURL(),
+  body("isPopular").optional().isBoolean().toBoolean(),
+  body("isActive").optional().isBoolean().toBoolean(),
+  body("sortOrder").optional().isInt({ min: 0 }).toInt(),
+];
+

@@ -76,8 +76,13 @@ function arrivalLabel(booking, hasArriving, etaMinutes) {
 
 function statusMessage(booking, hasArriving) {
   switch (booking.status) {
+    case BOOKING_STATUS.PENDING_PAYMENT:
+      return "Complete payment to confirm this booking and notify technicians.";
     case BOOKING_STATUS.PENDING:
-      return "Waiting for technician assignment.";
+    case BOOKING_STATUS.CONFIRMED:
+      return booking.technician
+        ? "Technician assigned."
+        : "Payment confirmed. Waiting for a technician to accept.";
     case BOOKING_STATUS.ASSIGNED:
       return "A technician has been assigned and will confirm soon.";
     case BOOKING_STATUS.ACCEPTED:
@@ -88,8 +93,10 @@ function statusMessage(booking, hasArriving) {
       return "Service is currently in progress.";
     case BOOKING_STATUS.PAUSED:
       return "Work is paused. Updates will resume shortly.";
+    case BOOKING_STATUS.AWAITING_CONFIRMATION:
+      return "Technician finished the work. Please confirm completion.";
     case BOOKING_STATUS.COMPLETED:
-      return "Service completed. You can confirm or leave a review later.";
+      return "Service completed. You can leave a review or close the booking.";
     case BOOKING_STATUS.CLOSED:
       return "This booking is closed.";
     case BOOKING_STATUS.CANCELLED:
