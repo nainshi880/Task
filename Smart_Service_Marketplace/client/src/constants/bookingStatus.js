@@ -88,6 +88,17 @@ export function canConfirmCompletion(booking) {
   );
 }
 
+export function canLeaveReview(booking, existingReview = null) {
+  if (!booking) return false;
+  if (existingReview) return false;
+  if (!booking.technician) return false;
+  if (!booking.customerConfirmed) return false;
+  return (
+    booking.status === BOOKING_STATUS.COMPLETED ||
+    booking.status === BOOKING_STATUS.CLOSED
+  );
+}
+
 export function bucketBookings(bookings = []) {
   const upcoming = [];
   const completed = [];

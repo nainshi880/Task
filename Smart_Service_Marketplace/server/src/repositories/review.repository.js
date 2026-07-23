@@ -296,7 +296,10 @@ class ReviewRepository {
       }),
       TechnicianProfile.findOneAndUpdate(
         { user: technicianId },
-        { rating: stats.averageRating }
+        {
+          rating: stats.averageRating,
+          totalReviews: stats.totalReviews,
+        }
       ),
     ]);
 

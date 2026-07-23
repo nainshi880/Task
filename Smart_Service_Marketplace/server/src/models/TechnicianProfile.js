@@ -224,6 +224,12 @@ const technicianProfileSchema = new mongoose.Schema(
       max: 5,
     },
 
+    totalReviews: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     totalJobsCompleted: {
       type: Number,
       default: 0,

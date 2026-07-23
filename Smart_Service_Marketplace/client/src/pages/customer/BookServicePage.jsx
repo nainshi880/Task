@@ -7,8 +7,6 @@ import {
   Clock3,
   MapPin,
   StickyNote,
-  UserRound,
-  Star,
 } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
@@ -19,11 +17,9 @@ import Button from "../../components/ui/Button";
 import Stepper from "../../components/ui/Stepper";
 import * as serviceService from "../../services/service.service";
 import * as customerService from "../../services/customer.service";
-import * as technicianService from "../../services/technician.service";
 import {
   customerKeys,
   serviceKeys,
-  technicianBrowseKeys,
 } from "../../lib/queryClient";
 import { formatCurrency, formatDate } from "../../utils/format";
 import { saveBookingDraft, loadBookingDraft } from "../../utils/bookingDraft";
@@ -32,7 +28,6 @@ import { TIME_SLOTS, formatTimeSlot } from "../../constants/timeSlots";
 const STEPS = [
   { id: "address", label: "Address" },
   { id: "schedule", label: "Date & time" },
-  { id: "technician", label: "Technician" },
   { id: "notes", label: "Notes" },
 ];
 
@@ -54,13 +49,11 @@ function BookServicePage() {
   const serviceId = searchParams.get("serviceId") || "";
   const categoryParam = searchParams.get("category") || "";
   const serviceNameParam = searchParams.get("serviceName") || "";
-  const preferredTechParam = searchParams.get("technicianId") || "";
 
   const [step, setStep] = useState(0);
   const [addressId, setAddressId] = useState("");
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("");
-  const [technicianId, setTechnicianId] = useState(preferredTechParam);
   const [notes, setNotes] = useState("");
   const [description, setDescription] = useState("");
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -75,7 +68,6 @@ function BookServicePage() {
     if (draft.addressId) setAddressId(draft.addressId);
     if (draft.bookingDate) setBookingDate(String(draft.bookingDate).slice(0, 10));
     if (draft.bookingTime) setBookingTime(draft.bookingTime);
-    if (draft.technicianId) setTechnicianId(draft.technicianId);
     if (draft.notes) setNotes(draft.notes);
     if (draft.description) setDescription(draft.description);
     setDraftHydrated(true);
@@ -99,21 +91,7 @@ function BookServicePage() {
   const serviceName = service?.name || serviceNameParam;
   const amount = service?.basePrice ?? 0;
 
-  const techniciansQuery = useQuery({
-    queryKey: technicianBrowseKeys.list({ skill: category }),
-    queryFn: () =>
-      technicianService.browseTechnicians({
-        skill: category,
-        limit: 12,
-        sortBy: "rating",
-        sortOrder: "desc",
-      }),
-    enabled: Boolean(category) && step >= 2,
-    retry: false,
-  });
-
   const addresses = profileQuery.data?.addresses || [];
-  const technicians = techniciansQuery.data?.items || [];
 
   useEffect(() => {
     if (!addressId && addresses.length) {
@@ -128,16 +106,10 @@ function BookServicePage() {
     [addresses, addressId]
   );
 
-  const selectedTechnician = useMemo(
-    () => technicians.find((item) => String(item._id) === String(technicianId)),
-    [technicians, technicianId]
-  );
-
   const canContinue = () => {
     if (step === 0) return Boolean(addressId);
     if (step === 1) return Boolean(bookingDate && bookingTime);
     if (step === 2) return true;
-    if (step === 3) return true;
     return false;
   };
 
@@ -172,16 +144,6 @@ function BookServicePage() {
       address: selectedAddress || null,
       bookingDate,
       bookingTime,
-      technicianId: technicianId || null,
-      technician: selectedTechnician
-        ? {
-            _id: selectedTechnician._id,
-            name: selectedTechnician.name,
-            rating: selectedTechnician.rating,
-            city: selectedTechnician.city,
-            avatar: selectedTechnician.avatar,
-          }
-        : null,
       notes: notes.trim(),
       description: description.trim(),
     };
@@ -384,100 +346,6 @@ function BookServicePage() {
           )}
 
           {step === 2 && (
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <UserRound className="mt-0.5 text-indigo-600" size={20} />
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">
-                    Choose technician
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Optional — skip to let us assign someone later
-                  </p>
-                </div>
-              </div>
-
-              <label
-                className={clsx(
-                  "flex cursor-pointer gap-3 rounded-xl border p-4 transition",
-                  !technicianId
-                    ? "border-indigo-500 bg-indigo-50"
-                    : "border-slate-200 hover:border-indigo-200"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="technician"
-                  className="mt-1"
-                  checked={!technicianId}
-                  onChange={() => setTechnicianId("")}
-                />
-                <div>
-                  <p className="font-medium text-slate-900">
-                    No preference
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    We&apos;ll assign an available technician
-                  </p>
-                </div>
-              </label>
-
-              {techniciansQuery.isLoading ? (
-                <Loader text="Loading technicians..." />
-              ) : technicians.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  No available technicians listed for this category right now.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {technicians.map((tech) => (
-                    <label
-                      key={tech._id}
-                      className={clsx(
-                        "flex cursor-pointer gap-3 rounded-xl border p-4 transition",
-                        String(technicianId) === String(tech._id)
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-slate-200 hover:border-indigo-200"
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="technician"
-                        className="mt-1"
-                        checked={String(technicianId) === String(tech._id)}
-                        onChange={() => setTechnicianId(tech._id)}
-                      />
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-indigo-700">
-                          {tech.avatar ? (
-                            <img
-                              src={tech.avatar}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <UserRound size={18} />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-slate-900">
-                            {tech.name}
-                          </p>
-                          <p className="flex items-center gap-1 text-sm text-slate-500">
-                            <Star size={14} className="text-amber-500" />
-                            {Number(tech.rating || 0).toFixed(1)}
-                            {tech.city ? ` · ${tech.city}` : ""}
-                          </p>
-                        </div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 3 && (
             <div className="space-y-5">
               <div className="flex items-start gap-3">
                 <StickyNote className="mt-0.5 text-indigo-600" size={20} />
@@ -530,8 +398,9 @@ function BookServicePage() {
                   {bookingTime ? ` · ${formatTimeSlot(bookingTime)}` : ""}
                 </p>
                 <p className="mt-1">
-                  <span className="font-medium text-slate-800">Technician:</span>{" "}
-                  {selectedTechnician?.name || "Auto-assign"}
+                  <span className="font-medium text-slate-800">Assignment:</span>{" "}
+                  Available {category || "matching"} technicians will be notified
+                  after payment
                 </p>
               </div>
             </div>

@@ -73,6 +73,34 @@ class TechnicianRepository {
     return technician;
   }
 
+  async hasActiveJob(technicianId) {
+    const count = await this.getWorkload(technicianId);
+    return count > 0;
+  }
+
+  /**
+   * IDs of technicians who currently have a blocking active booking.
+   */
+  async findBusyTechnicianIds(technicianIds = []) {
+    if (!technicianIds.length) return new Set();
+
+    const results = await Booking.aggregate([
+      {
+        $match: {
+          technician: { $in: technicianIds },
+          status: { $in: ACTIVE_WORKLOAD_STATUSES },
+        },
+      },
+      {
+        $group: {
+          _id: "$technician",
+        },
+      },
+    ]);
+
+    return new Set(results.map((row) => String(row._id)));
+  }
+
   async findEligibleTechnicians({ city, skill } = {}) {
     const approvedIds = await this.getApprovedTechnicianIds();
 

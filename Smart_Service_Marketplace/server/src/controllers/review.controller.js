@@ -4,12 +4,10 @@ import ApiResponse from "../utils/ApiResponse.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 
 export const submitReview = asyncHandler(async (req, res) => {
-  const review = await reviewService.submitReview(req.user._id, req.body);
+  const result = await reviewService.submitReview(req.user._id, req.body);
 
   res.status(HTTP_STATUS.CREATED).json(
-    new ApiResponse(HTTP_STATUS.CREATED, "Review submitted successfully.", {
-      review,
-    })
+    new ApiResponse(HTTP_STATUS.CREATED, "Review submitted successfully.", result)
   );
 });
 
@@ -74,8 +72,10 @@ export const getBookingReview = asyncHandler(async (req, res) => {
   );
 
   res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, "Review fetched successfully.", {
-      review,
-    })
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      review ? "Review fetched successfully." : "No review for this booking yet.",
+      { review: review || null }
+    )
   );
 });

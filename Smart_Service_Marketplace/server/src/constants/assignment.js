@@ -17,6 +17,10 @@ export const ACTIVE_WORKLOAD_STATUSES = [
   "Accepted",
   "In Progress",
   "Paused",
+  "Awaiting Confirmation",
 ];
+
+/** Statuses that block receiving/accepting new marketplace jobs */
+export const BLOCKING_ACTIVE_JOB_STATUSES = ACTIVE_WORKLOAD_STATUSES;
 
 export default ASSIGNMENT_METHOD;

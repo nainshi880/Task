@@ -18,8 +18,10 @@ import BookingTimeline from "../../components/customer/bookings/BookingTimeline"
 import BookingTrackingPanel from "../../components/customer/bookings/BookingTrackingPanel";
 import CancelBookingModal from "../../components/customer/bookings/CancelBookingModal";
 import RescheduleBookingModal from "../../components/customer/bookings/RescheduleBookingModal";
+import ReviewBookingModal from "../../components/customer/bookings/ReviewBookingModal";
 import * as bookingService from "../../services/booking.service";
 import * as chatService from "../../services/chat.service";
+import * as reviewService from "../../services/review.service";
 import { bookingKeys, customerKeys } from "../../lib/queryClient";
 import * as paymentService from "../../services/payment.service";
 import { useAuthStore } from "../../store/authStore";
@@ -27,6 +29,7 @@ import {
   canCancelBooking,
   canConfirmCompletion,
   canEditBooking,
+  canLeaveReview,
   needsPayment,
   shouldTrackLive,
 } from "../../constants/bookingStatus";
@@ -54,6 +57,7 @@ function BookingDetailPage() {
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [paying, setPaying] = useState(false);
 
   const detailQuery = useQuery({
@@ -65,6 +69,13 @@ function BookingDetailPage() {
       const status = query.state.data?.status;
       return shouldTrackLive(status) ? 8_000 : false;
     },
+  });
+
+  const reviewQuery = useQuery({
+    queryKey: ["reviews", "booking", bookingId],
+    queryFn: () => reviewService.getBookingReview(bookingId),
+    enabled: Boolean(bookingId && detailQuery.data?.customerConfirmed),
+    retry: false,
   });
 
   // Ensure chat room exists once a technician is assigned (also backfills older bookings).
@@ -149,14 +160,43 @@ function BookingDetailPage() {
   const confirmCompletionMutation = useMutation({
     mutationFn: () => bookingService.confirmCompletion(bookingId),
     onSuccess: async () => {
-      toast.success("Service marked as completed. Thank you!");
+      toast.success("Work confirmed as completed.");
       await invalidateBooking();
+      await queryClient.invalidateQueries({
+        queryKey: ["reviews", "booking", bookingId],
+      });
+      setReviewOpen(true);
     },
     onError: (error) => {
       toast.error(
         error.response?.data?.message ||
           error.message ||
           "Could not confirm completion."
+      );
+    },
+  });
+
+  const submitReviewMutation = useMutation({
+    mutationFn: (payload) =>
+      reviewService.submitReview({
+        bookingId,
+        ...payload,
+      }),
+    onSuccess: async () => {
+      toast.success("Thanks for your review!");
+      setReviewOpen(false);
+      await Promise.all([
+        invalidateBooking(),
+        queryClient.invalidateQueries({
+          queryKey: ["reviews", "booking", bookingId],
+        }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Could not submit review."
       );
     },
   });
@@ -232,6 +272,10 @@ function BookingDetailPage() {
   const cancellable = canCancelBooking(booking.status);
   const showPay = needsPayment(booking);
   const showConfirm = canConfirmCompletion(booking);
+  const existingReview =
+    reviewQuery.data?.review ||
+    (reviewQuery.data?._id ? reviewQuery.data : null);
+  const showReview = canLeaveReview(booking, existingReview);
 
   return (
     <DashboardLayout>
@@ -269,23 +313,21 @@ function BookingDetailPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {showPay && (
-                <Button
-                  type="button"
-                  loading={paying}
-                  onClick={handlePay}
-                  disabled={!booking.amount || booking.amount <= 0}
-                >
-                  Pay {formatCurrency(booking.amount || 0)}
-                </Button>
-              )}
               {showConfirm && (
                 <Button
                   type="button"
                   loading={confirmCompletionMutation.isPending}
                   onClick={() => confirmCompletionMutation.mutate()}
                 >
-                  Confirm completion
+                  Confirm work completed
+                </Button>
+              )}
+              {showReview && (
+                <Button
+                  type="button"
+                  onClick={() => setReviewOpen(true)}
+                >
+                  Leave a review
                 </Button>
               )}
               {editable && (
@@ -324,9 +366,32 @@ function BookingDetailPage() {
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
             <p className="font-semibold">Technician finished the job</p>
             <p className="mt-1">
-              Review the work, then confirm completion to mark this booking as
-              completed.
+              Confirm that the work is completed, then you&apos;ll be asked to
+              rate and review the technician.
             </p>
+          </div>
+        )}
+
+        {showReview && !showConfirm && (
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-5 py-4 text-sm text-indigo-900">
+            <p className="font-semibold">Share your feedback</p>
+            <p className="mt-1">
+              Rate {booking.technician?.name || "your technician"} to help
+              other customers choose confidently.
+            </p>
+          </div>
+        )}
+
+        {existingReview && (
+          <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-700 shadow-sm">
+            <p className="font-semibold text-slate-900">Your review</p>
+            <p className="mt-1">
+              Rating: {existingReview.rating}/5
+              {existingReview.title ? ` · ${existingReview.title}` : ""}
+            </p>
+            {existingReview.comment && (
+              <p className="mt-2 text-slate-600">{existingReview.comment}</p>
+            )}
           </div>
         )}
 
@@ -436,6 +501,21 @@ function BookingDetailPage() {
             )}
           </section>
         </div>
+
+        {showPay && (
+          <div className="flex justify-end border-t border-slate-200 pt-6">
+            <Button
+              type="button"
+              size="lg"
+              loading={paying}
+              onClick={handlePay}
+              disabled={!booking.amount || booking.amount <= 0}
+              className="min-w-[10rem]"
+            >
+              Pay {formatCurrency(booking.amount || 0)}
+            </Button>
+          </div>
+        )}
       </div>
 
       <CancelBookingModal
@@ -451,6 +531,15 @@ function BookingDetailPage() {
         booking={booking}
         loading={rescheduleMutation.isPending}
         onConfirm={(payload) => rescheduleMutation.mutate(payload)}
+      />
+
+      <ReviewBookingModal
+        isOpen={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        loading={submitReviewMutation.isPending}
+        technicianName={booking.technician?.name || "your technician"}
+        serviceName={booking.serviceName || booking.serviceCategory}
+        onSubmit={(payload) => submitReviewMutation.mutate(payload)}
       />
     </DashboardLayout>
   );

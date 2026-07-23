@@ -344,7 +344,8 @@ class AssignmentService {
   }
 
   /**
-   * Eligible technicians for an open booking (skill-first, then city, then all).
+   * Eligible technicians for an open booking:
+   * active profile, accepting jobs, matching service category, no active job.
    */
   async getBroadcastCandidates(booking, addressDetails) {
     const { ranked, city, skill } = await this.rankTechnicians(
@@ -352,13 +353,12 @@ class AssignmentService {
       addressDetails
     );
 
-    const skillMatched = ranked.filter((r) => r.matchDetails.skillMatch);
-    const cityMatched = ranked.filter((r) => r.matchDetails.cityMatch);
-    const candidates = skillMatched.length
-      ? skillMatched
-      : cityMatched.length
-        ? cityMatched
-        : ranked;
+    const candidates = ranked.filter(
+      (r) =>
+        r.matchDetails.skillMatch &&
+        r.matchDetails.availability &&
+        r.workload === 0
+    );
 
     return { candidates, city, skill };
   }
@@ -442,6 +442,7 @@ class AssignmentService {
       claimedBy: String(claimedBy),
       status: BOOKING_STATUS.ASSIGNED,
     };
+    const actionUrl = "/technician/jobs";
 
     await Promise.all(
       technicianIds.map(async (id) => {
@@ -452,7 +453,7 @@ class AssignmentService {
           title: "Job no longer available",
           message: "Another technician accepted this booking first.",
           bookingId,
-          actionUrl: "/technician/jobs",
+          actionUrl,
           metadata: { withdrawn: true, claimedBy: String(claimedBy) },
         });
 
@@ -461,12 +462,28 @@ class AssignmentService {
           BOOKING_SOCKET_EVENTS.CLAIMED,
           payload
         );
+
+        await this.sendAssignmentPushNotification(
+          { _id: technicianId },
+          {
+            title: "Job no longer available",
+            message: "Another technician accepted this booking first.",
+            data: {
+              type: BOOKING_SOCKET_EVENTS.CLAIMED,
+              bookingId: String(bookingId),
+              actionUrl,
+              link: actionUrl,
+            },
+          }
+        );
       })
     );
+
+    await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
   }
 
   /**
-   * Paid booking → Confirmed, then preferred assign or broadcast to eligible techs.
+   * Paid booking → Confirmed, then broadcast to all eligible available technicians.
    * Idempotent: second call (webhook after verify) does not re-notify.
    */
   async activateBookingAfterPayment(bookingId) {
@@ -506,30 +523,6 @@ class AssignmentService {
       toStatus: BOOKING_STATUS.CONFIRMED,
       note: "Payment successful — booking confirmed",
     });
-
-    const preferredId =
-      confirmed.preferredTechnician?._id || confirmed.preferredTechnician;
-
-    if (preferredId) {
-      try {
-        const result = await this.finalizePreferredAssignment(
-          bookingId,
-          preferredId,
-          booking.customer?._id || booking.customer
-        );
-        await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
-        return {
-          booking: result.booking || confirmed,
-          activated: true,
-          mode: "preferred",
-        };
-      } catch (error) {
-        logger.warn("Preferred assign after payment failed — broadcasting", {
-          bookingId: String(bookingId),
-          message: error.message,
-        });
-      }
-    }
 
     try {
       const result = await this.broadcastOpenBooking(bookingId);
@@ -647,11 +640,10 @@ class AssignmentService {
     }
 
     const workload = await technicianRepository.getWorkload(technicianId);
-    const maxWorkload = technician.maxWorkload || 5;
-    if (workload >= maxWorkload) {
+    if (workload > 0) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
-        "You have reached your maximum workload."
+        "You already have an active job. Finish or cancel it before accepting new bookings."
       );
     }
 
@@ -957,114 +949,6 @@ class AssignmentService {
         priorityScore: matchDetails.priorityScore,
         matchDetails,
         previousTechnician,
-        selectedTechnicianName: technician.name,
-      },
-      bookingUpdated: updated,
-    });
-
-    return {
-      booking: updated,
-      assignment: history,
-      selected: {
-        technician,
-        priorityScore: matchDetails.priorityScore,
-        matchDetails,
-      },
-    };
-  }
-
-  /**
-   * Preferred technician after payment — assign on booking, then follow-ups.
-   */
-  async finalizePreferredAssignment(bookingId, technicianId, customerId) {
-    const { booking, addressDetails } =
-      await this.getBookingContext(bookingId);
-
-    const technician =
-      await technicianRepository.findById(technicianId);
-
-    if (!technician) {
-      throw new ApiError(
-        HTTP_STATUS.NOT_FOUND,
-        "Technician not found."
-      );
-    }
-
-    if (technician.availability === false) {
-      throw new ApiError(
-        HTTP_STATUS.BAD_REQUEST,
-        "Preferred technician is currently unavailable."
-      );
-    }
-
-    const city = this.getBookingCity(addressDetails, booking.customer);
-    const skill = booking.serviceCategory;
-    const workload =
-      await technicianRepository.getWorkload(technicianId);
-    const matchDetails = this.calculatePriorityScore(technician, {
-      city,
-      skill,
-      workload,
-    });
-
-    const fromStatus = booking.status;
-
-    const { updated, history } = await withTransaction(async (session) => {
-      const updatedBooking = await bookingRepository.assignTechnician(
-        bookingId,
-        technicianId,
-        BOOKING_STATUS.ASSIGNED,
-        session
-      );
-
-      const assignmentHistory = await assignmentRepository.create(
-        {
-          booking: bookingId,
-          technician: technicianId,
-          assignedBy: customerId,
-          method: ASSIGNMENT_METHOD.MANUAL,
-          reason: "Preferred technician selected by customer.",
-          matchScore: matchDetails.priorityScore,
-          matchDetails: {
-            ...matchDetails,
-            priorityScore: matchDetails.priorityScore,
-          },
-          previousTechnician: null,
-          status: "Assigned",
-        },
-        session
-      );
-
-      return { updated: updatedBooking, history: assignmentHistory };
-    });
-
-    await bookingEventService.record({
-      bookingId,
-      event: BOOKING_TIMELINE_EVENT.ASSIGNED,
-      actorId: customerId,
-      actorRole: "customer",
-      action: AUDIT_ACTION.ASSIGN,
-      fromStatus,
-      toStatus: BOOKING_STATUS.ASSIGNED,
-      note: `Preferred technician ${technician.name}`,
-      metadata: {
-        method: ASSIGNMENT_METHOD.MANUAL,
-        preferred: true,
-        technicianId,
-        priorityScore: matchDetails.priorityScore,
-      },
-    });
-
-    await this.handleAssignmentFollowUps({
-      booking,
-      bookingId,
-      technicianId,
-      assignmentMethod: ASSIGNMENT_METHOD.MANUAL,
-      assignmentRecord: history,
-      metadata: {
-        priorityScore: matchDetails.priorityScore,
-        matchDetails,
-        preferred: true,
         selectedTechnicianName: technician.name,
       },
       bookingUpdated: updated,

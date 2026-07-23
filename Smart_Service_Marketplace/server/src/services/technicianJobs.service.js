@@ -129,20 +129,25 @@ class TechnicianJobsService {
       String(options.status).toLowerCase() === "confirmed";
 
     if (wantsOpen && !options.search) {
-      const technician = await technicianRepository.findById(technicianId);
-      const { bookings: openBookings } =
-        await bookingRepository.findOpenJobsForTechnician({
-          skills: technician?.skills || [],
-          city: technician?.city || "",
-          page: 1,
-          limit: Math.min(options.limit * 2, 40),
-          sortBy: options.sortBy,
-          sortOrder: options.sortOrder,
-        });
-      openItems = (openBookings || []).map((job) => ({
-        ...job,
-        isOpenOffer: true,
-      }));
+      const busy = await technicianRepository.hasActiveJob(technicianId);
+      if (!busy) {
+        const technician = await technicianRepository.findById(technicianId);
+        if (technician?.availability !== false && technician?.isActive !== false) {
+          const { bookings: openBookings } =
+            await bookingRepository.findOpenJobsForTechnician({
+              skills: technician?.skills || [],
+              city: technician?.city || "",
+              page: 1,
+              limit: Math.min(options.limit * 2, 40),
+              sortBy: options.sortBy,
+              sortOrder: options.sortOrder,
+            });
+          openItems = (openBookings || []).map((job) => ({
+            ...job,
+            isOpenOffer: true,
+          }));
+        }
+      }
     }
 
     const mergedMap = new Map();

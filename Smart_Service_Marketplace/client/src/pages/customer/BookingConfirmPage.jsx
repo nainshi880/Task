@@ -8,7 +8,6 @@ import {
   Clock3,
   MapPin,
   StickyNote,
-  UserRound,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -151,13 +150,12 @@ function BookingConfirmPage() {
 
     if (draft.description) payload.description = draft.description;
     if (draft.notes) payload.notes = draft.notes;
-    if (draft.technicianId) payload.technician = draft.technicianId;
 
     createMutation.mutate(payload);
   };
 
   const editUrl = draft.serviceId
-    ? `/book-service?serviceId=${encodeURIComponent(draft.serviceId)}&category=${encodeURIComponent(draft.serviceCategory)}&serviceName=${encodeURIComponent(draft.serviceName)}${draft.technicianId ? `&technicianId=${encodeURIComponent(draft.technicianId)}` : ""}`
+    ? `/book-service?serviceId=${encodeURIComponent(draft.serviceId)}&category=${encodeURIComponent(draft.serviceCategory)}&serviceName=${encodeURIComponent(draft.serviceName)}`
     : "/book-service";
 
   return (
@@ -210,11 +208,6 @@ function BookingConfirmPage() {
               icon={Clock3}
               label="Time slot"
               value={formatTimeSlot(draft.bookingTime)}
-            />
-            <SummaryRow
-              icon={UserRound}
-              label="Technician"
-              value={draft.technician?.name || "Auto-assign (no preference)"}
             />
             {(draft.description || draft.notes) && (
               <SummaryRow

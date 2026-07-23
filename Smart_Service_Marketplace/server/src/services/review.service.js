@@ -36,6 +36,13 @@ class ReviewService {
       );
     }
 
+    if (!booking.customerConfirmed) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Confirm completion before leaving a review."
+      );
+    }
+
     if (!booking.technician) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
@@ -51,17 +58,28 @@ class ReviewService {
       );
     }
 
+    const technicianId = booking.technician._id || booking.technician;
+
     const review = await reviewRepository.create({
       booking: bookingId,
       customer: customerId,
-      technician: booking.technician._id || booking.technician,
+      technician: technicianId,
       rating,
       title: title || "",
       comment: comment || "",
-      status: REVIEW_STATUS.PENDING,
+      status: REVIEW_STATUS.APPROVED,
+      moderatedAt: new Date(),
+      moderationNote: "Auto-approved on customer submission",
     });
 
-    return await reviewRepository.findById(review._id);
+    const ratingStats =
+      await reviewRepository.recalculateTechnicianRating(technicianId);
+
+    const created = await reviewRepository.findById(review._id);
+    return {
+      review: created,
+      technicianRating: ratingStats,
+    };
   }
 
   async getTechnicianReviews(technicianId, query = {}) {
@@ -228,7 +246,7 @@ class ReviewService {
 
     const review = await reviewRepository.findByBooking(bookingId);
     if (!review) {
-      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Review not found.");
+      return null;
     }
 
     return await reviewRepository.findById(review._id);

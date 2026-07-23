@@ -1,7 +1,6 @@
 import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
 import bookingRepository from "../repositories/booking.repository.js";
-import technicianRepository from "../repositories/technician.repository.js";
 import bookingEventService from "./bookingEvent.service.js";
 import assignmentService from "./assignment.service.js";
 import ApiError from "../utils/ApiError.js";
@@ -170,38 +169,14 @@ class BookingService {
     }
 
     const issueImages = await this.uploadFilesToCloudinary(files);
-
-    const preferredTechnicianId =
-      data.technician || data.preferredTechnician || null;
-
-    let preferredTechnician = null;
     const status = BOOKING_STATUS.PENDING_PAYMENT;
-
-    if (preferredTechnicianId) {
-      const technician = await technicianRepository.findById(
-        preferredTechnicianId
-      );
-      if (!technician || technician.role !== "technician") {
-        throw new ApiError(
-          HTTP_STATUS.BAD_REQUEST,
-          "Selected technician is invalid."
-        );
-      }
-      if (technician.availability === false) {
-        throw new ApiError(
-          HTTP_STATUS.BAD_REQUEST,
-          "Selected technician is currently unavailable."
-        );
-      }
-      preferredTechnician = technician._id;
-    }
 
     const booking = await withTransaction(async (session) => {
       return await bookingRepository.create(
         {
           customer: customerId,
           technician: null,
-          preferredTechnician,
+          preferredTechnician: null,
           serviceCategory: data.serviceCategory,
           serviceName: data.serviceName,
           description: data.description,
@@ -226,13 +201,10 @@ class BookingService {
       action: AUDIT_ACTION.CREATE,
       fromStatus: null,
       toStatus: status,
-      note: preferredTechnician
-        ? "Booking created — awaiting payment (preferred technician selected)"
-        : "Booking created — awaiting payment",
+      note: "Booking created — awaiting payment",
       metadata: {
         serviceCategory: data.serviceCategory,
         serviceName: data.serviceName,
-        preferredTechnician,
       },
       ipAddress: actorMeta.ipAddress,
       userAgent: actorMeta.userAgent,
