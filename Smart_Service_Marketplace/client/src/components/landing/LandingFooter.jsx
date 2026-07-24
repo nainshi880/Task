@@ -7,7 +7,7 @@ import {
 
 function LandingFooter() {
   return (
-    <footer id="contact" className="bg-slate-900 text-white py-16">
+    <footer id="contact" className="bg-slate-900 text-white py-8 ">
 
       <div className="max-w-7xl mx-auto px-6 grid gap-10 md:grid-cols-4">
 
@@ -91,7 +91,7 @@ function LandingFooter() {
 
       </div>
 
-      <div className="mt-16 border-t border-slate-700 pt-6 text-center text-slate-500">
+      <div className="mt-16 border-t border-slate-700 pt-4 text-center text-slate-500">
 
         © {new Date().getFullYear()} Smart Service Marketplace. All Rights Reserved.
 

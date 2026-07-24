@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import clsx from "clsx";
 
@@ -36,12 +36,37 @@ const DEFAULT_HOURS = {
   sunday: { isOff: true, start: "00:00", end: "00:00" },
 };
 
+function AlreadyUploadedNotice({ title, description, previewUrl, previewAlt }) {
+  return (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-600" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-emerald-900">{title}</p>
+          <p className="mt-1 text-sm text-emerald-800">{description}</p>
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt={previewAlt || "Uploaded preview"}
+              className="mt-3 h-20 w-20 rounded-xl object-cover ring-1 ring-emerald-200"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TechnicianProfileSetupWizard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, setUser } = useAuth();
 
   const [step, setStep] = useState(0);
+  const [profileReady, setProfileReady] = useState(false);
+  const [hasPhoto, setHasPhoto] = useState(false);
+  const [hasIdentity, setHasIdentity] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(null);
   const [formError, setFormError] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
   const [identityFile, setIdentityFile] = useState(null);
@@ -69,17 +94,54 @@ function TechnicianProfileSetupWizard() {
     },
   });
 
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const profile = await technicianService.getProfile();
+        if (cancelled) return;
+
+        const photo = profile.profilePhoto || profile.user?.avatar || null;
+        const identity = profile.identityProofUrl || null;
+        const photoDone = Boolean(photo);
+        const identityDone = Boolean(identity);
+
+        setHasPhoto(photoDone);
+        setHasIdentity(identityDone);
+        setPhotoUrl(photo);
+
+        // Photo + ID are collected at registration — jump to certificates.
+        if (photoDone && identityDone) setStep(2);
+        else if (photoDone) setStep(1);
+        else setStep(0);
+      } catch {
+        // Fall back to step 0 if profile cannot be loaded.
+      } finally {
+        if (!cancelled) setProfileReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const subtitle = useMemo(() => {
     const messages = [
-      "Upload a clear professional photo.",
-      "Upload Aadhaar or PAN for verification.",
+      hasPhoto
+        ? "Profile photo already uploaded during registration."
+        : "Upload a clear professional photo.",
+      hasIdentity
+        ? "ID proof already uploaded during registration."
+        : "Upload Aadhaar or PAN for verification.",
       "Add at least one skill certificate (optional to skip).",
       "Select the service categories you offer.",
       "Set your working city and service radius.",
       "Choose when you are available for jobs.",
     ];
     return messages[step];
-  }, [step]);
+  }, [step, hasPhoto, hasIdentity]);
 
   const refreshMe = async () => {
     const me = await authService.me();
@@ -98,6 +160,12 @@ function TechnicianProfileSetupWizard() {
 
   const onPhotoNext = async () => {
     setFormError("");
+
+    if (hasPhoto && !photoFile) {
+      setStep(1);
+      return;
+    }
+
     if (!photoFile) {
       setFormError("Please upload a profile photo.");
       return;
@@ -107,6 +175,7 @@ function TechnicianProfileSetupWizard() {
     try {
       await technicianService.uploadPhoto(photoFile);
       toast.success("Photo uploaded");
+      setHasPhoto(true);
       setStep(1);
     } catch (error) {
       const message =
@@ -120,6 +189,12 @@ function TechnicianProfileSetupWizard() {
 
   const onIdentityNext = async () => {
     setFormError("");
+
+    if (hasIdentity && !identityFile) {
+      setStep(2);
+      return;
+    }
+
     if (!identityFile) {
       setFormError("Please upload Aadhaar or PAN.");
       return;
@@ -129,6 +204,7 @@ function TechnicianProfileSetupWizard() {
     try {
       await technicianService.uploadIdentityProof(identityFile);
       toast.success("Identity proof uploaded");
+      setHasIdentity(true);
       setStep(2);
     } catch (error) {
       const message =
@@ -261,6 +337,15 @@ function TechnicianProfileSetupWizard() {
     }
   };
 
+  if (!profileReady) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold text-slate-900">Technician profile setup</h2>
+        <p className="text-sm text-slate-500">Checking registration uploads…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -282,13 +367,22 @@ function TechnicianProfileSetupWizard() {
 
       {step === 0 && (
         <div className="space-y-5">
-          <FileUpload
-            label="Professional photo"
-            accept="image/jpeg,image/png,image/webp"
-            hint="JPEG, PNG, or WEBP up to 5MB"
-            file={photoFile}
-            onChange={setPhotoFile}
-          />
+          {hasPhoto ? (
+            <AlreadyUploadedNotice
+              title="Photo already uploaded"
+              description="Your professional photo was uploaded during registration."
+              previewUrl={photoUrl}
+              previewAlt="Profile photo"
+            />
+          ) : (
+            <FileUpload
+              label="Professional photo"
+              accept="image/jpeg,image/png,image/webp"
+              hint="JPEG, PNG, or WEBP up to 5MB"
+              file={photoFile}
+              onChange={setPhotoFile}
+            />
+          )}
           <Button onClick={onPhotoNext} loading={submitting} className="w-full">
             Continue
           </Button>
@@ -297,13 +391,20 @@ function TechnicianProfileSetupWizard() {
 
       {step === 1 && (
         <div className="space-y-5">
-          <FileUpload
-            label="Aadhaar / PAN"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-            hint="Image or PDF up to 5MB"
-            file={identityFile}
-            onChange={setIdentityFile}
-          />
+          {hasIdentity ? (
+            <AlreadyUploadedNotice
+              title="ID proof already uploaded"
+              description="Your Aadhaar / PAN was uploaded during registration."
+            />
+          ) : (
+            <FileUpload
+              label="Aadhaar / PAN"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              hint="Image or PDF up to 5MB"
+              file={identityFile}
+              onChange={setIdentityFile}
+            />
+          )}
           <div className="flex gap-3">
             <Button type="button" variant="outline" onClick={() => setStep(0)}>
               Back
@@ -350,9 +451,11 @@ function TechnicianProfileSetupWizard() {
             Skip for now
           </label>
           <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={() => setStep(1)}>
-              Back
-            </Button>
+            {!(hasPhoto && hasIdentity) && (
+              <Button type="button" variant="outline" onClick={() => setStep(1)}>
+                Back
+              </Button>
+            )}
             <Button type="submit" loading={submitting} className="flex-1">
               Continue
             </Button>

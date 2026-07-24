@@ -5,9 +5,9 @@ import Button from "../ui/Button";
 
 function Hero() {
   return (
-    <section className="mx-auto flex min-h-[90vh] w-full max-w-7xl flex-col items-center justify-between gap-12 overflow-x-hidden px-6 py-16 lg:flex-row lg:gap-16 lg:py-20">
+    <section className="mx-auto flex min-h-[90vh] w-full max-w-7xl flex-col items-center justify-between gap-12 overflow-x-hidden px-6 py-8 lg:flex-row lg:gap-16 lg:py-8">
       <div className="w-full min-w-0 max-w-2xl">
-        <span className="inline-block rounded-full bg-indigo-100 px-5 py-2 text-sm font-semibold text-indigo-700">
+        <span className="inline-block rounded-full bg-indigo-100 px-5 text-sm font-semibold text-indigo-700">
           Trusted by 10,000+ Customers
         </span>
 
