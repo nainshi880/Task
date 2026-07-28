@@ -12,8 +12,15 @@ const paymentSchema = new mongoose.Schema(
 
     purpose: {
       type: String,
-      enum: ["booking"],
+      enum: ["booking", "subscription"],
       default: "booking",
+      index: true,
+    },
+
+    subscription: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subscription",
+      default: null,
       index: true,
     },
 

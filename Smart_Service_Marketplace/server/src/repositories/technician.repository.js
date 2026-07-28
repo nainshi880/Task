@@ -116,8 +116,42 @@ class TechnicianRepository {
       filter.city = new RegExp(`^${city.trim()}$`, "i");
     }
 
+    let skillMatchedIds = null;
     if (skill) {
-      filter.skills = skill;
+      const skillRegex = new RegExp(
+        `^${String(skill).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      );
+
+      const [usersWithSkill, profilesWithSkill] = await Promise.all([
+        User.find({
+          ...filter,
+          skills: skillRegex,
+        }).distinct("_id"),
+        TechnicianProfile.find({
+          user: { $in: approvedIds },
+          isDeleted: false,
+          $or: [
+            { skills: skillRegex },
+            { serviceCategories: skillRegex },
+          ],
+        }).distinct("user"),
+      ]);
+
+      skillMatchedIds = [
+        ...new Set([
+          ...usersWithSkill.map(String),
+          ...profilesWithSkill.map(String),
+        ]),
+      ];
+
+      if (!skillMatchedIds.length) {
+        return [];
+      }
+
+      filter._id = {
+        $in: skillMatchedIds,
+      };
     }
 
     return await User.find(filter)

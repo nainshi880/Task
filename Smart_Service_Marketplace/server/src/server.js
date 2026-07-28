@@ -10,6 +10,7 @@ import { initFirebase } from "./config/firebase.js";
 import { startCronJobs } from "./jobs/index.js";
 import { seedSuperAdmin } from "./seeds/seedSuperAdmin.js";
 import { seedAdmin } from "./seeds/seedAdmin.js";
+import subscriptionPlanRepository from "./repositories/subscriptionPlan.repository.js";
 import logger, { errorLogger } from "./utils/logger.js";
 
 const PORT = process.env.PORT || 5000;
@@ -18,6 +19,7 @@ await connectDB();
 await ensureIndexes();
 await seedSuperAdmin();
 await seedAdmin();
+await subscriptionPlanRepository.ensureDefaultPlans();
 
 initFirebase();
 

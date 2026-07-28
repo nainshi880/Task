@@ -23,6 +23,7 @@ import adminAnalyticsRoutes from "./adminAnalytics.routes.js";
 import adminReportsRoutes from "./adminReports.routes.js";
 import adminAuditRoutes from "./adminAudit.routes.js";
 import adminSettingsRoutes from "./adminSettings.routes.js";
+import adminSubscriptionRoutes from "./adminSubscription.routes.js";
 import settingsRoutes from "./settings.routes.js";
 import reviewRoutes from "./review.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
@@ -84,6 +85,8 @@ router.use("/admin/reports", adminReportsRoutes);
 router.use("/admin/audit-logs", adminAuditRoutes);
 
 router.use("/admin/settings", adminSettingsRoutes);
+
+router.use("/admin/subscriptions", adminSubscriptionRoutes);
 
 router.use("/settings", settingsRoutes);
 

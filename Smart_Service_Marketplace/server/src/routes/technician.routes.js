@@ -39,6 +39,8 @@ import {
 } from "../controllers/bookingWorkflow.controller.js";
 
 import { getTechnicianDashboard } from "../controllers/technicianDashboard.controller.js";
+import subscriptionRoutes from "./subscription.routes.js";
+import requireJobClaimAccess from "../middlewares/subscription.middleware.js";
 
 import {
   listTechnicianJobs,
@@ -147,6 +149,8 @@ router.get(
   getTechnicianDashboard
 );
 
+router.use("/subscriptions", subscriptionRoutes);
+
 /*
 =====================================
 Technician — Job Search / Filter / List
@@ -237,6 +241,7 @@ router.patch(
   bookingWriteLimiter,
   workflowBookingIdValidation,
   validate,
+  requireJobClaimAccess,
   acceptJob
 );
 

@@ -193,13 +193,15 @@ function TechnicianJobDetailPage() {
   }
 
   if (jobQuery.isError || !jobQuery.data) {
+    const message =
+      jobQuery.error?.response?.data?.message ||
+      "This job may have been claimed by another technician or you don't have access.";
+
     return (
       <DashboardLayout>
         <div className="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <h1 className="text-2xl font-bold text-slate-900">Job not found</h1>
-          <p className="mt-2 text-slate-500">
-            This job may have been reassigned or you don&apos;t have access.
-          </p>
+          <p className="mt-2 text-slate-500">{message}</p>
           <Button className="mt-6" onClick={() => navigate("/technician/jobs")}>
             Back to jobs
           </Button>

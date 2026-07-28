@@ -76,7 +76,7 @@ class NotificationService {
     }
   }
 
-  async notifyBooking(userId, { title, message, bookingId, metadata, actionUrl }) {
+  async notifyBooking(userId, { title, message, bookingId, metadata, actionUrl, skipPreferenceCheck = false }) {
     return this.notify({
       userId,
       title,
@@ -86,6 +86,7 @@ class NotificationService {
       metadata,
       actionUrl: actionUrl || (bookingId ? `/bookings/${bookingId}` : ""),
       priority: "normal",
+      skipPreferenceCheck,
     });
   }
 

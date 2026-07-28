@@ -51,6 +51,7 @@ export const technicianKeys = {
   job: (id) => [...technicianKeys.all, "job", id],
   availability: () => [...technicianKeys.all, "availability"],
   reviews: (filters) => [...technicianKeys.all, "reviews", filters],
+  subscription: () => [...technicianKeys.all, "subscription"],
 };
 
 export const notificationKeys = {
@@ -108,6 +109,9 @@ export const adminKeys = {
   revenueReports: (params) => [...adminKeys.all, "revenue-reports", params],
   settings: () => [...adminKeys.all, "settings"],
   profile: () => [...adminKeys.all, "profile"],
+  subscriptions: (params) => [...adminKeys.all, "subscriptions", params],
+  subscriptionAnalytics: () => [...adminKeys.all, "subscription-analytics"],
+  subscriptionPlans: () => [...adminKeys.all, "subscription-plans"],
 };
 
 export default queryClient;

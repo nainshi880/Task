@@ -14,6 +14,7 @@ import {
   Settings,
   Layers,
   CreditCard,
+  Crown,
   FileBarChart,
   ChartColumn,
   Settings2,
@@ -37,6 +38,7 @@ const technicianLinks = [
   { to: "/technician/availability", label: "Availability", icon: Clock3 },
   { to: "/technician/reviews", label: "Reviews", icon: Star },
   { to: "/technician/notifications", label: "Notifications", icon: Bell },
+  { to: "/technician/subscription", label: "Subscription", icon: Crown },
   { to: "/technician/settings", label: "Settings", icon: Settings },
   { to: "/technician/profile", label: "Profile", icon: UserRound },
 ];
@@ -48,6 +50,7 @@ const adminLinks = [
   { to: "/admin/bookings", label: "Bookings", icon: CalendarCheck },
   { to: "/admin/services", label: "Services", icon: Layers },
   { to: "/admin/payments", label: "Payments", icon: CreditCard },
+  { to: "/admin/subscriptions", label: "Subscriptions", icon: Crown },
   { to: "/admin/reviews", label: "Reviews", icon: Star },
   { to: "/admin/analytics", label: "Analytics", icon: ChartColumn },
   { to: "/admin/reports", label: "Reports", icon: FileBarChart },

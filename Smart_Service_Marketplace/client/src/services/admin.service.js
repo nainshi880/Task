@@ -300,3 +300,19 @@ export const changeAdminPassword = async (data) =>
 
 export const logoutAllAdminSessions = async () =>
   unwrap(await adminApi.logoutAllAdminSessions());
+
+/* ── Subscriptions ── */
+export const getSubscriptionAnalytics = async () =>
+  unwrap(await adminApi.getSubscriptionAnalytics());
+
+export const listSubscriptionPlans = async () =>
+  unwrap(await adminApi.listSubscriptionPlans());
+
+export const listSubscriptions = async (params) =>
+  unwrap(await adminApi.listSubscriptions(params));
+
+export const syncPlanToRazorpay = async (planId) =>
+  unwrap(await adminApi.syncPlanToRazorpay(planId));
+
+export const updateSubscriptionStatus = async (subscriptionId, data) =>
+  unwrap(await adminApi.updateSubscriptionStatus(subscriptionId, data));

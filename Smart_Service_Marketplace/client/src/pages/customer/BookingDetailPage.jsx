@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CalendarDays,
+  CheckCircle2,
   MapPin,
   StickyNote,
   UserRound,
@@ -215,15 +216,25 @@ function BookingDetailPage() {
       });
       toast.success("Payment successful. Finding a technician…");
       await invalidateBooking();
+      // Soft refresh after a short delay so technician assignment/notifications settle
+      setTimeout(() => {
+        invalidateBooking();
+      }, 1500);
     } catch (error) {
       if (error?.message === "Payment cancelled.") {
         toast("Payment cancelled.");
       } else {
-        toast.error(
+        const message =
           error.response?.data?.message ||
-            error.message ||
-            "Payment failed. Please try again."
-        );
+          error.message ||
+          "Payment failed. Please try again.";
+        toast.error(message);
+        if (/international card/i.test(message)) {
+          toast(
+            "Use Indian test card 4111 1111 1111 1111 (any future expiry / CVV), or enable International Cards in Razorpay Dashboard.",
+            { duration: 7000, icon: "💳" }
+          );
+        }
       }
     } finally {
       setPaying(false);
@@ -271,6 +282,8 @@ function BookingDetailPage() {
   const editable = canEditBooking(booking.status);
   const cancellable = canCancelBooking(booking.status);
   const showPay = needsPayment(booking);
+  const isPaid =
+    String(booking.paymentStatus || "").toLowerCase() === "paid";
   const showConfirm = canConfirmCompletion(booking);
   const existingReview =
     reviewQuery.data?.review ||
@@ -299,11 +312,16 @@ function BookingDetailPage() {
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <BookingStatusBadge status={booking.status} />
-                {booking.paymentStatus && (
+                {isPaid ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                    <CheckCircle2 size={14} />
+                    Paid
+                  </span>
+                ) : booking.paymentStatus ? (
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Payment: {booking.paymentStatus}
                   </span>
-                )}
+                ) : null}
                 {booking.amount > 0 && (
                   <span className="text-sm font-semibold text-slate-800">
                     {formatCurrency(booking.amount)}
@@ -352,7 +370,7 @@ function BookingDetailPage() {
           </div>
         </div>
 
-        {showPay && (
+      {showPay && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
             <p className="font-semibold">Payment required</p>
             <p className="mt-1">
@@ -502,18 +520,30 @@ function BookingDetailPage() {
           </section>
         </div>
 
-        {showPay && (
+        {(showPay || isPaid) && (
           <div className="flex justify-end border-t border-slate-200 pt-6">
-            <Button
-              type="button"
-              size="lg"
-              loading={paying}
-              onClick={handlePay}
-              disabled={!booking.amount || booking.amount <= 0}
-              className="min-w-[10rem]"
-            >
-              Pay {formatCurrency(booking.amount || 0)}
-            </Button>
+            {showPay ? (
+              <Button
+                type="button"
+                size="lg"
+                loading={paying}
+                onClick={handlePay}
+                disabled={!booking.amount || booking.amount <= 0}
+                className="min-w-[10rem]"
+              >
+                Pay {formatCurrency(booking.amount || 0)}
+              </Button>
+            ) : (
+              <div className="inline-flex min-w-[10rem] items-center justify-center gap-2 rounded-xl bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                <CheckCircle2 size={18} />
+                Paid
+                {booking.amount > 0 ? (
+                  <span className="text-emerald-800/80">
+                    · {formatCurrency(booking.amount)}
+                  </span>
+                ) : null}
+              </div>
+            )}
           </div>
         )}
       </div>

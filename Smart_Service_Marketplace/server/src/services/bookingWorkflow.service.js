@@ -145,35 +145,83 @@ class BookingWorkflowService {
       technicianId
     );
 
-    // Allow viewing open marketplace jobs the technician is eligible for
+    // Open marketplace jobs: not yet assigned — allow view if technician can claim
     if (!booking) {
       booking = await bookingRepository.findById(bookingId);
-      if (
-        !booking ||
-        !OPEN_FOR_CLAIM_STATUSES.includes(booking.status) ||
-        booking.technician
-      ) {
+
+      if (!booking) {
         throw new ApiError(HTTP_STATUS.NOT_FOUND, "Job not found.");
       }
 
-      await technicianRepository.ensureTechnicianReady(technicianId);
+      const isOpenOffer =
+        OPEN_FOR_CLAIM_STATUSES.includes(booking.status) &&
+        !booking.technician &&
+        (booking.paymentStatus === "Paid" ||
+          booking.status === BOOKING_STATUS.PENDING);
 
-      const { addressDetails } = await assignmentService.getBookingContext(
-        bookingId
-      );
-      const { candidates } = await assignmentService.getBroadcastCandidates(
-        booking,
-        addressDetails
-      );
-      const eligible = candidates.some(
-        (c) => String(c.technician._id) === String(technicianId)
-      );
-      if (!eligible) {
+      if (!isOpenOffer) {
         throw new ApiError(HTTP_STATUS.NOT_FOUND, "Job not found.");
       }
+
+      const canView = await this.canTechnicianAccessOpenJob(
+        technicianId,
+        booking
+      );
+
+      if (!canView) {
+        throw new ApiError(
+          HTTP_STATUS.FORBIDDEN,
+          "You are not eligible for this open job. Check availability, skills, and active workload."
+        );
+      }
+
+      const enriched = await this.enrichBooking(booking);
+      return { ...enriched, isOpenOffer: true };
     }
 
     return this.enrichBooking(booking);
+  }
+
+  /**
+   * Same rules as jobs list for open offers: available, matching skill, no active job.
+   * Subscription limits are enforced on accept/claim, not on viewing.
+   */
+  async canTechnicianAccessOpenJob(technicianId, booking) {
+    try {
+      await technicianRepository.ensureTechnicianReady(technicianId);
+    } catch {
+      return false;
+    }
+
+    const technician = await technicianRepository.findById(technicianId);
+    if (!technician || technician.availability === false || !technician.isActive) {
+      return false;
+    }
+
+    const busy = await technicianRepository.hasActiveJob(technicianId);
+    if (busy) return false;
+
+    const TechnicianProfile = (await import("../models/TechnicianProfile.js"))
+      .default;
+    const profile = await TechnicianProfile.findOne({
+      user: technicianId,
+      isDeleted: false,
+    })
+      .select("skills serviceCategories")
+      .lean();
+
+    const skillPool = [
+      ...(technician.skills || []),
+      ...(profile?.skills || []),
+      ...(profile?.serviceCategories || []),
+    ].map((s) => String(s || "").toLowerCase().trim());
+
+    const category = String(booking.serviceCategory || "")
+      .toLowerCase()
+      .trim();
+
+    if (!category) return true;
+    return skillPool.includes(category);
   }
 
   // ======================================

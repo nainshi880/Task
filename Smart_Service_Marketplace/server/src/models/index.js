@@ -20,3 +20,5 @@ import "./ChatMessage.js";
 import "./BookingTimeline.js";
 import "./AssignmentHistory.js";
 import "./WebhookEvent.js";
+import "./SubscriptionPlan.js";
+import "./Subscription.js";

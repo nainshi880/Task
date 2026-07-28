@@ -98,19 +98,22 @@ export async function payForBooking({
 
     const checkout = new Razorpay(options);
     checkout.on("payment.failed", async (event) => {
+      const description =
+        event?.error?.description ||
+        event?.error?.reason ||
+        "Payment failed. Please try again.";
+
       try {
         await reportPaymentFailure({
           razorpay_order_id: event?.error?.metadata?.order_id || order.razorpayOrderId,
           razorpay_payment_id: event?.error?.metadata?.payment_id,
-          failureReason: event?.error?.description || "Payment failed",
+          failureReason: description,
           failureCode: event?.error?.code,
         });
       } catch {
         // non-blocking
       }
-      reject(
-        new Error(event?.error?.description || "Payment failed. Please try again.")
-      );
+      reject(new Error(description));
     });
     checkout.open();
   });

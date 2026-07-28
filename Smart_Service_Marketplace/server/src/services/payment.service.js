@@ -1055,6 +1055,41 @@ class PaymentService {
 
     logger.info(`Razorpay webhook received: ${eventName}`);
 
+    if (eventName?.startsWith("subscription.")) {
+      if (eventId) {
+        const existing = await paymentRepository.findWebhookEvent(eventId);
+        if (existing) {
+          return {
+            handled: true,
+            duplicate: true,
+            event: eventName,
+            eventId,
+          };
+        }
+
+        const recorded = await paymentRepository.recordWebhookEvent({
+          eventId,
+          event: eventName,
+          paymentId: null,
+          payload: event,
+          signatureValid: true,
+        });
+        if (!recorded) {
+          return {
+            handled: true,
+            duplicate: true,
+            event: eventName,
+            eventId,
+          };
+        }
+      }
+
+      const subscriptionService = (
+        await import("./subscription.service.js")
+      ).default;
+      return subscriptionService.handleWebhookEvent(event, eventId);
+    }
+
     const entity =
       event.payload?.payment?.entity ||
       event.payload?.order?.entity ||

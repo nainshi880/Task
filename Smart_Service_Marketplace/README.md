@@ -332,3 +332,34 @@ Swagger UI may be available on the server when enabled in the app bootstrap.
 6. Restart / refresh the client after changing `client/.env` (Vite injects env at build/dev start).
 
 ---
+
+## Technician subscriptions
+
+Technicians start on the **Free** plan (3 job claims/month). **Pro** (₹999/mo via Razorpay) unlocks unlimited claims and priority job matching.
+
+### Technician APIs (`/technicians/subscriptions`)
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/plans` | List active plans |
+| GET | `/current` | Current subscription status |
+| POST | `/` | Start Pro subscription (Razorpay checkout) |
+| POST | `/verify` | Verify subscription payment |
+| POST | `/cancel` | Cancel at period end |
+
+### Admin APIs (`/admin/subscriptions`)
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/analytics` | MRR, tier breakdown |
+| GET | `/plans` | All plans |
+| POST | `/plans/:planId/sync-razorpay` | Sync Pro plan to Razorpay |
+| GET | `/` | List technician subscriptions |
+
+### Razorpay webhooks
+
+Enable subscription events on the same webhook URL: `POST /api/v1/payments/webhook`
+
+Handled events include `subscription.activated`, `subscription.charged`, `subscription.cancelled`, and `subscription.halted`.
+
+---

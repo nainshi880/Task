@@ -1,6 +1,8 @@
 import technicianDashboardRepository from "../repositories/technicianDashboard.repository.js";
 import technicianRepository from "../repositories/technician.repository.js";
+import bookingRepository from "../repositories/booking.repository.js";
 import technicianProfileService from "./technicianProfile.service.js";
+import subscriptionService from "./subscription.service.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import BOOKING_STATUS from "../constants/bookingStatus.js";
@@ -58,6 +60,7 @@ class TechnicianDashboardService {
       recentCompleted,
       upcomingJobs,
       categoryBreakdown,
+      subscription,
     ] = await Promise.all([
       technicianDashboardRepository.getProfileSummary(technicianId),
       technicianDashboardRepository.getJobStatistics(technicianId),
@@ -93,6 +96,7 @@ class TechnicianDashboardService {
       ),
       technicianDashboardRepository.getUpcomingJobs(technicianId, 5),
       technicianDashboardRepository.getCategoryBreakdown(technicianId),
+      subscriptionService.getCurrentSubscription(technicianId),
     ]);
 
     if (!profileSummary.user) {
@@ -105,6 +109,39 @@ class TechnicianDashboardService {
     const { user, profile } = profileSummary;
     const maxWorkload = user.maxWorkload || 5;
     const rating = profile?.rating ?? user.rating ?? 5;
+
+    // Open marketplace offers for this technician's skills (paid + confirmed)
+    let openOffers = [];
+    if (currentWorkload === 0 && (profile?.availabilityStatus ?? user.availability) !== false) {
+      try {
+        const skills = [
+          ...new Set([
+            ...(profile?.skills || []),
+            ...(profile?.serviceCategories || []),
+            ...(user.skills || []),
+          ]),
+        ];
+        const { bookings: openBookings } =
+          await bookingRepository.findOpenJobsForTechnician({
+            skills,
+            city: profile?.workingCity || user.city || "",
+            page: 1,
+            limit: 5,
+          });
+        openOffers = (openBookings || []).map((job) => ({
+          ...job,
+          isOpenOffer: true,
+        }));
+      } catch {
+        openOffers = [];
+      }
+    }
+
+    const pendingMergedMap = new Map();
+    for (const job of [...openOffers, ...(pendingRequests || [])]) {
+      pendingMergedMap.set(String(job._id), job);
+    }
+    const pendingMerged = [...pendingMergedMap.values()].slice(0, 8);
 
     const activeJobsCount =
       (statistics.acceptedJobs || 0) +
@@ -134,7 +171,7 @@ class TechnicianDashboardService {
         assignedJobs: statistics.assignedJobs || 0,
         activeJobs: activeJobsCount,
         completedJobs: statistics.completedJobs || 0,
-        pendingRequests: statistics.assignedJobs || 0,
+        pendingRequests: pendingMerged.length || statistics.assignedJobs || 0,
         totalJobs: statistics.totalJobs || 0,
         currentWorkload,
         maxWorkload,
@@ -185,11 +222,13 @@ class TechnicianDashboardService {
       })),
 
       lists: {
-        pendingRequests,
+        pendingRequests: pendingMerged,
         activeJobs,
         recentCompleted,
         upcomingJobs,
       },
+
+      subscription,
     };
 
     await cacheService.set(cacheKey, dashboard, CACHE_TTL.ANALYTICS);

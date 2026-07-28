@@ -1,3 +1,5 @@
+import { resolveSocketBaseUrl } from "../utils/apiUrl";
+
 export const CHAT_EVENTS = {
   CONNECTED: "chat:connected",
   JOINED: "chat:joined",
@@ -26,7 +28,5 @@ export const BOOKING_EVENTS = {
 };
 
 export function getSocketBaseUrl() {
-  const apiUrl =
-    import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
-  return apiUrl.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
+  return resolveSocketBaseUrl();
 }

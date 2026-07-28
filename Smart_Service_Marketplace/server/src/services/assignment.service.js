@@ -28,6 +28,7 @@ import cacheService, { CACHE_KEYS } from "../utils/cache.js";
 import { isUserOnline } from "../sockets/presence.js";
 import { getIO } from "../sockets/io.js";
 import pushService from "./push.service.js";
+import subscriptionService from "./subscription.service.js";
 
 class AssignmentService {
   getBookingCity(addressDetails, customer) {
@@ -47,12 +48,19 @@ class AssignmentService {
       technician.city &&
       technician.city.toLowerCase() === city.toLowerCase();
 
+    const skillPool = [
+      ...(Array.isArray(technician.skills) ? technician.skills : []),
+      ...(Array.isArray(technician.serviceCategories)
+        ? technician.serviceCategories
+        : []),
+      ...(Array.isArray(technician.profileSkills)
+        ? technician.profileSkills
+        : []),
+    ].map((s) => String(s || "").toLowerCase().trim());
+
     const skillMatch =
       skill &&
-      Array.isArray(technician.skills) &&
-      technician.skills.some(
-        (s) => s.toLowerCase() === skill.toLowerCase()
-      );
+      skillPool.some((s) => s === String(skill).toLowerCase().trim());
 
     const isAvailable = technician.availability === true;
     const hasCapacity = workload < maxWorkload;
@@ -72,7 +80,7 @@ class AssignmentService {
     const ratingScore =
       (rating / 5) * ASSIGNMENT_PRIORITY_WEIGHTS.RATING;
 
-    const priorityScore =
+    let priorityScore =
       cityScore +
       skillScore +
       availabilityScore +
@@ -123,8 +131,43 @@ class AssignmentService {
     const technicianIds = candidates.map((t) => t._id);
     const workloads =
       await technicianRepository.getWorkloads(technicianIds);
+    const accessMap =
+      await subscriptionService.getTechnicianAccessMap(technicianIds);
 
-    const ranked = candidates
+    // Merge TechnicianProfile skills/categories so matching is reliable
+    const TechnicianProfile = (await import("../models/TechnicianProfile.js"))
+      .default;
+    const profiles = await TechnicianProfile.find({
+      user: { $in: technicianIds },
+      isDeleted: false,
+    })
+      .select("user skills serviceCategories")
+      .lean();
+
+    const profileByUser = new Map(
+      profiles.map((p) => [String(p.user), p])
+    );
+
+    const enriched = candidates.map((technician) => {
+      const profile = profileByUser.get(String(technician._id));
+      const profileSkills = [
+        ...(profile?.skills || []),
+        ...(profile?.serviceCategories || []),
+      ];
+      return {
+        ...technician.toObject?.() ? technician.toObject() : technician,
+        profileSkills,
+        serviceCategories: profile?.serviceCategories || [],
+        skills: [
+          ...new Set([
+            ...(technician.skills || []),
+            ...profileSkills,
+          ]),
+        ],
+      };
+    });
+
+    const ranked = enriched
       .map((technician) => {
         const workload =
           workloads[technician._id.toString()] || 0;
@@ -133,12 +176,21 @@ class AssignmentService {
           skill,
           workload,
         });
+        const access = accessMap.get(String(technician._id));
+        const boost = access?.priorityBoost || 0;
+        const priorityScore = Number(
+          (matchDetails.priorityScore + boost).toFixed(2)
+        );
 
         return {
           technician,
           workload,
-          matchDetails,
-          priorityScore: matchDetails.priorityScore,
+          matchDetails: {
+            ...matchDetails,
+            subscriptionBoost: boost,
+            subscriptionTier: access?.tier || "free",
+          },
+          priorityScore,
         };
       })
       .filter((item) => item.matchDetails.hasCapacity)
@@ -353,12 +405,33 @@ class AssignmentService {
       addressDetails
     );
 
-    const candidates = ranked.filter(
-      (r) =>
+    const accessMap = await subscriptionService.getTechnicianAccessMap(
+      ranked.map((r) => r.technician._id)
+    );
+
+    // Notify skill-matching available techs with no active job.
+    // Subscription claim limits are enforced on accept, not on notify/view.
+    const candidates = ranked.filter((r) => {
+      const access = accessMap.get(String(r.technician._id));
+      return (
         r.matchDetails.skillMatch &&
         r.matchDetails.availability &&
-        r.workload === 0
-    );
+        r.workload === 0 &&
+        access?.canReceiveOffers !== false
+      );
+    });
+
+    // Fallback: if subscription map blocks everyone, still notify skill matches
+    // so technicians see the job (claim will enforce Free limits).
+    if (!candidates.length) {
+      const fallback = ranked.filter(
+        (r) =>
+          r.matchDetails.skillMatch &&
+          r.matchDetails.availability &&
+          r.workload === 0
+      );
+      return { candidates: fallback, city, skill };
+    }
 
     return { candidates, city, skill };
   }
@@ -389,6 +462,8 @@ class AssignmentService {
         serviceCategory: booking.serviceCategory,
         serviceName: booking.serviceName,
       },
+      // Job offers must always create an in-app notification for technicians
+      skipPreferenceCheck: true,
     });
 
     await this.emitToUser(
@@ -483,7 +558,8 @@ class AssignmentService {
   }
 
   /**
-   * Paid booking → Confirmed, then broadcast to all eligible available technicians.
+   * Paid booking → Confirmed, then notify all eligible available technicians
+   * who offer that service category (first to accept wins).
    * Idempotent: second call (webhook after verify) does not re-notify.
    */
   async activateBookingAfterPayment(bookingId) {
@@ -494,6 +570,8 @@ class AssignmentService {
     }
 
     if (booking.status === BOOKING_STATUS.CONFIRMED) {
+      // Already confirmed — still try broadcast if somehow never notified
+      // (safe: notifyBooking creates new notifications; prefer not to spam).
       return { booking, activated: false, reason: "already_confirmed" };
     }
 
@@ -508,9 +586,24 @@ class AssignmentService {
       return { booking, activated: false };
     }
 
+    // Prefer Paid bookings; allow activation if status was Pending Payment
+    // (verify path marks Paid just before this call).
+    if (
+      booking.paymentStatus &&
+      booking.paymentStatus !== "Paid" &&
+      booking.status === BOOKING_STATUS.PENDING
+    ) {
+      logger.info("Skip activation — booking not paid yet", {
+        bookingId: String(bookingId),
+        paymentStatus: booking.paymentStatus,
+      });
+      return { booking, activated: false, reason: "not_paid" };
+    }
+
     const fromStatus = booking.status;
     const confirmed = await bookingRepository.updateById(bookingId, {
       status: BOOKING_STATUS.CONFIRMED,
+      paymentStatus: "Paid",
     });
 
     await bookingEventService.record({
@@ -521,17 +614,25 @@ class AssignmentService {
       action: AUDIT_ACTION.PAY,
       fromStatus,
       toStatus: BOOKING_STATUS.CONFIRMED,
-      note: "Payment successful — booking confirmed",
+      note: "Payment successful — booking confirmed; notifying available technicians",
     });
 
     try {
       const result = await this.broadcastOpenBooking(bookingId);
       await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
+
+      logger.info("Post-payment technician notifications sent", {
+        bookingId: String(bookingId),
+        serviceCategory: booking.serviceCategory,
+        notified: result.notified || 0,
+      });
+
       return {
         booking: result.booking || confirmed,
         activated: true,
         mode: "broadcast",
         notified: result.notified,
+        technicianIds: result.technicianIds || [],
       };
     } catch (error) {
       logger.warn("Broadcast after payment failed", {
@@ -608,9 +709,9 @@ class AssignmentService {
    */
   async claimOpenBooking(bookingId, technicianId) {
     await technicianRepository.ensureTechnicianReady(technicianId);
+    await subscriptionService.assertCanClaimJob(technicianId);
 
-    const { booking, addressDetails } =
-      await this.getBookingContext(bookingId);
+    const { booking } = await this.getBookingContext(bookingId);
 
     if (
       !OPEN_FOR_CLAIM_STATUSES.includes(booking.status) ||
@@ -619,6 +720,17 @@ class AssignmentService {
       throw new ApiError(
         HTTP_STATUS.CONFLICT,
         "This job was already accepted by another technician."
+      );
+    }
+
+    if (
+      booking.status === BOOKING_STATUS.CONFIRMED &&
+      booking.paymentStatus &&
+      booking.paymentStatus !== "Paid"
+    ) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "This booking has not been paid yet."
       );
     }
 
@@ -647,19 +759,21 @@ class AssignmentService {
       );
     }
 
-    const { candidates } = await this.getBroadcastCandidates(
+    // Same eligibility as Jobs list / View details (skill match).
+    // Do not require membership in the city-ranked broadcast pool.
+    const eligible = await this.isTechnicianEligibleForOpenJob(
+      technicianId,
       booking,
-      addressDetails
+      technician
     );
-    const eligibleIds = new Set(
-      candidates.map((c) => String(c.technician._id))
-    );
-    if (!eligibleIds.has(String(technicianId))) {
+    if (!eligible) {
       throw new ApiError(
         HTTP_STATUS.FORBIDDEN,
-        "You are not eligible for this job."
+        "You are not eligible for this job. Your skills must match the service category, and you must be available with no active job."
       );
     }
+
+    const { addressDetails } = await this.getBookingContext(bookingId);
 
     const { updated, history } = await withTransaction(async (session) => {
       const claimed = await bookingRepository.claimPendingBooking(
@@ -721,19 +835,62 @@ class AssignmentService {
       bookingUpdated: updated,
     });
 
-    // Customer already notified via bookingEvent ASSIGNED; also alert admins
-    // and withdraw the offer from other eligible technicians.
+    const { candidates } = await this.getBroadcastCandidates(
+      booking,
+      addressDetails
+    );
+    const eligibleIds = new Set(
+      candidates.map((c) => String(c.technician._id))
+    );
+
     await this.notifyAdminsOfAssignment(booking, bookingId, technician);
     await this.withdrawOfferFromOthers(
-      [...eligibleIds],
+      [...eligibleIds, String(technicianId)],
       bookingId,
       technicianId
     );
+
+    await subscriptionService.recordJobClaim(technicianId);
 
     return {
       booking: updated,
       assignment: history,
     };
+  }
+
+  /**
+   * Skill + availability eligibility for open marketplace jobs.
+   * Matches Jobs list / View details (not city-rank broadcast pool).
+   */
+  async isTechnicianEligibleForOpenJob(technicianId, booking, technicianDoc = null) {
+    const technician =
+      technicianDoc || (await technicianRepository.findById(technicianId));
+
+    if (!technician || technician.availability === false || !technician.isActive) {
+      return false;
+    }
+
+    const TechnicianProfile = (await import("../models/TechnicianProfile.js"))
+      .default;
+    const profile = await TechnicianProfile.findOne({
+      user: technicianId,
+      isDeleted: false,
+    })
+      .select("skills serviceCategories")
+      .lean();
+
+    const skillPool = [
+      ...(technician.skills || []),
+      ...(profile?.skills || []),
+      ...(profile?.serviceCategories || []),
+    ].map((s) => String(s || "").toLowerCase().trim());
+
+    const category = String(booking.serviceCategory || "")
+      .toLowerCase()
+      .trim();
+
+    if (!category) return true;
+    return skillPool.includes(category);
   }
 
   // ======================================

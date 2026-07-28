@@ -35,6 +35,7 @@ import AdminPaymentsPage from "../pages/admin/AdminPaymentsPage";
 import AdminReviewsPage from "../pages/admin/AdminReviewsPage";
 import AdminReportsPage from "../pages/admin/AdminReportsPage";
 import AdminSettingsPage from "../pages/admin/AdminSettingsPage";
+import AdminSubscriptionsPage from "../pages/admin/AdminSubscriptionsPage";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
 
 import CustomerDashboard from "../pages/customer/CustomerDashboard";
@@ -55,6 +56,7 @@ import TechnicianAvailabilityPage from "../pages/technician/TechnicianAvailabili
 import TechnicianReviewsPage from "../pages/technician/TechnicianReviewsPage";
 import TechnicianNotificationsPage from "../pages/technician/TechnicianNotificationsPage";
 import TechnicianSettingsPage from "../pages/technician/TechnicianSettingsPage";
+import TechnicianSubscriptionPage from "../pages/technician/TechnicianSubscriptionPage";
 import NotificationsPage from "../pages/shared/NotificationsPage";
 import ChatInboxPage from "../pages/shared/ChatInboxPage";
 import ChatRoomPage from "../pages/shared/ChatRoomPage";
@@ -138,6 +140,10 @@ function AppRoutes() {
           path="/technician/settings"
           element={<TechnicianSettingsPage />}
         />
+        <Route
+          path="/technician/subscription"
+          element={<TechnicianSubscriptionPage />}
+        />
         <Route path="/technician/profile" element={<TechnicianProfilePage />} />
         <Route
           path="/technician/profile/edit"
@@ -170,6 +176,7 @@ function AppRoutes() {
         />
         <Route path="/admin/services" element={<AdminServicesPage />} />
         <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+        <Route path="/admin/subscriptions" element={<AdminSubscriptionsPage />} />
         <Route path="/admin/reviews" element={<AdminReviewsPage />} />
         <Route path="/admin/reports" element={<AdminReportsPage />} />
         <Route path="/admin/notifications" element={<NotificationsPage />} />

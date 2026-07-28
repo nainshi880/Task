@@ -201,3 +201,19 @@ export const changeAdminPassword = (data) =>
   api.put("/admin/change-password", data);
 
 export const logoutAllAdminSessions = () => api.post("/admin/logout-all");
+
+/* ── Subscriptions ── */
+export const getSubscriptionAnalytics = () =>
+  api.get("/admin/subscriptions/analytics");
+
+export const listSubscriptionPlans = () =>
+  api.get("/admin/subscriptions/plans");
+
+export const listSubscriptions = (params) =>
+  api.get("/admin/subscriptions", { params });
+
+export const syncPlanToRazorpay = (planId) =>
+  api.post(`/admin/subscriptions/plans/${planId}/sync-razorpay`);
+
+export const updateSubscriptionStatus = (subscriptionId, data) =>
+  api.patch(`/admin/subscriptions/${subscriptionId}`, data);

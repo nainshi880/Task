@@ -180,8 +180,8 @@ class BookingRepository {
     } = {}
   ) {
     const filter = {
-      status: { $in: ["Confirmed", "Pending"] },
-      paymentStatus: { $ne: "Refunded" },
+      status: { $in: ["Confirmed"] },
+      paymentStatus: "Paid",
       $or: [{ technician: null }, { technician: { $exists: false } }],
     };
 
