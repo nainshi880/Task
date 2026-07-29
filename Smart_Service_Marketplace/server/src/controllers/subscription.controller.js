@@ -30,7 +30,10 @@ export const getCurrentSubscription = asyncHandler(async (req, res) => {
 });
 
 export const createProSubscription = asyncHandler(async (req, res) => {
-  const result = await subscriptionService.createProSubscription(req.user._id);
+  const result = await subscriptionService.createProSubscription(req.user._id, {
+    interval: req.body.interval,
+    planId: req.body.planId,
+  });
 
   res.status(HTTP_STATUS.CREATED).json(
     new ApiResponse(

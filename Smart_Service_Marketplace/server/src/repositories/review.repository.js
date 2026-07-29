@@ -28,13 +28,26 @@ class ReviewRepository {
     return await Review.findOne({ _id: reviewId, isDeleted: false });
   }
 
+  toObjectId(id) {
+    if (!id) return null;
+    if (id instanceof mongoose.Types.ObjectId) return id;
+    return new mongoose.Types.ObjectId(String(id));
+  }
+
   async listByTechnician(
     technicianId,
-    { page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc" } = {}
+    {
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+      statuses = [REVIEW_STATUS.APPROVED],
+    } = {}
   ) {
+    const techId = this.toObjectId(technicianId);
     const filter = {
-      technician: technicianId,
-      status: REVIEW_STATUS.APPROVED,
+      technician: techId,
+      status: { $in: statuses },
       isDeleted: false,
     };
 
@@ -48,7 +61,7 @@ class ReviewRepository {
         .sort({ [sortField]: sortDir })
         .skip(skip)
         .limit(limit)
-        .select("rating title comment createdAt customer booking technician")
+        .select("rating title comment createdAt customer booking technician status")
         .populate("customer", "name avatar")
         .populate("booking", "serviceName serviceCategory bookingDate")
         .lean(),
@@ -120,11 +133,14 @@ class ReviewRepository {
   }
 
   async getRatingDistribution(technicianId) {
+    const techId = this.toObjectId(technicianId);
     const rows = await Review.aggregate([
       {
         $match: {
-          technician: new mongoose.Types.ObjectId(String(technicianId)),
-          status: REVIEW_STATUS.APPROVED,
+          technician: techId,
+          status: {
+            $in: [REVIEW_STATUS.APPROVED, REVIEW_STATUS.PENDING],
+          },
           isDeleted: false,
         },
       },
@@ -262,11 +278,14 @@ class ReviewRepository {
   }
 
   async getTechnicianRatingStats(technicianId) {
+    const techId = this.toObjectId(technicianId);
     const [stats] = await Review.aggregate([
       {
         $match: {
-          technician: technicianId,
-          status: REVIEW_STATUS.APPROVED,
+          technician: techId,
+          status: {
+            $in: [REVIEW_STATUS.APPROVED, REVIEW_STATUS.PENDING],
+          },
           isDeleted: false,
         },
       },
@@ -282,28 +301,82 @@ class ReviewRepository {
     return {
       averageRating: stats
         ? Number(stats.averageRating.toFixed(2))
-        : 5,
+        : 0,
       totalReviews: stats?.totalReviews || 0,
     };
   }
 
+  async approvePendingForTechnician(technicianId) {
+    const techId = this.toObjectId(technicianId);
+    await Review.updateMany(
+      {
+        technician: techId,
+        status: REVIEW_STATUS.PENDING,
+        isDeleted: false,
+      },
+      {
+        $set: {
+          status: REVIEW_STATUS.APPROVED,
+          moderatedAt: new Date(),
+          moderationNote: "Auto-approved for technician display",
+        },
+      }
+    );
+  }
+
+  /**
+   * Ensure reviews for this technician's bookings point at the User id.
+   * Fixes older rows that may have stored a mismatched technician ref.
+   */
+  async syncTechnicianIdsFromBookings(technicianId) {
+    const techId = this.toObjectId(technicianId);
+    const bookingIds = await Booking.find({ technician: techId }).distinct(
+      "_id"
+    );
+    if (!bookingIds.length) return;
+
+    await Review.updateMany(
+      {
+        booking: { $in: bookingIds },
+        isDeleted: false,
+        $or: [
+          { technician: { $ne: techId } },
+          { technician: null },
+          { technician: { $exists: false } },
+        ],
+      },
+      { $set: { technician: techId } }
+    );
+  }
+
   async recalculateTechnicianRating(technicianId) {
+    await this.approvePendingForTechnician(technicianId);
     const stats = await this.getTechnicianRatingStats(technicianId);
 
+    const techId = this.toObjectId(technicianId);
+    const completedJobs = await Booking.countDocuments({
+      technician: techId,
+      status: { $in: ["Completed", "Closed"] },
+    });
+
     await Promise.all([
-      User.findByIdAndUpdate(technicianId, {
+      User.findByIdAndUpdate(techId, {
         rating: stats.averageRating,
       }),
       TechnicianProfile.findOneAndUpdate(
-        { user: technicianId },
+        { user: techId },
         {
           rating: stats.averageRating,
           totalReviews: stats.totalReviews,
+          totalJobsCompleted: completedJobs,
         }
       ),
     ]);
 
-    return stats;
+    return {
+      ...stats,
+      totalJobsCompleted: completedJobs,
+    };
   }
 
   async getAnalytics({ fromDate, toDate, technicianId } = {}) {

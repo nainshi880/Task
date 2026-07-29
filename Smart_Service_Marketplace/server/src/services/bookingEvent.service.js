@@ -52,6 +52,12 @@ const BOOKING_NOTIFY_COPY = {
     message: (b) => `Work has started on your ${b.serviceName} booking.`,
     notify: ["customer"],
   },
+  AWAITING_CONFIRMATION: {
+    title: "Work finished — please confirm",
+    message: (b) =>
+      `Your technician finished ${b.serviceName}. Please confirm the completed work.`,
+    notify: ["customer"],
+  },
   COMPLETED: {
     title: "Work completed",
     message: (b) =>
@@ -223,6 +229,7 @@ class BookingEventService {
         case BOOKING_TIMELINE_EVENT.ASSIGNED:
         case BOOKING_TIMELINE_EVENT.ACCEPTED:
         case BOOKING_TIMELINE_EVENT.STARTED:
+        case BOOKING_TIMELINE_EVENT.AWAITING_CONFIRMATION:
         case BOOKING_TIMELINE_EVENT.COMPLETED:
         case BOOKING_TIMELINE_EVENT.PAUSED:
         case BOOKING_TIMELINE_EVENT.RESUMED: {
@@ -233,6 +240,8 @@ class BookingEventService {
               "Your booking was accepted by the technician.",
             [BOOKING_TIMELINE_EVENT.STARTED]:
               "Work has started on your booking.",
+            [BOOKING_TIMELINE_EVENT.AWAITING_CONFIRMATION]:
+              "Your technician finished the work. Please open the booking and confirm completion.",
             [BOOKING_TIMELINE_EVENT.COMPLETED]:
               "Work on your booking has been completed.",
             [BOOKING_TIMELINE_EVENT.PAUSED]: "Work on your booking was paused.",
@@ -242,7 +251,10 @@ class BookingEventService {
           return emailService.sendBookingUpdate({
             user: customer,
             booking,
-            updateTitle: "Booking Update",
+            updateTitle:
+              event === BOOKING_TIMELINE_EVENT.AWAITING_CONFIRMATION
+                ? "Please Confirm Completed Work"
+                : "Booking Update",
             updateMessage: copy[event],
           });
         }

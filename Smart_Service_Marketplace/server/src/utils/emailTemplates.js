@@ -125,6 +125,100 @@ export function paymentReceiptEmailTemplate({ name, payment, booking }) {
   };
 }
 
+export function paymentFailedEmailTemplate({
+  name,
+  payment,
+  booking,
+  maxAttempts = 3,
+}) {
+  const title = "Payment Failed — Automatic Retry Started";
+  return {
+    subject: `${title} — ₹${Number(payment.amount || 0).toFixed(2)}`,
+    html: layout({
+      title,
+      bodyHtml: `
+        <p>Hi ${name || "there"},</p>
+        <p>We could not complete your payment${
+          booking?.serviceName
+            ? ` for <strong>${booking.serviceName}</strong>`
+            : ""
+        }.</p>
+        <ul>
+          <li><strong>Amount:</strong> ₹${Number(payment.amount || 0).toFixed(2)}</li>
+          <li><strong>Reason:</strong> ${payment.failureReason || "Payment declined"}</li>
+        </ul>
+        <p>We will automatically retry up to <strong>${maxAttempts}</strong> times today. You will get another email if a retry link is needed or if all attempts fail.</p>
+        ${ctaButton(
+          booking?._id
+            ? `${clientUrl()}/bookings/${booking._id}`
+            : `${clientUrl()}/bookings`,
+          "View Booking"
+        )}
+      `,
+    }),
+  };
+}
+
+export function paymentRetryLinkEmailTemplate({
+  name,
+  payment,
+  booking,
+  paymentLinkUrl,
+  attempt,
+  maxAttempts = 3,
+}) {
+  const title = "Complete Your Payment Retry";
+  return {
+    subject: `${title} (attempt ${attempt}/${maxAttempts})`,
+    html: layout({
+      title,
+      bodyHtml: `
+        <p>Hi ${name || "there"},</p>
+        <p>Automatic retry attempt <strong>${attempt}</strong> needs your confirmation to charge ₹${Number(
+          payment.amount || 0
+        ).toFixed(2)}${
+          booking?.serviceName
+            ? ` for <strong>${booking.serviceName}</strong>`
+            : ""
+        }.</p>
+        ${ctaButton(paymentLinkUrl, "Pay Now")}
+        <p style="color:#6b7280;font-size:13px;">This secure Razorpay link is part of today's automatic retry sequence.</p>
+      `,
+    }),
+  };
+}
+
+export function paymentRetryExhaustedEmailTemplate({
+  name,
+  payment,
+  booking,
+  errorMessage,
+}) {
+  const title = "Payment Retries Exhausted";
+  return {
+    subject: title,
+    html: layout({
+      title,
+      bodyHtml: `
+        <p>Hi ${name || "there"},</p>
+        <p>We tried automatically completing your payment 3 times today but could not finish the charge.</p>
+        <ul>
+          <li><strong>Amount:</strong> ₹${Number(payment.amount || 0).toFixed(2)}</li>
+          ${booking?.serviceName ? `<li><strong>Service:</strong> ${booking.serviceName}</li>` : ""}
+          ${errorMessage ? `<li><strong>Last error:</strong> ${errorMessage}</li>` : ""}
+        </ul>
+        <p>Please open your booking and pay manually when ready.</p>
+        ${ctaButton(
+          booking?._id
+            ? `${clientUrl()}/bookings/${booking._id}`
+            : `${clientUrl()}/bookings`,
+          "Pay Manually"
+        )}
+      `,
+    }),
+  };
+}
+
 export function passwordResetEmailTemplate({ name, resetURL, otpCode }) {
   const title = "Reset Your Password";
   const otpBlock = otpCode
@@ -188,6 +282,9 @@ export default {
   bookingConfirmationEmailTemplate,
   bookingCancelledEmailTemplate,
   paymentReceiptEmailTemplate,
+  paymentFailedEmailTemplate,
+  paymentRetryLinkEmailTemplate,
+  paymentRetryExhaustedEmailTemplate,
   passwordResetEmailTemplate,
   emailVerificationTemplate,
   bookingUpdateEmailTemplate,

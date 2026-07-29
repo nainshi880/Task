@@ -187,8 +187,11 @@ class TechnicianDashboardService {
 
       ratings: {
         average: rating,
-        totalJobsCompleted:
-          profile?.totalJobsCompleted ?? statistics.completedJobs ?? 0,
+        totalJobsCompleted: Math.max(
+          Number(profile?.totalJobsCompleted) || 0,
+          Number(statistics.completedJobs) || 0
+        ),
+        totalReviews: Number(profile?.totalReviews) || 0,
       },
 
       weeklyPerformance: {

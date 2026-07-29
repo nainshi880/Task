@@ -4,7 +4,8 @@ export const listPlans = () => api.get("/technicians/subscriptions/plans");
 
 export const getCurrent = () => api.get("/technicians/subscriptions/current");
 
-export const createPro = () => api.post("/technicians/subscriptions");
+export const createPro = (data = {}) =>
+  api.post("/technicians/subscriptions", data);
 
 export const verify = (data) => api.post("/technicians/subscriptions/verify", data);
 

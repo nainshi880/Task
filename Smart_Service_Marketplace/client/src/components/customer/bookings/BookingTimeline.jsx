@@ -14,6 +14,7 @@ const EVENT_LABELS = {
   RESUMED: "Work resumed",
   WORK_NOTE_ADDED: "Work note added",
   COMPLETION_IMAGES_UPLOADED: "Completion photos uploaded",
+  AWAITING_CONFIRMATION: "Work finished — confirm completion",
   COMPLETED: "Service completed",
   CUSTOMER_CONFIRMED: "Customer confirmed",
   CLOSED: "Booking closed",

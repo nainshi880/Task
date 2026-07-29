@@ -21,6 +21,7 @@ import authRepository from "../repositories/auth.repository.js";
 import crypto from "crypto";
 import paymentRepository from "../repositories/payment.repository.js";
 import assignmentService from "./assignment.service.js";
+import paymentRetryService from "./paymentRetry.service.js";
 import BOOKING_STATUS from "../constants/bookingStatus.js";
 
 const MAX_PAYMENT_RETRIES = 5;
@@ -611,6 +612,20 @@ class PaymentService {
     });
 
     await invalidatePaymentCache(payment._id, customerId);
+
+    // Also kick the automated retry pipeline (idempotent with webhook path)
+    try {
+      await paymentRetryService.enqueueFromFailure(updated, {
+        trigger: "client_failure",
+        reason: updated.failureReason,
+      });
+    } catch (error) {
+      logger.warn("Failed to enqueue payment auto-retry from client failure", {
+        paymentId: String(payment._id),
+        message: error.message,
+      });
+    }
+
     return updated;
   }
 
@@ -1234,7 +1249,19 @@ class PaymentService {
 
       case "payment.failed": {
         if (payment.status !== PAYMENT_STATUS.PAID) {
-          await paymentRepository.markFailed(payment._id, {
+          // Persist token (if any) for automated re-charge attempts
+          if (entity.token_id || entity.token?.id) {
+            await paymentRepository.updateById(payment._id, {
+              notes: {
+                ...(payment.notes && typeof payment.notes === "object"
+                  ? payment.notes
+                  : {}),
+                razorpayTokenId: entity.token_id || entity.token?.id,
+              },
+            });
+          }
+
+          const failed = await paymentRepository.markFailed(payment._id, {
             failureReason:
               entity.error_description ||
               entity.error_reason ||
@@ -1255,6 +1282,30 @@ class PaymentService {
             payment._id,
             payment.customer?._id || payment.customer
           );
+
+          // Immediately queue BullMQ auto-retry + customer email
+          try {
+            const retryResult = await paymentRetryService.enqueueFromFailure(
+              failed || payment,
+              {
+                trigger: "webhook",
+                reason:
+                  entity.error_description ||
+                  entity.error_reason ||
+                  "payment.failed",
+                eventId,
+              }
+            );
+            logger.info("Payment auto-retry enqueued from webhook", {
+              paymentId: String(payment._id),
+              ...retryResult,
+            });
+          } catch (error) {
+            logger.warn("Failed to enqueue payment auto-retry", {
+              paymentId: String(payment._id),
+              message: error.message,
+            });
+          }
         }
         return { handled: true, event: eventName, status: "Failed", eventId };
       }

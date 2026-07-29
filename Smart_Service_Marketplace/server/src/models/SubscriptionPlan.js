@@ -34,7 +34,6 @@ const subscriptionPlanSchema = new mongoose.Schema(
       type: String,
       enum: Object.values(SUBSCRIPTION_TIER),
       required: true,
-      unique: true,
       trim: true,
       index: true,
     },
@@ -73,6 +72,7 @@ const subscriptionPlanSchema = new mongoose.Schema(
       type: String,
       enum: Object.values(SUBSCRIPTION_INTERVAL),
       default: SUBSCRIPTION_INTERVAL.MONTHLY,
+      required: true,
     },
 
     intervalCount: {
@@ -114,6 +114,9 @@ const subscriptionPlanSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Free + Pro monthly + Pro yearly (code alone is no longer unique)
+subscriptionPlanSchema.index({ code: 1, interval: 1 }, { unique: true });
 
 const SubscriptionPlan = mongoose.model(
   "SubscriptionPlan",

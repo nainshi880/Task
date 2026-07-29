@@ -17,6 +17,7 @@ import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
 import logger from "../utils/logger.js";
 import cacheService, { CACHE_KEYS } from "../utils/cache.js";
+import TechnicianProfile from "../models/TechnicianProfile.js";
 
 class BookingWorkflowService {
   async enrichBooking(booking) {
@@ -734,6 +735,18 @@ class BookingWorkflowService {
       customerConfirmed: true,
       customerConfirmedAt: new Date(),
     });
+
+    const technicianId = booking.technician?._id || booking.technician;
+    if (technicianId) {
+      await TechnicianProfile.findOneAndUpdate(
+        { user: technicianId },
+        { $inc: { totalJobsCompleted: 1 } }
+      );
+      await cacheService.invalidatePrefix(
+        `${CACHE_KEYS.TECH_DASHBOARD_PREFIX}${technicianId}`
+      );
+      await cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX);
+    }
 
     await bookingEventService.record({
       bookingId,

@@ -41,7 +41,7 @@ function TechnicianReviewsPage() {
   const reviewsQuery = useQuery({
     queryKey: technicianKeys.reviews({ page, limit: 10 }),
     queryFn: () =>
-      reviewService.getTechnicianReviews(user._id, {
+      reviewService.getMyReviews({
         page,
         limit: 10,
         sortBy: "createdAt",

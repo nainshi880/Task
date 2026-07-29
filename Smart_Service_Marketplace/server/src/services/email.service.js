@@ -6,6 +6,9 @@ import {
   bookingConfirmationEmailTemplate,
   bookingCancelledEmailTemplate,
   paymentReceiptEmailTemplate,
+  paymentFailedEmailTemplate,
+  paymentRetryLinkEmailTemplate,
+  paymentRetryExhaustedEmailTemplate,
   passwordResetEmailTemplate,
   emailVerificationTemplate,
   bookingUpdateEmailTemplate,
@@ -107,6 +110,57 @@ class EmailService {
       name: user.name,
       payment,
       booking,
+    });
+    return this.send({
+      to: user.email,
+      ...tpl,
+      userId: user._id,
+    });
+  }
+
+  async sendPaymentFailed({ user, payment, booking, maxAttempts }) {
+    const tpl = paymentFailedEmailTemplate({
+      name: user.name,
+      payment,
+      booking,
+      maxAttempts,
+    });
+    return this.send({
+      to: user.email,
+      ...tpl,
+      userId: user._id,
+    });
+  }
+
+  async sendPaymentRetryLink({
+    user,
+    payment,
+    booking,
+    paymentLinkUrl,
+    attempt,
+    maxAttempts,
+  }) {
+    const tpl = paymentRetryLinkEmailTemplate({
+      name: user.name,
+      payment,
+      booking,
+      paymentLinkUrl,
+      attempt,
+      maxAttempts,
+    });
+    return this.send({
+      to: user.email,
+      ...tpl,
+      userId: user._id,
+    });
+  }
+
+  async sendPaymentRetryExhausted({ user, payment, booking, errorMessage }) {
+    const tpl = paymentRetryExhaustedEmailTemplate({
+      name: user.name,
+      payment,
+      booking,
+      errorMessage,
     });
     return this.send({
       to: user.email,

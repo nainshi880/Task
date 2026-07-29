@@ -23,7 +23,7 @@ import ReviewBookingModal from "../../components/customer/bookings/ReviewBooking
 import * as bookingService from "../../services/booking.service";
 import * as chatService from "../../services/chat.service";
 import * as reviewService from "../../services/review.service";
-import { bookingKeys, customerKeys } from "../../lib/queryClient";
+import { bookingKeys, customerKeys, technicianKeys } from "../../lib/queryClient";
 import * as paymentService from "../../services/payment.service";
 import { useAuthStore } from "../../store/authStore";
 import {
@@ -190,6 +190,12 @@ function BookingDetailPage() {
         invalidateBooking(),
         queryClient.invalidateQueries({
           queryKey: ["reviews", "booking", bookingId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [...technicianKeys.all, "reviews"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: technicianKeys.dashboard(),
         }),
       ]);
     },

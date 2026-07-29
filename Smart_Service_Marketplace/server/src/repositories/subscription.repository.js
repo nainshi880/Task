@@ -159,7 +159,15 @@ class SubscriptionRepository {
           {
             $group: {
               _id: null,
-              estimatedMrr: { $sum: "$planDoc.price" },
+              estimatedMrr: {
+                $sum: {
+                  $cond: [
+                    { $eq: ["$planDoc.interval", "yearly"] },
+                    { $divide: ["$planDoc.price", 12] },
+                    "$planDoc.price",
+                  ],
+                },
+              },
             },
           },
         ]),

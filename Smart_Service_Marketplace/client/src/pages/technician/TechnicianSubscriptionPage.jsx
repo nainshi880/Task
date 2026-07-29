@@ -1,10 +1,7 @@
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import {
-  Check,
-  Crown,
-  Sparkles,
-} from "lucide-react";
+import { Check, Crown, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import clsx from "clsx";
 
@@ -27,6 +24,7 @@ function PlanFeature({ children }) {
 
 function TechnicianSubscriptionPage() {
   const queryClient = useQueryClient();
+  const [billingInterval, setBillingInterval] = useState("monthly");
 
   const plansQuery = useQuery({
     queryKey: technicianKeys.subscription(),
@@ -40,7 +38,7 @@ function TechnicianSubscriptionPage() {
   });
 
   const upgradeMutation = useMutation({
-    mutationFn: subscriptionService.payForProSubscription,
+    mutationFn: (options) => subscriptionService.payForProSubscription(options),
     onSuccess: () => {
       toast.success("Pro subscription activated!");
       queryClient.invalidateQueries({ queryKey: technicianKeys.all });
@@ -73,6 +71,31 @@ function TechnicianSubscriptionPage() {
     },
   });
 
+  const { plans = [], current = {} } = plansQuery.data || {};
+  const isPro = current.isPro;
+  const freePlan = plans.find((p) => p.code === "free");
+
+  const proPlans = useMemo(
+    () => plans.filter((p) => p.code === "pro"),
+    [plans]
+  );
+
+  const selectedProPlan = useMemo(() => {
+    return (
+      proPlans.find((p) => p.interval === billingInterval) ||
+      proPlans.find((p) => p.interval === "monthly") ||
+      proPlans[0] ||
+      null
+    );
+  }, [proPlans, billingInterval]);
+
+  const monthlyPlan = proPlans.find((p) => p.interval === "monthly");
+  const yearlyPlan = proPlans.find((p) => p.interval === "yearly");
+  const yearlySavings =
+    monthlyPlan && yearlyPlan
+      ? monthlyPlan.price * 12 - yearlyPlan.price
+      : 0;
+
   if (plansQuery.isLoading) {
     return (
       <DashboardLayout>
@@ -80,11 +103,6 @@ function TechnicianSubscriptionPage() {
       </DashboardLayout>
     );
   }
-
-  const { plans = [], current = {} } = plansQuery.data || {};
-  const isPro = current.isPro;
-  const proPlan = plans.find((p) => p.code === "pro");
-  const freePlan = plans.find((p) => p.code === "free");
 
   return (
     <DashboardLayout>
@@ -120,6 +138,14 @@ function TechnicianSubscriptionPage() {
               {isPro ? <Crown size={14} /> : <Sparkles size={14} />}
               {isPro ? "Pro" : "Free"}
             </span>
+            {isPro && current.plan?.interval ? (
+              <span className="text-sm capitalize text-slate-500">
+                {current.plan.interval} billing
+                {current.plan.price != null
+                  ? ` · ${formatCurrency(current.plan.price)}`
+                  : ""}
+              </span>
+            ) : null}
             {!isPro && current.remainingClaims != null ? (
               <span className="text-sm text-slate-500">
                 {current.remainingClaims} claim
@@ -175,21 +201,62 @@ function TechnicianSubscriptionPage() {
             <div className="absolute right-4 top-1.5 rounded-full bg-indigo-600 px-2.5 py-0.5 text-xs font-semibold text-white">
               Recommended
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                 <Crown size={18} className="text-amber-500" />
                 Pro
               </h2>
-              <span className="text-2xl font-bold text-slate-900">
-                {formatCurrency(proPlan?.price || 999)}
-                <span className="text-sm font-normal text-slate-500">/mo</span>
-              </span>
+              <div className="text-right">
+                <span className="text-2xl font-bold text-slate-900">
+                  {formatCurrency(selectedProPlan?.price || 999)}
+                </span>
+                <span className="text-sm font-normal text-slate-500">
+                  /{selectedProPlan?.interval === "yearly" ? "yr" : "mo"}
+                </span>
+              </div>
             </div>
+
+            {!isPro ? (
+              <div className="mt-4 inline-flex rounded-xl border border-indigo-100 bg-white p-1">
+                <button
+                  type="button"
+                  onClick={() => setBillingInterval("monthly")}
+                  className={clsx(
+                    "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+                    billingInterval === "monthly"
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  Monthly · {formatCurrency(monthlyPlan?.price || 999)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingInterval("yearly")}
+                  className={clsx(
+                    "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+                    billingInterval === "yearly"
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  Yearly · {formatCurrency(yearlyPlan?.price || 9499)}
+                </button>
+              </div>
+            ) : null}
+
+            {billingInterval === "yearly" && yearlySavings > 0 && !isPro ? (
+              <p className="mt-2 text-xs font-medium text-emerald-700">
+                Save {formatCurrency(yearlySavings)} vs paying monthly
+              </p>
+            ) : null}
+
             <p className="mt-2 text-sm text-slate-600">
-              {proPlan?.description || "Unlimited claims and priority matching."}
+              {selectedProPlan?.description ||
+                "Unlimited claims and priority matching."}
             </p>
             <ul className="mt-5 space-y-2">
-              {(proPlan?.features || []).map((feature) => (
+              {(selectedProPlan?.features || []).map((feature) => (
                 <PlanFeature key={feature}>{feature}</PlanFeature>
               ))}
             </ul>
@@ -203,22 +270,26 @@ function TechnicianSubscriptionPage() {
                 <Button
                   className="mt-5 w-full"
                   loading={upgradeMutation.isPending}
-                  onClick={() => upgradeMutation.mutate()}
+                  onClick={() =>
+                    upgradeMutation.mutate({
+                      interval: billingInterval,
+                      planId: selectedProPlan?._id,
+                    })
+                  }
                 >
-                  Upgrade to Pro
-                </Button>
-                <p className="mt-3 text-xs text-slate-500">
-                  Test mode tip: prefer <strong>Card</strong> payment
-                  (4111&nbsp;1111&nbsp;1111&nbsp;1111). UPI QR often fails on
-                  Razorpay test keys.
-                </p>
+                  Upgrade to Pro (
+                  {billingInterval === "yearly" ? "Yearly" : "Monthly"})
+                </Button> 
               </>
             )}
           </div>
         </div>
 
         <p className="text-center text-sm text-slate-500">
-          <Link to="/technician/dashboard" className="text-indigo-600 hover:underline">
+          <Link
+            to="/technician/dashboard"
+            className="text-indigo-600 hover:underline"
+          >
             ← Back to dashboard
           </Link>
         </p>

@@ -15,6 +15,9 @@ const env = {
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || "",
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || "",
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+  PAYMENT_RETRY_ENABLED:
+    process.env.PAYMENT_RETRY_ENABLED !== "false",
   // Nodemailer + Google SMTP (Gmail App Password)
   EMAIL_FROM: process.env.EMAIL_FROM || process.env.COMPANY_EMAIL || "",
   EMAIL_FROM_NAME:

@@ -329,7 +329,13 @@ function TechnicianDashboard() {
                   ))}
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
-                  {ratings.totalJobsCompleted ?? 0} completed jobs
+                  {ratings.totalJobsCompleted ?? 0} completed job
+                  {(ratings.totalJobsCompleted ?? 0) !== 1 ? "s" : ""}
+                  {(ratings.totalReviews ?? 0) > 0
+                    ? ` · ${ratings.totalReviews} review${
+                        ratings.totalReviews !== 1 ? "s" : ""
+                      }`
+                    : ""}
                 </p>
               </div>
             </div>

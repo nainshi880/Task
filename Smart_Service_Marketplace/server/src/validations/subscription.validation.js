@@ -5,6 +5,11 @@ export const createSubscriptionValidation = [
     .optional()
     .isIn(["pro"])
     .withMessage("Only Pro subscription can be purchased."),
+  body("interval")
+    .optional()
+    .isIn(["monthly", "yearly"])
+    .withMessage("Interval must be monthly or yearly."),
+  body("planId").optional().isMongoId().withMessage("Invalid plan id."),
 ];
 
 export const verifySubscriptionValidation = [

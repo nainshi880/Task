@@ -80,7 +80,8 @@ function AdminSubscriptionsPage() {
     );
   }
 
-  const proPlan = plans.find((p) => p.code === "pro");
+  const proPlans = plans.filter((p) => p.code === "pro");
+  const unsyncedPro = proPlans.filter((p) => !p.razorpayPlanId);
 
   return (
     <DashboardLayout>
@@ -121,9 +122,9 @@ function AdminSubscriptionsPage() {
 
         <DashboardSection
           title="Plans"
-          subtitle="Default Free and Pro plans are auto-seeded on first use."
+          subtitle="Free, Pro Monthly (₹999), and Pro Yearly (₹9499) are auto-seeded."
         >
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             {plans.map((plan) => (
               <div
                 key={plan._id}
@@ -160,9 +161,10 @@ function AdminSubscriptionsPage() {
               </div>
             ))}
           </div>
-          {proPlan && !proPlan.razorpayPlanId ? (
+          {unsyncedPro.length > 0 ? (
             <p className="mt-3 text-sm text-amber-700">
-              Sync the Pro plan to Razorpay before technicians can subscribe.
+              Sync each Pro plan (monthly and yearly) to Razorpay before
+              technicians can subscribe.
             </p>
           ) : null}
         </DashboardSection>

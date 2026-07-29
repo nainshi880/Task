@@ -318,6 +318,164 @@ class PaymentRepository {
     );
   }
 
+  /**
+   * Atomically claim an auto-retry attempt.
+   * Returns null if already Paid, exhausted, wrong day, or idempotency key used.
+   */
+  async claimAutoRetryAttempt(paymentId, { dayKey, attempt, idempotencyKey, jobId }) {
+    return await Payment.findOneAndUpdate(
+      {
+        _id: paymentId,
+        status: { $nin: [PAYMENT_STATUS.PAID, PAYMENT_STATUS.REFUNDED] },
+        "autoRetry.processedKeys": { $ne: idempotencyKey },
+        "autoRetry.status": {
+          $nin: ["succeeded", "exhausted", "cancelled"],
+        },
+        $and: [
+          {
+            $or: [
+              { "autoRetry.dayKey": dayKey },
+              { "autoRetry.dayKey": null },
+              { "autoRetry.dayKey": { $exists: false } },
+            ],
+          },
+          {
+            $or: [
+              { "autoRetry.attemptCount": { $exists: false } },
+              { "autoRetry.attemptCount": null },
+              { "autoRetry.attemptCount": { $lt: attempt } },
+            ],
+          },
+        ],
+      },
+      {
+        $set: {
+          "autoRetry.status": "in_progress",
+          "autoRetry.dayKey": dayKey,
+          "autoRetry.lastError": "",
+          lastRetryAt: new Date(),
+        },
+        $inc: {
+          "autoRetry.attemptCount": 1,
+          retryCount: 1,
+        },
+        $addToSet: { "autoRetry.processedKeys": idempotencyKey },
+        $push: {
+          "autoRetry.attempts": {
+            attempt,
+            status: "running",
+            idempotencyKey,
+            jobId: jobId || null,
+            startedAt: new Date(),
+          },
+        },
+      },
+      { returnDocument: "after" }
+    )
+      .populate("customer", "name email phone")
+      .populate("booking", "serviceName status paymentStatus amount");
+  }
+
+  async markAutoRetryQueued(paymentId, { dayKey, nextRetryAt, maxAttempts, resetAttempts = false }) {
+    const $set = {
+      "autoRetry.status": "queued",
+      "autoRetry.dayKey": dayKey,
+      "autoRetry.nextRetryAt": nextRetryAt || null,
+      "autoRetry.maxAttempts": maxAttempts,
+      "autoRetry.lastError": "",
+    };
+    if (resetAttempts) {
+      $set["autoRetry.attemptCount"] = 0;
+      $set["autoRetry.processedKeys"] = [];
+      $set["autoRetry.attempts"] = [];
+      $set["autoRetry.exhaustedAt"] = null;
+      $set["autoRetry.succeededAt"] = null;
+    }
+
+    return await Payment.findByIdAndUpdate(
+      paymentId,
+      { $set },
+      { returnDocument: 'after' }
+    );
+  }
+
+  async markFailureEmailSent(paymentId) {
+    return await Payment.findOneAndUpdate(
+      {
+        _id: paymentId,
+        $or: [
+          { "autoRetry.failureEmailSentAt": null },
+          { "autoRetry.failureEmailSentAt": { $exists: false } },
+        ],
+      },
+      { $set: { "autoRetry.failureEmailSentAt": new Date() } },
+      { returnDocument: 'after' }
+    );
+  }
+
+  async updateAutoRetryAttempt(paymentId, attempt, patch = {}) {
+    const setFields = {};
+    for (const [key, value] of Object.entries(patch)) {
+      setFields[`autoRetry.attempts.$.${key}`] = value;
+    }
+    setFields[`autoRetry.attempts.$.finishedAt`] =
+      patch.finishedAt || new Date();
+
+    return await Payment.findOneAndUpdate(
+      {
+        _id: paymentId,
+        "autoRetry.attempts.attempt": attempt,
+      },
+      { $set: setFields },
+      { returnDocument: 'after' }
+    );
+  }
+
+  async markAutoRetrySucceeded(paymentId, { razorpayPaymentId, method } = {}) {
+    return await Payment.findByIdAndUpdate(
+      paymentId,
+      {
+        $set: {
+          status: PAYMENT_STATUS.PAID,
+          paidAt: new Date(),
+          failureReason: null,
+          failureCode: null,
+          ...(razorpayPaymentId ? { razorpayPaymentId } : {}),
+          ...(method ? { method } : {}),
+          "autoRetry.status": "succeeded",
+          "autoRetry.succeededAt": new Date(),
+          "autoRetry.nextRetryAt": null,
+          "autoRetry.lastError": "",
+        },
+      },
+      { returnDocument: 'after' }
+    );
+  }
+
+  async markAutoRetryFailedAttempt(paymentId, { lastError, nextRetryAt, status }) {
+    return await Payment.findByIdAndUpdate(
+      paymentId,
+      {
+        $set: {
+          "autoRetry.status": status,
+          "autoRetry.lastError": lastError || "",
+          "autoRetry.nextRetryAt": nextRetryAt || null,
+          ...(status === "exhausted"
+            ? { "autoRetry.exhaustedAt": new Date() }
+            : {}),
+        },
+      },
+      { returnDocument: "after" }
+    );
+  }
+
+  async findByIdLean(paymentId) {
+    return await Payment.findById(paymentId)
+      .populate("customer", "name email phone")
+      .populate("booking", "serviceName status paymentStatus amount")
+      .lean();
+  }
+
   async pushWebhookEvent(paymentId, event, payload, eventId = null) {
     return await Payment.findByIdAndUpdate(
       paymentId,
@@ -331,7 +489,7 @@ class PaymentRepository {
           },
         },
       },
-      { new: true }
+      { returnDocument: "after" }
     );
   }
 
@@ -378,7 +536,7 @@ class PaymentRepository {
     return await Booking.findByIdAndUpdate(
       bookingId,
       { amount },
-      { new: true }
+      { returnDocument: "after" }
     );
   }
 

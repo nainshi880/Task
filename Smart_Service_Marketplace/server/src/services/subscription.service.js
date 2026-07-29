@@ -9,6 +9,7 @@ import logger from "../utils/logger.js";
 import {
   ACTIVE_PRO_STATUSES,
   DEFAULT_PLAN_LIMITS,
+  SUBSCRIPTION_INTERVAL,
   SUBSCRIPTION_STATUS,
   SUBSCRIPTION_TIER,
 } from "../constants/subscription.js";
@@ -240,8 +241,13 @@ class SubscriptionService {
     return customer.id;
   }
 
-  async createProSubscription(technicianId) {
+  async createProSubscription(technicianId, options = {}) {
     await this.ensurePlansSeeded();
+
+    const interval =
+      options.interval === SUBSCRIPTION_INTERVAL.YEARLY
+        ? SUBSCRIPTION_INTERVAL.YEARLY
+        : SUBSCRIPTION_INTERVAL.MONTHLY;
 
     const current = await subscriptionRepository.findCurrentForTechnician(
       technicianId
@@ -253,9 +259,23 @@ class SubscriptionService {
       );
     }
 
-    const proPlan = await subscriptionPlanRepository.findByCode(
-      SUBSCRIPTION_TIER.PRO
-    );
+    let proPlan = null;
+    if (options.planId) {
+      proPlan = await subscriptionPlanRepository.findById(options.planId);
+      if (
+        !proPlan ||
+        proPlan.code !== SUBSCRIPTION_TIER.PRO ||
+        !proPlan.isActive
+      ) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, "Invalid Pro plan.");
+      }
+    } else {
+      proPlan = await subscriptionPlanRepository.findByCodeAndInterval(
+        SUBSCRIPTION_TIER.PRO,
+        interval
+      );
+    }
+
     if (!proPlan?.isActive) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
@@ -268,11 +288,16 @@ class SubscriptionService {
     const checkoutProfile =
       await this.getTechnicianCheckoutProfile(technicianId);
 
-    // Reuse an unfinished Pro subscription checkout if still in created state.
+    const currentPlanId = String(current?.plan?._id || current?.plan || "");
+    const selectedPlanId = String(proPlan._id);
+
+    // Reuse an unfinished Pro subscription checkout if still in created state
+    // and it matches the selected billing interval/plan.
     if (
       current?.tier === SUBSCRIPTION_TIER.PRO &&
       current.status === SUBSCRIPTION_STATUS.CREATED &&
-      current.razorpaySubscriptionId
+      current.razorpaySubscriptionId &&
+      currentPlanId === selectedPlanId
     ) {
       try {
         const existing = await razorpay.subscriptions.fetch(
@@ -329,16 +354,22 @@ class SubscriptionService {
       checkoutProfile
     );
 
+    // yearly: 10 years of renewals; monthly: 120 months (~10 years)
+    const totalCount =
+      proPlan.interval === SUBSCRIPTION_INTERVAL.YEARLY ? 10 : 120;
+
     const rpSubscription = await withRetry(
       () =>
         razorpay.subscriptions.create({
           plan_id: razorpayPlanId,
           customer_id: razorpayCustomerId,
           customer_notify: 1,
-          total_count: 120,
+          total_count: totalCount,
           notes: {
             technicianId: String(technicianId),
             tier: SUBSCRIPTION_TIER.PRO,
+            planId: String(proPlan._id),
+            interval: proPlan.interval,
           },
         }),
       { shouldRetry: isTransientError }
@@ -353,6 +384,7 @@ class SubscriptionService {
       razorpayCustomerId,
       notes: {
         shortUrl: rpSubscription.short_url,
+        interval: proPlan.interval,
       },
     });
 
@@ -559,11 +591,20 @@ class SubscriptionService {
 
     if (!subscription && event.payload?.subscription?.entity?.notes?.technicianId) {
       await this.ensurePlansSeeded();
-      const proPlan = await subscriptionPlanRepository.findByCode(
-        SUBSCRIPTION_TIER.PRO
-      );
+      const notes = event.payload.subscription.entity.notes || {};
+      let proPlan = notes.planId
+        ? await subscriptionPlanRepository.findById(notes.planId)
+        : null;
+      if (!proPlan) {
+        proPlan = await subscriptionPlanRepository.findByCodeAndInterval(
+          SUBSCRIPTION_TIER.PRO,
+          notes.interval === SUBSCRIPTION_INTERVAL.YEARLY
+            ? SUBSCRIPTION_INTERVAL.YEARLY
+            : SUBSCRIPTION_INTERVAL.MONTHLY
+        );
+      }
       subscription = await subscriptionRepository.create({
-        technician: event.payload.subscription.entity.notes.technicianId,
+        technician: notes.technicianId,
         plan: proPlan._id,
         tier: SUBSCRIPTION_TIER.PRO,
         status: SUBSCRIPTION_STATUS.CREATED,

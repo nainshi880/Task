@@ -21,7 +21,7 @@ class TechnicianDashboardRepository {
         user: technicianId,
         isDeleted: false,
       }).select(
-        "fullName profilePhoto workingCity rating experienceYears availabilityStatus skills serviceCategories profileCompleted totalJobsCompleted"
+        "fullName profilePhoto workingCity rating experienceYears availabilityStatus skills serviceCategories profileCompleted totalJobsCompleted totalReviews"
       ),
     ]);
 

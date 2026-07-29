@@ -8,6 +8,9 @@ export const submitReview = async (data) =>
 export const getTechnicianReviews = async (technicianId, params) =>
   unwrap(await reviewApi.getTechnicianReviews(technicianId, params));
 
+export const getMyReviews = async (params) =>
+  unwrap(await reviewApi.getMyReviews(params));
+
 export const getBookingReview = async (bookingId) =>
   unwrap(await reviewApi.getBookingReview(bookingId));
 

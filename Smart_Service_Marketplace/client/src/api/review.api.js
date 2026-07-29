@@ -5,6 +5,8 @@ export const submitReview = (data) => api.post("/reviews", data);
 export const getTechnicianReviews = (technicianId, params) =>
   api.get(`/reviews/${technicianId}`, { params });
 
+export const getMyReviews = (params) => api.get("/reviews/me", { params });
+
 export const getBookingReview = (bookingId) =>
   api.get(`/reviews/booking/${bookingId}`);
 

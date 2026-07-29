@@ -35,7 +35,8 @@ export const listPlans = async () => unwrap(await subscriptionApi.listPlans());
 
 export const getCurrent = async () => unwrap(await subscriptionApi.getCurrent());
 
-export const createPro = async () => unwrap(await subscriptionApi.createPro());
+export const createPro = async (data = {}) =>
+  unwrap(await subscriptionApi.createPro(data));
 
 export const verifySubscription = async (data) =>
   unwrap(await subscriptionApi.verify(data));
@@ -46,9 +47,13 @@ export const cancelSubscription = async (data = {}) =>
 /**
  * Create Razorpay subscription → open checkout with customer prefill → verify.
  * Prefill (name/email/phone) avoids Razorpay validate/account failures in checkout.
+ * @param {{ interval?: "monthly"|"yearly", planId?: string }} options
  */
-export async function payForProSubscription() {
-  const session = await createPro();
+export async function payForProSubscription(options = {}) {
+  const session = await createPro({
+    interval: options.interval || "monthly",
+    planId: options.planId,
+  });
 
   if (!session?.razorpaySubscriptionId || !session?.razorpayKeyId) {
     throw new Error("Could not start Razorpay subscription checkout.");
@@ -88,6 +93,7 @@ export async function payForProSubscription() {
       notes: {
         subscriptionId: String(session.subscriptionId || ""),
         plan: session.plan?.code || "pro",
+        interval: session.plan?.interval || options.interval || "monthly",
       },
       theme: {
         color: "#4f46e5",

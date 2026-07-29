@@ -11,6 +11,7 @@ import {
   parseSort,
   formatPaginatedResponse,
 } from "../utils/pagination.js";
+import cacheService, { CACHE_KEYS } from "../utils/cache.js";
 
 const REVIEWABLE_STATUSES = [
   BOOKING_STATUS.COMPLETED,
@@ -63,7 +64,7 @@ class ReviewService {
     const review = await reviewRepository.create({
       booking: bookingId,
       customer: customerId,
-      technician: technicianId,
+      technician: reviewRepository.toObjectId(technicianId),
       rating,
       title: title || "",
       comment: comment || "",
@@ -74,6 +75,10 @@ class ReviewService {
 
     const ratingStats =
       await reviewRepository.recalculateTechnicianRating(technicianId);
+
+    await cacheService.invalidatePrefix(
+      `${CACHE_KEYS.TECH_DASHBOARD_PREFIX}${technicianId}`
+    );
 
     const created = await reviewRepository.findById(review._id);
     return {
@@ -88,6 +93,11 @@ class ReviewService {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, "Technician not found.");
     }
 
+    // Repair mismatched technician refs, then promote pending reviews so
+    // technicians and public listings see customer feedback immediately.
+    await reviewRepository.syncTechnicianIdsFromBookings(technicianId);
+    await reviewRepository.approvePendingForTechnician(technicianId);
+
     const { page, limit } = parsePagination(query);
     const { sortBy, sortOrder } = parseSort(query, ["createdAt", "rating"]);
 
@@ -97,10 +107,16 @@ class ReviewService {
         limit,
         sortBy,
         sortOrder,
+        statuses: [REVIEW_STATUS.APPROVED, REVIEW_STATUS.PENDING],
       }),
       reviewRepository.getTechnicianRatingStats(technicianId),
       reviewRepository.getRatingDistribution(technicianId),
     ]);
+
+    // Keep profile counters in sync when reviews exist but profile is stale.
+    if (rating.totalReviews > 0) {
+      await reviewRepository.recalculateTechnicianRating(technicianId).catch(() => {});
+    }
 
     return formatPaginatedResponse(items, page, limit, total, {
       technician: {
@@ -115,6 +131,10 @@ class ReviewService {
         distribution,
       },
     });
+  }
+
+  async getMyReviews(technicianId, query = {}) {
+    return this.getTechnicianReviews(technicianId, query);
   }
 
   async getServiceReviews(query = {}) {

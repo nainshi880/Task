@@ -115,6 +115,52 @@ const paymentSchema = new mongoose.Schema(
       default: null,
     },
 
+    /**
+     * Automated same-day retry pipeline (BullMQ).
+     * Idempotency keys prevent duplicate Razorpay charges across workers.
+     */
+    autoRetry: {
+      status: {
+        type: String,
+        enum: [
+          "idle",
+          "queued",
+          "in_progress",
+          "succeeded",
+          "exhausted",
+          "cancelled",
+        ],
+        default: "idle",
+      },
+      dayKey: { type: String, default: null, index: true },
+      attemptCount: { type: Number, default: 0, min: 0 },
+      maxAttempts: { type: Number, default: 3, min: 1 },
+      nextRetryAt: { type: Date, default: null },
+      lastError: { type: String, default: "" },
+      failureEmailSentAt: { type: Date, default: null },
+      exhaustedAt: { type: Date, default: null },
+      succeededAt: { type: Date, default: null },
+      processedKeys: { type: [String], default: [] },
+      attempts: [
+        {
+          attempt: Number,
+          status: {
+            type: String,
+            enum: ["queued", "running", "succeeded", "failed", "skipped"],
+          },
+          idempotencyKey: String,
+          jobId: String,
+          razorpayOrderId: String,
+          razorpayPaymentId: String,
+          paymentLinkId: String,
+          paymentLinkUrl: String,
+          reason: String,
+          startedAt: Date,
+          finishedAt: Date,
+        },
+      ],
+    },
+
     refundedAmount: {
       type: Number,
       default: 0,
@@ -172,7 +218,10 @@ paymentSchema.index({ booking: 1, status: 1 });
 paymentSchema.index({ razorpayOrderId: 1, status: 1 });
 paymentSchema.index({ status: 1, createdAt: -1 });
 paymentSchema.index({ purpose: 1, status: 1, createdAt: -1 });
+paymentSchema.index({ "autoRetry.status": 1, "autoRetry.nextRetryAt": 1 });
+paymentSchema.index({ "autoRetry.processedKeys": 1 });
 
 const Payment = mongoose.model("Payment", paymentSchema);
 
 export default Payment;
+ 
