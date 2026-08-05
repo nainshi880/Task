@@ -1,11 +1,18 @@
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import TechnicianProfile from "../models/TechnicianProfile.js";
+import mongoose from "mongoose";
 import ROLES from "../constants/roles.js";
 import { ACTIVE_WORKLOAD_STATUSES } from "../constants/assignment.js";
 import TECHNICIAN_APPLICATION_STATUS from "../constants/technicianApplication.js";
 import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
+
+function toObjectIds(ids = []) {
+  return [...new Set(ids.map((id) => String(id)).filter(Boolean))]
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+}
 
 class TechnicianRepository {
   async getApprovedTechnicianIds() {
@@ -123,6 +130,7 @@ class TechnicianRepository {
         "i"
       );
 
+      // Match if ANY array element (multi-skill) equals the booking category.
       const [usersWithSkill, profilesWithSkill] = await Promise.all([
         User.find({
           ...filter,
@@ -134,16 +142,15 @@ class TechnicianRepository {
           $or: [
             { skills: skillRegex },
             { serviceCategories: skillRegex },
+            { profession: skillRegex },
           ],
         }).distinct("user"),
       ]);
 
-      skillMatchedIds = [
-        ...new Set([
-          ...usersWithSkill.map(String),
-          ...profilesWithSkill.map(String),
-        ]),
-      ];
+      skillMatchedIds = toObjectIds([
+        ...usersWithSkill,
+        ...profilesWithSkill,
+      ]);
 
       if (!skillMatchedIds.length) {
         return [];

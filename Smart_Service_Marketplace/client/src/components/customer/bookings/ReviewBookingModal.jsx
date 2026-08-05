@@ -51,6 +51,7 @@ function ReviewBookingModal({
       onClose={handleClose}
       title="Rate your experience"
       className="max-w-md"
+      initialFocusSelector='button[aria-label="1 star"]'
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         <p className="text-sm text-slate-600">
@@ -98,24 +99,33 @@ function ReviewBookingModal({
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor="review-title"
+            className="text-sm font-medium text-slate-700"
+          >
             Title (optional)
           </label>
           <input
+            id="review-title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={150}
             placeholder="Great service!"
+            autoComplete="off"
             className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
           />
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">
+          <label
+            htmlFor="review-comment"
+            className="text-sm font-medium text-slate-700"
+          >
             Review (optional)
           </label>
           <textarea
+            id="review-comment"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={4}

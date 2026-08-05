@@ -2,30 +2,54 @@ import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 import clsx from "clsx";
 
-function Modal({ isOpen, onClose, title, children, className = "" }) {
+function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  className = "",
+  initialFocusSelector = null,
+}) {
   const titleId = useId();
   const dialogRef = useRef(null);
   const previousFocus = useRef(null);
+  const onCloseRef = useRef(onClose);
 
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Only run focus trap setup when the dialog opens — not when onClose
+  // identity changes (parent re-renders / child state updates while typing).
   useEffect(() => {
     if (!isOpen) return undefined;
 
     previousFocus.current = document.activeElement;
     const node = dialogRef.current;
+    const preferred = initialFocusSelector
+      ? node?.querySelector(initialFocusSelector)
+      : null;
     const focusable = node?.querySelectorAll(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
-    const first = focusable?.[0];
+    const first = preferred || focusable?.[0];
     first?.focus();
 
     const onKeyDown = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
-      if (e.key !== "Tab" || !focusable?.length) return;
-      const list = Array.from(focusable);
+      if (e.key !== "Tab" || !node) return;
+
+      const list = Array.from(
+        node.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      );
+      if (!list.length) return;
+
       const firstEl = list[0];
       const lastEl = list[list.length - 1];
       if (e.shiftKey && document.activeElement === firstEl) {
@@ -46,7 +70,7 @@ function Modal({ isOpen, onClose, title, children, className = "" }) {
       document.body.style.overflow = prevOverflow;
       previousFocus.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, initialFocusSelector]);
 
   if (!isOpen) return null;
 
@@ -55,7 +79,7 @@ function Modal({ isOpen, onClose, title, children, className = "" }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="presentation"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose?.();
+        if (e.target === e.currentTarget) onCloseRef.current?.();
       }}
     >
       <div
@@ -78,7 +102,7 @@ function Modal({ isOpen, onClose, title, children, className = "" }) {
           )}
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => onCloseRef.current?.()}
             className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             aria-label="Close dialog"
           >

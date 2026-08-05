@@ -29,6 +29,10 @@ import { isUserOnline } from "../sockets/presence.js";
 import { getIO } from "../sockets/io.js";
 import pushService from "./push.service.js";
 import subscriptionService from "./subscription.service.js";
+import {
+  buildSkillPool,
+  technicianHasSkill,
+} from "../utils/skillMatch.js";
 
 class AssignmentService {
   getBookingCity(addressDetails, customer) {
@@ -48,19 +52,16 @@ class AssignmentService {
       technician.city &&
       technician.city.toLowerCase() === city.toLowerCase();
 
-    const skillPool = [
-      ...(Array.isArray(technician.skills) ? technician.skills : []),
-      ...(Array.isArray(technician.serviceCategories)
-        ? technician.serviceCategories
-        : []),
-      ...(Array.isArray(technician.profileSkills)
-        ? technician.profileSkills
-        : []),
-    ].map((s) => String(s || "").toLowerCase().trim());
+    const skillPool = buildSkillPool(
+      technician.skills,
+      technician.serviceCategories,
+      technician.profileSkills,
+      technician.profession,
+      technician.profileProfession
+    );
 
-    const skillMatch =
-      skill &&
-      skillPool.some((s) => s === String(skill).toLowerCase().trim());
+    // Match if ANY of the technician's skills equals the booking category
+    const skillMatch = technicianHasSkill(skillPool, skill);
 
     const isAvailable = technician.availability === true;
     const hasCapacity = workload < maxWorkload;
@@ -106,11 +107,18 @@ class AssignmentService {
     );
     const skill = booking.serviceCategory;
 
-    // Prefer city+skill match; fall back to broader pools
+    // Skill-first pool so multi-skilled technicians are always considered
+    // when ANY of their skills matches the booking category.
     let candidates = await technicianRepository.findEligibleTechnicians({
-      city,
       skill,
     });
+
+    if (!candidates.length) {
+      candidates = await technicianRepository.findEligibleTechnicians({
+        city,
+        skill,
+      });
+    }
 
     if (!candidates.length) {
       candidates = await technicianRepository.findEligibleTechnicians({
@@ -119,13 +127,21 @@ class AssignmentService {
     }
 
     if (!candidates.length) {
-      candidates = await technicianRepository.findEligibleTechnicians({
-        skill,
-      });
+      candidates = await technicianRepository.findEligibleTechnicians();
     }
 
-    if (!candidates.length) {
-      candidates = await technicianRepository.findEligibleTechnicians();
+    // Also merge city-matched techs so local multi-skilled techs are never missed
+    // when the skill query returned a partial set.
+    if (city) {
+      const cityCandidates =
+        await technicianRepository.findEligibleTechnicians({ city });
+      const seen = new Set(candidates.map((t) => String(t._id)));
+      for (const tech of cityCandidates) {
+        if (!seen.has(String(tech._id))) {
+          candidates.push(tech);
+          seen.add(String(tech._id));
+        }
+      }
     }
 
     const technicianIds = candidates.map((t) => t._id);
@@ -141,7 +157,7 @@ class AssignmentService {
       user: { $in: technicianIds },
       isDeleted: false,
     })
-      .select("user skills serviceCategories")
+      .select("user skills serviceCategories profession")
       .lean();
 
     const profileByUser = new Map(
@@ -150,20 +166,23 @@ class AssignmentService {
 
     const enriched = candidates.map((technician) => {
       const profile = profileByUser.get(String(technician._id));
-      const profileSkills = [
-        ...(profile?.skills || []),
-        ...(profile?.serviceCategories || []),
-      ];
-      return {
-        ...technician.toObject?.() ? technician.toObject() : technician,
+      const profileSkills = buildSkillPool(
+        profile?.skills,
+        profile?.serviceCategories,
+        profile?.profession
+      );
+      const mergedSkills = buildSkillPool(
+        technician.skills,
         profileSkills,
+        technician.profession
+      );
+      return {
+        ...(technician.toObject?.() ? technician.toObject() : technician),
+        profileSkills,
+        profileProfession: profile?.profession || "",
+        profession: profile?.profession || technician.profession || "",
         serviceCategories: profile?.serviceCategories || [],
-        skills: [
-          ...new Set([
-            ...(technician.skills || []),
-            ...profileSkills,
-          ]),
-        ],
+        skills: mergedSkills,
       };
     });
 
@@ -472,7 +491,7 @@ class AssignmentService {
       payload
     );
 
-    await this.sendAssignmentPushNotification(
+    const pushResult = await this.sendAssignmentPushNotification(
       { _id: technicianId },
       {
         title,
@@ -485,6 +504,17 @@ class AssignmentService {
         },
       }
     );
+
+    logger.info("Technician job offer notified", {
+      technicianId: String(technicianId),
+      bookingId: String(bookingId),
+      push: pushResult?.sent
+        ? {
+            successCount: pushResult.successCount,
+            failureCount: pushResult.failureCount,
+          }
+        : { sent: false, reason: pushResult?.reason || "unknown" },
+    });
   }
 
   async notifyAdminsOfAssignment(booking, bookingId, technician) {
@@ -876,21 +906,18 @@ class AssignmentService {
       user: technicianId,
       isDeleted: false,
     })
-      .select("skills serviceCategories")
+      .select("skills serviceCategories profession")
       .lean();
 
-    const skillPool = [
-      ...(technician.skills || []),
-      ...(profile?.skills || []),
-      ...(profile?.serviceCategories || []),
-    ].map((s) => String(s || "").toLowerCase().trim());
+    const skillPool = buildSkillPool(
+      technician.skills,
+      profile?.skills,
+      profile?.serviceCategories,
+      profile?.profession,
+      technician.profession
+    );
 
-    const category = String(booking.serviceCategory || "")
-      .toLowerCase()
-      .trim();
-
-    if (!category) return true;
-    return skillPool.includes(category);
+    return technicianHasSkill(skillPool, booking.serviceCategory);
   }
 
   // ======================================

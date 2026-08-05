@@ -7,21 +7,41 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Dependencies & build
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+*.tsbuildinfo
 
-# Editor directories and files
+# Vite / tooling caches
+.vite/
+.cache/
+.turbo/
+.eslintcache
+.stylelintcache
+
+# Environment & secrets (keep .env.example committed)
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+
+# Generated / local Firebase helpers
+firebase-messaging-config.js
+
+# Editor / OS
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
+Desktop.ini
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-node_modules/
-.env
-firebase-messaging-config.js

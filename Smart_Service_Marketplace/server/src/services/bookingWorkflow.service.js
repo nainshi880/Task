@@ -18,6 +18,10 @@ import cloudinary from "../config/cloudinary.js";
 import logger from "../utils/logger.js";
 import cacheService, { CACHE_KEYS } from "../utils/cache.js";
 import TechnicianProfile from "../models/TechnicianProfile.js";
+import {
+  buildSkillPool,
+  technicianHasSkill,
+} from "../utils/skillMatch.js";
 
 class BookingWorkflowService {
   async enrichBooking(booking) {
@@ -208,21 +212,18 @@ class BookingWorkflowService {
       user: technicianId,
       isDeleted: false,
     })
-      .select("skills serviceCategories")
+      .select("skills serviceCategories profession")
       .lean();
 
-    const skillPool = [
-      ...(technician.skills || []),
-      ...(profile?.skills || []),
-      ...(profile?.serviceCategories || []),
-    ].map((s) => String(s || "").toLowerCase().trim());
+    const skillPool = buildSkillPool(
+      technician.skills,
+      profile?.skills,
+      profile?.serviceCategories,
+      profile?.profession,
+      technician.profession
+    );
 
-    const category = String(booking.serviceCategory || "")
-      .toLowerCase()
-      .trim();
-
-    if (!category) return true;
-    return skillPool.includes(category);
+    return technicianHasSkill(skillPool, booking.serviceCategory);
   }
 
   // ======================================
