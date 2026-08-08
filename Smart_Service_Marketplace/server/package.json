@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "start:api": "node src/api.entry.js",
+    "start:worker:payment-retry": "node src/workers/paymentRetry.entry.js",
+    "start:worker:notifications": "node src/workers/notification.entry.js",
     "seed:super-admin": "node src/seeds/runSeedSuperAdmin.js"
   },
   "keywords": [],
@@ -44,6 +47,7 @@
     "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
+    "autocannon": "^8.0.0",
     "nodemon": "^3.1.14"
   }
 }

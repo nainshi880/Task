@@ -16,6 +16,15 @@ class MetricsStore {
       maxMs: 0,
     };
     this.routes = new Map();
+    this.queues = {
+      enqueued: {},
+      completed: {},
+      failed: {},
+      dlq: {},
+    };
+    this.circuits = {};
+    this.locks = { acquired: 0, contested: 0 };
+    this.idempotency = { claimed: 0, duplicates: 0 };
   }
 
   recordRequest({ method, path, statusCode, durationMs }) {
@@ -54,6 +63,48 @@ class MetricsStore {
     }
   }
 
+  recordQueueEvent(queueName, event) {
+    const bucket =
+      event === "enqueued"
+        ? this.queues.enqueued
+        : event === "completed"
+          ? this.queues.completed
+          : event === "failed"
+            ? this.queues.failed
+            : null;
+    if (!bucket) return;
+    bucket[queueName] = (bucket[queueName] || 0) + 1;
+  }
+
+  recordDlq(sourceQueue) {
+    this.queues.dlq[sourceQueue] = (this.queues.dlq[sourceQueue] || 0) + 1;
+  }
+
+  recordCircuit(name, event) {
+    if (!this.circuits[name]) {
+      this.circuits[name] = {
+        open: 0,
+        closed: 0,
+        half_open: 0,
+        failure: 0,
+        rejected: 0,
+      };
+    }
+    if (this.circuits[name][event] != null) {
+      this.circuits[name][event] += 1;
+    }
+  }
+
+  recordLock(result) {
+    if (result === "acquired") this.locks.acquired += 1;
+    if (result === "contested") this.locks.contested += 1;
+  }
+
+  recordIdempotency(result) {
+    if (result === "claimed") this.idempotency.claimed += 1;
+    if (result === "duplicate") this.idempotency.duplicates += 1;
+  }
+
   getSnapshot() {
     const memory = process.memoryUsage();
     const uptimeSeconds = Math.floor((Date.now() - this.startedAt) / 1000);
@@ -90,6 +141,10 @@ class MetricsStore {
           this.responseTimes.minMs === Infinity ? 0 : this.responseTimes.minMs,
         maxMs: this.responseTimes.maxMs,
       },
+      queues: this.queues,
+      circuits: this.circuits,
+      locks: this.locks,
+      idempotency: this.idempotency,
       memory: {
         rssMb: Number((memory.rss / 1024 / 1024).toFixed(2)),
         heapUsedMb: Number((memory.heapUsed / 1024 / 1024).toFixed(2)),
@@ -100,6 +155,7 @@ class MetricsStore {
         pid: process.pid,
         nodeVersion: process.version,
         env: process.env.NODE_ENV || "development",
+        role: process.env.PROCESS_ROLE || "all",
       },
       topRoutes,
     };
@@ -114,6 +170,10 @@ class MetricsStore {
       maxMs: 0,
     };
     this.routes.clear();
+    this.queues = { enqueued: {}, completed: {}, failed: {}, dlq: {} };
+    this.circuits = {};
+    this.locks = { acquired: 0, contested: 0 };
+    this.idempotency = { claimed: 0, duplicates: 0 };
   }
 }
 

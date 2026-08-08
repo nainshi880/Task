@@ -7,22 +7,41 @@ export const PAYMENT_AUTO_RETRY_STATUS = {
   CANCELLED: "cancelled",
 };
 
+function envInt(name, fallback) {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export const PAYMENT_AUTO_RETRY = {
   /** Max automated charge attempts within the same calendar day */
   MAX_ATTEMPTS: 3,
   /** Base delay (ms) before attempt 1; subsequent delays use exponential backoff */
-  BASE_DELAY_MS: 2 * 60 * 1000,
+  BASE_DELAY_MS: envInt("PAYMENT_RETRY_BASE_DELAY_MS", 2 * 60 * 1000),
   /** Backoff factor: delay = BASE * factor^(attempt-1) */
-  BACKOFF_FACTOR: 3,
+  BACKOFF_FACTOR: envInt("PAYMENT_RETRY_BACKOFF_FACTOR", 3),
   /** Cap so all retries still fit on the same day */
-  MAX_DELAY_MS: 6 * 60 * 60 * 1000,
-  /** BullMQ worker concurrency */
-  WORKER_CONCURRENCY: 8,
-  /** Queue-level job throughput (Razorpay-friendly) */
-  QUEUE_MAX_PER_SECOND: 5,
-  /** Redis sliding-window limit for Razorpay API calls */
-  RAZORPAY_MAX_PER_WINDOW: 8,
-  RAZORPAY_WINDOW_MS: 1000,
+  MAX_DELAY_MS: envInt("PAYMENT_RETRY_MAX_DELAY_MS", 6 * 60 * 60 * 1000),
+  /**
+   * Per-worker concurrency.
+   * Prefers WORKER_CONCURRENCY, then PAYMENT_RETRY_WORKER_CONCURRENCY, default 50.
+   */
+  WORKER_CONCURRENCY: (() => {
+    const n = Number(
+      process.env.WORKER_CONCURRENCY ||
+        process.env.PAYMENT_RETRY_WORKER_CONCURRENCY ||
+        50
+    );
+    return Number.isFinite(n) && n > 0 ? n : 50;
+  })(),
+  /** Queue-level job throughput per worker process (keep ≥ concurrency under load) */
+  QUEUE_MAX_PER_SECOND: envInt("PAYMENT_RETRY_QUEUE_MAX_PER_SECOND", 50),
+  /** BullMQ lock duration — stalled jobs are recoverable after this window */
+  LOCK_DURATION_MS: envInt("PAYMENT_RETRY_LOCK_DURATION_MS", 30_000),
+  /** Hard ceiling for a single job handler (prevents permanent active-slot hangs) */
+  JOB_TIMEOUT_MS: envInt("PAYMENT_RETRY_JOB_TIMEOUT_MS", 10_000),
+  /** Global Redis sliding-window limit for Razorpay API calls */
+  RAZORPAY_MAX_PER_WINDOW: envInt("RAZORPAY_MAX_PER_WINDOW", 8),
+  RAZORPAY_WINDOW_MS: envInt("RAZORPAY_WINDOW_MS", 1000),
   QUEUE_NAME: "payment-retry",
 };
 

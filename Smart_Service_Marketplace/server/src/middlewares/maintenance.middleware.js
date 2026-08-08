@@ -4,6 +4,7 @@ import HTTP_STATUS from "../constants/httpStatus.js";
 const BYPASS_PREFIXES = [
   "/api/v1/health",
   "/api/v1/ready",
+  "/api/v1/live",
   "/api/v1/metrics",
   "/api/v1/auth",
   "/api/v1/admin",

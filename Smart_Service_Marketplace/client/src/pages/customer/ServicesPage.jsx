@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { Search, SlidersHorizontal } from "lucide-react";
 import clsx from "clsx";
 
-import DashboardLayout from "../../layouts/DashboardLayout";
+import CatalogLayout from "../../components/layout/CatalogLayout";
 import EmptyState from "../../components/ui/EmptyState";
 import ErrorState from "../../components/ui/ErrorState";
 import { SkeletonGrid } from "../../components/ui/Skeleton";
@@ -73,7 +73,7 @@ function ServicesPage() {
   const sortValue = `${filters.sortBy}:${filters.sortOrder}`;
 
   return (
-    <DashboardLayout>
+    <CatalogLayout>
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Browse Services</h1>
@@ -306,7 +306,7 @@ function ServicesPage() {
           )}
         </section>
       </div>
-    </DashboardLayout>
+    </CatalogLayout>
   );
 }
 

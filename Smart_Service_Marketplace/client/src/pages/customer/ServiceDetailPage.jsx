@@ -11,10 +11,10 @@ import {
 import { useState } from "react";
 import clsx from "clsx";
 
-import DashboardLayout from "../../layouts/DashboardLayout";
+import CatalogLayout from "../../components/layout/CatalogLayout";
 import Loader from "../../components/ui/Loader";
-import Button from "../../components/ui/Button";
 import ServiceCard from "../../components/customer/services/ServiceCard";
+import BookNowButton from "../../components/customer/services/BookNowButton";
 import * as serviceService from "../../services/service.service";
 import { serviceKeys } from "../../lib/queryClient";
 import { formatCurrency, formatDate, formatRelativeTime } from "../../utils/format";
@@ -76,15 +76,15 @@ function ServiceDetailPage() {
 
   if (detailQuery.isLoading) {
     return (
-      <DashboardLayout>
+      <CatalogLayout>
         <Loader text="Loading service details..." />
-      </DashboardLayout>
+      </CatalogLayout>
     );
   }
 
   if (detailQuery.isError || !detailQuery.data?.service) {
     return (
-      <DashboardLayout>
+      <CatalogLayout>
         <div className="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <h1 className="text-2xl font-bold text-slate-900">Service not found</h1>
           <p className="mt-2 text-slate-500">
@@ -97,7 +97,7 @@ function ServiceDetailPage() {
             Back to services
           </Link>
         </div>
-      </DashboardLayout>
+      </CatalogLayout>
     );
   }
 
@@ -117,7 +117,7 @@ function ServiceDetailPage() {
   const bookUrl = `/book-service?serviceId=${encodeURIComponent(service._id)}&category=${encodeURIComponent(service.category)}&serviceName=${encodeURIComponent(service.name)}`;
 
   return (
-    <DashboardLayout>
+    <CatalogLayout>
       <div className="mx-auto max-w-5xl space-y-8">
         <Link
           to="/services"
@@ -206,11 +206,7 @@ function ServiceDetailPage() {
                   </p>
                 </div>
 
-                <Link to={bookUrl}>
-                  <Button className="mt-6 w-full" size="lg">
-                    Book Now
-                  </Button>
-                </Link>
+                <BookNowButton bookUrl={bookUrl} fullWidth className="mt-6" />
 
                 <Link
                   to={`/services?category=${encodeURIComponent(service.category)}`}
@@ -340,9 +336,7 @@ function ServiceDetailPage() {
               Choose your address, date, and preferred time in a few steps.
             </p>
           </div>
-          <Link to={bookUrl}>
-            <Button size="lg">Book Now</Button>
-          </Link>
+          <BookNowButton bookUrl={bookUrl} />
         </div>
 
         {relatedServices.length > 0 && (
@@ -358,7 +352,7 @@ function ServiceDetailPage() {
           </section>
         )}
       </div>
-    </DashboardLayout>
+    </CatalogLayout>
   );
 }
 

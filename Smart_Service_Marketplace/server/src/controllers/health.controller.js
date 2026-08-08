@@ -27,6 +27,14 @@ export const getReadiness = asyncHandler(async (_req, res) => {
   );
 });
 
+export const getLiveness = asyncHandler(async (_req, res) => {
+  const liveness = await healthService.getLiveness();
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, "Liveness check completed.", liveness)
+  );
+});
+
 export const getMetrics = asyncHandler(async (_req, res) => {
   const metrics = healthService.getMetrics();
 

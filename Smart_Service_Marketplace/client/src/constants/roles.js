@@ -39,7 +39,11 @@ export function getPostLoginRedirect(role, fromPath) {
   const home = getRoleHome(role);
   if (!fromPath || typeof fromPath !== "string") return home;
 
-  const path = fromPath.split("?")[0];
+  const [pathOnly, ...queryParts] = fromPath.split("?");
+  const path = pathOnly || "";
+  const search = queryParts.length ? `?${queryParts.join("?")}` : "";
+  const withSearch = `${path}${search}`;
+
   if (
     !path ||
     path === "/" ||
@@ -54,12 +58,12 @@ export function getPostLoginRedirect(role, fromPath) {
   }
 
   if (isAdminRole(role)) {
-    return path.startsWith("/admin") ? path : home;
+    return path.startsWith("/admin") ? withSearch : home;
   }
 
   if (role === ROLES.TECHNICIAN) {
     if (path.startsWith("/technician") || path.startsWith("/chat")) {
-      return path;
+      return withSearch;
     }
     return home;
   }
@@ -68,7 +72,7 @@ export function getPostLoginRedirect(role, fromPath) {
     if (path.startsWith("/admin") || path.startsWith("/technician")) {
       return home;
     }
-    return path;
+    return withSearch;
   }
 
   return home;

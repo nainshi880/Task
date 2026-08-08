@@ -23,6 +23,13 @@ import paymentRepository from "../repositories/payment.repository.js";
 import assignmentService from "./assignment.service.js";
 import paymentRetryService from "./paymentRetry.service.js";
 import BOOKING_STATUS from "../constants/bookingStatus.js";
+import razorpayRateLimiter from "../utils/razorpayRateLimiter.js";
+import { withDistributedLock } from "../utils/distributedLock.js";
+import {
+  claimIdempotencyKey,
+  releaseIdempotencyKey,
+} from "../utils/idempotency.js";
+import metricsStore from "../utils/metrics.js";
 
 const MAX_PAYMENT_RETRIES = 5;
 
@@ -137,24 +144,28 @@ class PaymentService {
       .toString()
       .slice(-6)}`;
 
-    const razorpayOrder = await withRetry(
-      async () =>
-        razorpay.orders.create({
-          amount: amountInPaise,
-          currency: "INR",
-          receipt,
-          notes: {
-            bookingId: booking._id.toString(),
-            customerId: customerId.toString(),
-            serviceName: booking.serviceName,
-            purpose: "booking",
-          },
-        }),
-      {
-        retries: 2,
-        delayMs: 400,
-        shouldRetry: isTransientError,
-      }
+    const razorpayOrder = await razorpayRateLimiter.schedule(
+      () =>
+        withRetry(
+          async () =>
+            razorpay.orders.create({
+              amount: amountInPaise,
+              currency: "INR",
+              receipt,
+              notes: {
+                bookingId: booking._id.toString(),
+                customerId: customerId.toString(),
+                serviceName: booking.serviceName,
+                purpose: "booking",
+              },
+            }),
+          {
+            retries: 2,
+            delayMs: 400,
+            shouldRetry: isTransientError,
+          }
+        ),
+      "orders.create"
     );
 
     const payment = await paymentRepository.create({
@@ -286,9 +297,14 @@ class PaymentService {
     let method = null;
     try {
       const razorpay = this.ensureRazorpay();
-      const rpPayment = await withRetry(
-        () => razorpay.payments.fetch(razorpay_payment_id),
-        { retries: 2, delayMs: 300, shouldRetry: isTransientError }
+      const rpPayment = await razorpayRateLimiter.schedule(
+        () =>
+          withRetry(() => razorpay.payments.fetch(razorpay_payment_id), {
+            retries: 2,
+            delayMs: 300,
+            shouldRetry: isTransientError,
+          }),
+        "payments.fetch"
       );
       method = rpPayment?.method || null;
     } catch {
@@ -736,9 +752,13 @@ class PaymentService {
 
     const razorpay = this.ensureRazorpay();
 
-    const payments = await withRetry(
-      () => razorpay.orders.fetchPayments(payment.razorpayOrderId),
-      { retries: 2, delayMs: 400, shouldRetry: isTransientError }
+    const payments = await razorpayRateLimiter.schedule(
+      () =>
+        withRetry(
+          () => razorpay.orders.fetchPayments(payment.razorpayOrderId),
+          { retries: 2, delayMs: 400, shouldRetry: isTransientError }
+        ),
+      "orders.fetchPayments"
     );
 
     const captured = (payments?.items || []).find(
@@ -878,16 +898,20 @@ class PaymentService {
     }
 
     const razorpay = this.ensureRazorpay();
-    const rpRefund = await withRetry(
+    const rpRefund = await razorpayRateLimiter.schedule(
       () =>
-        razorpay.payments.refund(payment.razorpayPaymentId, {
-          amount: this.toPaise(refundAmount),
-          notes: {
-            reason: reason || "Admin refund",
-            paymentId: payment._id.toString(),
-          },
-        }),
-      { retries: 2, delayMs: 400, shouldRetry: isTransientError }
+        withRetry(
+          () =>
+            razorpay.payments.refund(payment.razorpayPaymentId, {
+              amount: this.toPaise(refundAmount),
+              notes: {
+                reason: reason || "Admin refund",
+                paymentId: payment._id.toString(),
+              },
+            }),
+          { retries: 2, delayMs: 400, shouldRetry: isTransientError }
+        ),
+      "payments.refund"
     );
     razorpayRefundId = rpRefund?.id || null;
 
@@ -1066,8 +1090,46 @@ class PaymentService {
           eventId,
         };
       }
+
+      const redisClaim = await claimIdempotencyKey(
+        `webhook:razorpay:${eventId}`,
+        {
+          ttlSeconds: 60 * 60 * 24 * 7,
+          payload: eventName || "1",
+        }
+      );
+      if (!redisClaim.ok) {
+        metricsStore.recordIdempotency("duplicate");
+        return {
+          handled: true,
+          duplicate: true,
+          event: eventName,
+          eventId,
+        };
+      }
+      metricsStore.recordIdempotency("claimed");
     }
 
+    const lockKey = eventId
+      ? `webhook:razorpay:${eventId}`
+      : `webhook:razorpay:${eventName || "unknown"}`;
+
+    try {
+      return await withDistributedLock(
+        lockKey,
+        () => this.processVerifiedWebhook(event, eventId, eventName),
+        { ttlMs: 30_000, waitMs: 5_000 }
+      );
+    } catch (error) {
+      // Allow Razorpay to retry if we failed mid-processing after claiming the key
+      if (eventId) {
+        await releaseIdempotencyKey(`webhook:razorpay:${eventId}`);
+      }
+      throw error;
+    }
+  }
+
+  async processVerifiedWebhook(event, eventId, eventName) {
     logger.info(`Razorpay webhook received: ${eventName}`);
 
     if (eventName?.startsWith("subscription.")) {

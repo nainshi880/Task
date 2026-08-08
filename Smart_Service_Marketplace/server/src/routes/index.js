@@ -1,7 +1,11 @@
 import express from "express";
 
 import healthRoutes from "./health.routes.js";
-import { getReadiness, getMetrics } from "../controllers/health.controller.js";
+import {
+  getReadiness,
+  getLiveness,
+  getMetrics,
+} from "../controllers/health.controller.js";
 import customerRoutes from "./customer.routes.js";
 import authRoutes from "./auth.routes.js";
 import bookingRoutes from "./booking.routes.js";
@@ -38,6 +42,8 @@ Health & Monitoring
 router.use("/health", healthRoutes);
 
 router.get("/ready", getReadiness);
+
+router.get("/live", getLiveness);
 
 router.get("/metrics", getMetrics);
 

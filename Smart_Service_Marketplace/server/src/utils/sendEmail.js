@@ -1,5 +1,6 @@
 import transporter, { isSmtpConfigured } from "../config/mail.js";
 import env from "../config/env.js";
+import { smtpCircuit } from "./circuitBreaker.js";
 
 export function isEmailConfigured() {
   return isSmtpConfigured();
@@ -27,6 +28,7 @@ function getSender() {
 
 /**
  * Send email via Nodemailer + Google SMTP (or any configured SMTP).
+ * Protected by smtp circuit breaker.
  */
 const sendEmail = async ({ to, subject, html, attachments = [] }) => {
   if (!transporter) {
@@ -37,13 +39,15 @@ const sendEmail = async ({ to, subject, html, attachments = [] }) => {
 
   const sender = getSender();
 
-  const info = await transporter.sendMail({
-    from: `"${sender.name}" <${sender.email}>`,
-    to,
-    subject,
-    html,
-    attachments,
-  });
+  const info = await smtpCircuit.exec(() =>
+    transporter.sendMail({
+      from: `"${sender.name}" <${sender.email}>`,
+      to,
+      subject,
+      html,
+      attachments,
+    })
+  );
 
   return { sent: true, messageId: info.messageId };
 };

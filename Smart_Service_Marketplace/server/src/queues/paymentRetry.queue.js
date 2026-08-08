@@ -5,6 +5,7 @@ import {
   buildRetryJobId,
   getAutoRetryDelayMs,
 } from "../constants/paymentRetry.js";
+import metricsStore from "../utils/metrics.js";
 import logger from "../utils/logger.js";
 
 let paymentRetryQueue = null;
@@ -26,7 +27,12 @@ export function getPaymentRetryQueue() {
     defaultJobOptions: {
       removeOnComplete: { count: 200 },
       removeOnFail: { count: 500 },
-      attempts: 1,
+      // Worker-level retries for lock contention / circuit-open; business attempts are separate jobs
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 2000,
+      },
     },
   });
 
@@ -85,11 +91,14 @@ export async function enqueuePaymentRetryJob({
       {
         jobId,
         delay,
-        removeOnComplete: true, // cleans up completed jobs from Redis
+        attempts: 3,
+        backoff: { type: "exponential", delay: 2000 },
+        removeOnComplete: true,
         removeOnFail: false,
       }
     );
 
+    metricsStore.recordQueueEvent(PAYMENT_AUTO_RETRY.QUEUE_NAME, "enqueued");
     logger.info("Payment retry job enqueued", {
       jobId: job.id,
       paymentId: String(paymentId),

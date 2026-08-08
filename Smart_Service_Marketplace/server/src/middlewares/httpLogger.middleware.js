@@ -18,6 +18,7 @@ const httpLoggerMiddleware = morgan(morganFormat, {
     return (
       url.includes("/health") ||
       url.includes("/ready") ||
+      url.includes("/live") ||
       url.includes("/metrics")
     );
   },

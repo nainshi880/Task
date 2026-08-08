@@ -1,12 +1,13 @@
 import { getRedisConnection, isRedisConfigured } from "../config/redis.js";
 import { PAYMENT_AUTO_RETRY } from "../constants/paymentRetry.js";
-import logger from "../utils/logger.js";
+import { razorpayCircuit } from "./circuitBreaker.js";
+import logger from "./logger.js";
 
 const KEY_PREFIX = "rl:razorpay:";
 
 /**
- * Sliding-window rate limiter for Razorpay API calls (Redis).
- * Falls back to a local token bucket when Redis is unavailable.
+ * Sliding-window rate limiter for Razorpay API calls (Redis),
+ * wrapped by a circuit breaker so outages fail fast.
  */
 class RazorpayRateLimiter {
   constructor({
@@ -41,7 +42,6 @@ class RazorpayRateLimiter {
     const now = Date.now();
     const windowStart = now - this.windowMs;
 
-    // ZSET of timestamps; prune old, count, and gate
     const multi = redis.multi();
     multi.zremrangebyscore(key, 0, windowStart);
     multi.zcard(key);
@@ -82,11 +82,11 @@ class RazorpayRateLimiter {
   }
 
   /**
-   * Wrap any Razorpay SDK call with rate limiting.
+   * Wrap any Razorpay SDK call with rate limiting + circuit breaker.
    */
   async schedule(fn, label = "api") {
     await this.acquire(label);
-    return fn();
+    return razorpayCircuit.exec(fn);
   }
 }
 

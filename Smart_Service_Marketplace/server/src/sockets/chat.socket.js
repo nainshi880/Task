@@ -69,7 +69,8 @@ function emitError(socket, message) {
 }
 
 /**
- * Attach Socket.IO to an HTTP server (single-instance, no Redis adapter).
+ * Attach Socket.IO to an HTTP server.
+ * Uses Redis adapter when REDIS_URL is set so API replicas can emit cross-node.
  */
 export async function initChatSocket(httpServer) {
   const io = new Server(httpServer, {
@@ -81,7 +82,28 @@ export async function initChatSocket(httpServer) {
     path: "/socket.io",
   });
 
-  logger.info("Socket.IO ready (single-instance mode).");
+  try {
+    const { isRedisConfigured, getRedisConnection } = await import(
+      "../config/redis.js"
+    );
+    if (isRedisConfigured()) {
+      const { createAdapter } = await import("@socket.io/redis-adapter");
+      const pubClient = getRedisConnection();
+      if (pubClient) {
+        const subClient = pubClient.duplicate();
+        io.adapter(createAdapter(pubClient, subClient));
+        logger.info("Socket.IO Redis adapter enabled (multi-instance ready).");
+      } else {
+        logger.info("Socket.IO ready (single-instance mode).");
+      }
+    } else {
+      logger.info("Socket.IO ready (single-instance mode — no REDIS_URL).");
+    }
+  } catch (error) {
+    logger.warn(
+      `Socket.IO Redis adapter unavailable, continuing single-instance: ${error.message}`
+    );
+  }
 
   io.use(authenticateSocket);
 

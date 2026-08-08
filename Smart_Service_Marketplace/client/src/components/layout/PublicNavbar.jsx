@@ -3,6 +3,7 @@ import { Menu, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import Button from "../ui/Button";
+import ServiceSearchBar from "../landing/ServiceSearchBar";
 
 const NAV_LINKS = [
   { href: "#services", label: "Services" },
@@ -33,28 +34,33 @@ function PublicNavbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
+      <div className="mx-auto flex h-20 max-w-7xl items-center gap-4 px-6 lg:gap-6">
         <Link
           to="/"
-          className="text-2xl font-bold text-indigo-600"
+          className="shrink-0 text-2xl font-bold text-indigo-600"
           onClick={closeMobile}
         >
           SmartService
         </Link>
 
-        <nav className="hidden items-center gap-10 lg:flex" aria-label="Main">
+        <ServiceSearchBar className="hidden min-w-0 flex-1 md:block lg:max-w-md" />
+
+        <nav
+          className="ml-auto hidden items-center gap-8 xl:flex"
+          aria-label="Main"
+        >
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="font-medium text-slate-600 hover:text-indigo-600"
+              className="whitespace-nowrap font-medium text-slate-600 hover:text-indigo-600"
             >
               {link.label}
             </a>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-4 lg:flex">
+        <div className="hidden shrink-0 items-center gap-3 lg:flex">
           <Link to="/login">
             <Button variant="ghost">Login</Button>
           </Link>
@@ -65,14 +71,23 @@ function PublicNavbar() {
 
         <button
           type="button"
-          className="rounded-lg p-2 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 lg:hidden"
+          className="ml-auto rounded-lg p-2 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 lg:ml-0 lg:hidden"
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
           aria-expanded={mobileOpen}
           aria-controls="mobile-nav"
           onClick={() => setMobileOpen((open) => !open)}
         >
-          {mobileOpen ? <X size={28} aria-hidden /> : <Menu size={28} aria-hidden />}
+          {mobileOpen ? (
+            <X size={28} aria-hidden />
+          ) : (
+            <Menu size={28} aria-hidden />
+          )}
         </button>
+      </div>
+
+      {/* Tablet / small desktop: search under brand when nav is cramped */}
+      <div className="border-t border-slate-100 px-6 py-3 md:hidden">
+        <ServiceSearchBar compact />
       </div>
 
       {mobileOpen && (

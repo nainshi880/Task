@@ -27,9 +27,13 @@ function GuestRoute() {
       ? getProfileSetupPath(role)
       : null;
 
+    const fromLocation = location.state?.from;
+    const fromPath = fromLocation
+      ? `${fromLocation.pathname || ""}${fromLocation.search || ""}`
+      : null;
+
     const redirectTo =
-      setupPath ||
-      getPostLoginRedirect(role, location.state?.from?.pathname);
+      setupPath || getPostLoginRedirect(role, fromPath);
 
     return <Navigate to={redirectTo} replace />;
   }

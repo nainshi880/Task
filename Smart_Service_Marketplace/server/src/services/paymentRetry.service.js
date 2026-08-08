@@ -13,6 +13,9 @@ import { enqueuePaymentRetryJob } from "../queues/paymentRetry.queue.js";
 import paymentRepository from "../repositories/payment.repository.js";
 import razorpayRateLimiter from "../utils/razorpayRateLimiter.js";
 import withRetry, { isTransientError } from "../utils/retry.js";
+import { withDistributedLock } from "../utils/distributedLock.js";
+import { claimIdempotencyKey } from "../utils/idempotency.js";
+import metricsStore from "../utils/metrics.js";
 import {
   writePaymentAudit,
   invalidatePaymentCache,
@@ -21,6 +24,12 @@ import AUDIT_ACTION from "../constants/auditAction.js";
 import emailService from "./email.service.js";
 import notificationService from "./notification.service.js";
 import assignmentService from "./assignment.service.js";
+import {
+  queueInAppNotification,
+  queueEmailJob,
+  queuePushNotification,
+} from "./notificationQueue.service.js";
+import NOTIFICATION_TYPES from "../constants/notificationType.js";
 
 class PaymentRetryService {
   isEnabled() {
@@ -94,8 +103,11 @@ class PaymentRetryService {
       resetAttempts,
     });
 
-    // Email + in-app notify once per failure wave
-    await this.notifyCustomerFailure(payment, meta);
+    // Email + in-app notify once per failure wave (offloaded to notification queue)
+    // Fire-and-forget so webhook/API returns quickly under load.
+    this.notifyCustomerFailure(payment, meta).catch((error) => {
+      logger.warn(`Payment failure notify failed: ${error.message}`);
+    });
 
     const enqueueResult = await enqueuePaymentRetryJob({
       paymentId: payment._id,
@@ -128,11 +140,13 @@ class PaymentRetryService {
     const booking = fresh.booking;
 
     if (customerId && meta.trigger !== "client_failure") {
-      await notificationService.notifyPayment(customerId, {
+      await queueInAppNotification({
+        userId: customerId,
         title: "Payment failed — we will retry",
         message:
           fresh.failureReason ||
           "Your payment could not be completed. We will automatically retry up to 3 times today.",
+        type: NOTIFICATION_TYPES.PAYMENT,
         paymentId: fresh._id,
         bookingId: booking?._id || booking,
         metadata: {
@@ -141,26 +155,43 @@ class PaymentRetryService {
           trigger: meta.trigger || "webhook",
         },
       });
+
+      await queuePushNotification({
+        userId: customerId,
+        title: "Payment failed — we will retry",
+        body:
+          fresh.failureReason ||
+          "We will automatically retry your payment up to 3 times today.",
+        data: {
+          type: "payment.failed",
+          paymentId: String(fresh._id),
+          bookingId: String(booking?._id || booking || ""),
+          actionUrl: booking?._id
+            ? `/bookings/${booking._id}`
+            : "/bookings",
+        },
+      });
     }
 
     if (customer?.email) {
-      try {
-        await emailService.sendPaymentFailed({
+      await queueEmailJob({
+        method: "sendPaymentFailed",
+        userId: customer._id || customerId,
+        payload: {
           user: customer,
           payment: fresh,
           booking,
           maxAttempts: PAYMENT_AUTO_RETRY.MAX_ATTEMPTS,
-        });
-      } catch (error) {
-        logger.warn(`Payment failure email failed: ${error.message}`);
-      }
+        },
+      });
     }
 
     return { emailed: true };
   }
 
   /**
-   * BullMQ worker entry — one attempt, rate-limited Razorpay calls, DB idempotency.
+   * BullMQ worker entry — distributed lock + Redis/Mongo idempotency + circuit-protected Razorpay.
+   * Always resolves or throws a clean Error (never leaves hanging awaits).
    */
   async processRetryJob(job) {
     const {
@@ -175,83 +206,197 @@ class PaymentRetryService {
       throw new Error("Invalid payment retry job payload.");
     }
 
-    const today = getRetryDayKey();
-    if (dayKey !== today) {
-      logger.info("Skipping payment retry — different calendar day", {
-        paymentId,
-        dayKey,
-        today,
-      });
-      return { skipped: true, reason: "different_day" };
-    }
-
-    const claimed = await paymentRepository.claimAutoRetryAttempt(paymentId, {
-      dayKey,
-      attempt,
-      idempotencyKey,
-      jobId: String(job.id),
-    });
-
-    if (!claimed) {
-      const current = await paymentRepository.findByIdLean(paymentId);
-      if (current?.status === PAYMENT_STATUS.PAID) {
-        return { skipped: true, reason: "already_paid" };
-      }
-      logger.info("Payment retry claim skipped (idempotent)", {
-        paymentId,
-        attempt,
-        idempotencyKey,
-      });
-      return { skipped: true, reason: "claim_failed" };
-    }
-
     try {
-      const result = await this.attemptCharge(claimed, {
-        attempt,
-        idempotencyKey,
-        reason,
-      });
+      return await withDistributedLock(
+        `payment-retry:${paymentId}`,
+        async () => {
+          try {
+            const today = getRetryDayKey();
+            if (dayKey !== today) {
+              logger.info("Skipping payment retry — different calendar day", {
+                paymentId,
+                dayKey,
+                today,
+              });
+              return { skipped: true, reason: "different_day" };
+            }
 
-      if (result.success) {
-        await paymentRepository.updateAutoRetryAttempt(paymentId, attempt, {
-          status: "succeeded",
-          razorpayOrderId: result.razorpayOrderId || claimed.razorpayOrderId,
-          razorpayPaymentId: result.razorpayPaymentId || null,
-          paymentLinkId: result.paymentLinkId || null,
-          paymentLinkUrl: result.paymentLinkUrl || null,
-          reason: result.message || "Charged successfully",
-        });
+            let redisClaim;
+            try {
+              redisClaim = await claimIdempotencyKey(idempotencyKey, {
+                ttlSeconds: 60 * 60 * 48,
+                payload: JSON.stringify({
+                  jobId: String(job.id),
+                  at: new Date().toISOString(),
+                }),
+              });
+            } catch (error) {
+              logger.warn("Redis idempotency claim failed", {
+                paymentId,
+                message: error.message,
+              });
+              // Fail open — Mongo claim remains the source of truth
+              redisClaim = { ok: true, first: true, backend: "error_passthrough" };
+            }
 
-        await this.finalizeSuccess(claimed, result);
-        return { success: true, ...result };
-      }
+            if (!redisClaim.ok) {
+              metricsStore.recordIdempotency("duplicate");
+              logger.info("Payment retry Redis idempotency skip", {
+                paymentId,
+                attempt,
+                idempotencyKey,
+              });
+              return { skipped: true, reason: "redis_idempotent" };
+            }
+            metricsStore.recordIdempotency("claimed");
 
-      await paymentRepository.updateAutoRetryAttempt(paymentId, attempt, {
-        status: "failed",
-        razorpayOrderId: result.razorpayOrderId || null,
-        paymentLinkId: result.paymentLinkId || null,
-        paymentLinkUrl: result.paymentLinkUrl || null,
-        reason: result.message || "Retry charge failed",
-      });
+            let claimed;
+            try {
+              claimed = await paymentRepository.claimAutoRetryAttempt(
+                paymentId,
+                {
+                  dayKey,
+                  attempt,
+                  idempotencyKey,
+                  jobId: String(job.id),
+                }
+              );
+            } catch (error) {
+              logger.error("Mongo claimAutoRetryAttempt failed", {
+                paymentId,
+                message: error.message,
+              });
+              throw new Error(
+                `Mongo claim failed for payment ${paymentId}: ${error.message}`
+              );
+            }
 
-      return await this.scheduleNextOrExhaust(claimed, {
-        attempt,
-        dayKey,
-        errorMessage: result.message || "Retry charge failed",
-        reason,
-      });
+            if (!claimed) {
+              try {
+                const current =
+                  await paymentRepository.findByIdLean(paymentId);
+                if (current?.status === PAYMENT_STATUS.PAID) {
+                  return { skipped: true, reason: "already_paid" };
+                }
+              } catch (error) {
+                logger.warn("findByIdLean after claim miss failed", {
+                  paymentId,
+                  message: error.message,
+                });
+              }
+              logger.info("Payment retry claim skipped (idempotent)", {
+                paymentId,
+                attempt,
+                idempotencyKey,
+              });
+              return { skipped: true, reason: "claim_failed" };
+            }
+
+            try {
+              const result = await this.attemptCharge(claimed, {
+                attempt,
+                idempotencyKey,
+                reason,
+              });
+
+              if (result.success) {
+                try {
+                  await paymentRepository.updateAutoRetryAttempt(
+                    paymentId,
+                    attempt,
+                    {
+                      status: "succeeded",
+                      razorpayOrderId:
+                        result.razorpayOrderId || claimed.razorpayOrderId,
+                      razorpayPaymentId: result.razorpayPaymentId || null,
+                      paymentLinkId: result.paymentLinkId || null,
+                      paymentLinkUrl: result.paymentLinkUrl || null,
+                      reason: result.message || "Charged successfully",
+                    }
+                  );
+                } catch (error) {
+                  logger.warn(
+                    `updateAutoRetryAttempt(success) failed: ${error.message}`
+                  );
+                }
+
+                await this.finalizeSuccess(claimed, result);
+                return { success: true, ...result };
+              }
+
+              try {
+                await paymentRepository.updateAutoRetryAttempt(
+                  paymentId,
+                  attempt,
+                  {
+                    status: "failed",
+                    razorpayOrderId: result.razorpayOrderId || null,
+                    paymentLinkId: result.paymentLinkId || null,
+                    paymentLinkUrl: result.paymentLinkUrl || null,
+                    reason: result.message || "Retry charge failed",
+                  }
+                );
+              } catch (error) {
+                logger.warn(
+                  `updateAutoRetryAttempt(failed) failed: ${error.message}`
+                );
+              }
+
+              return await this.scheduleNextOrExhaust(claimed, {
+                attempt,
+                dayKey,
+                errorMessage: result.message || "Retry charge failed",
+                reason,
+              });
+            } catch (error) {
+              try {
+                await paymentRepository.updateAutoRetryAttempt(
+                  paymentId,
+                  attempt,
+                  {
+                    status: "failed",
+                    reason: error.message,
+                  }
+                );
+              } catch (updateError) {
+                logger.warn(
+                  `updateAutoRetryAttempt(catch) failed: ${updateError.message}`
+                );
+              }
+
+              // Circuit-open and other errors: advance business retry schedule
+              return await this.scheduleNextOrExhaust(claimed, {
+                attempt,
+                dayKey,
+                errorMessage: error.message,
+                reason,
+              });
+            }
+          } catch (error) {
+            logger.error("Payment retry locked section failed", {
+              paymentId,
+              attempt,
+              message: error.message,
+            });
+            throw error instanceof Error
+              ? error
+              : new Error(String(error));
+          }
+        },
+        // Keep lock wait short so the worker's 10s job timeout can still fire
+        { ttlMs: 15_000, waitMs: 1_500 }
+      );
     } catch (error) {
-      await paymentRepository.updateAutoRetryAttempt(paymentId, attempt, {
-        status: "failed",
-        reason: error.message,
-      });
-
-      return await this.scheduleNextOrExhaust(claimed, {
-        attempt,
-        dayKey,
-        errorMessage: error.message,
-        reason,
-      });
+      if (error?.code === "LOCK_NOT_ACQUIRED") {
+        // Transient contention — let BullMQ retry / fail cleanly
+        throw new Error(
+          `Could not acquire payment-retry lock for ${paymentId}`
+        );
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    } finally {
+      // Intentionally empty: lock release happens inside withDistributedLock.
+      // finally guarantees this function never leaves an unhandled branch.
     }
   }
 
@@ -687,27 +832,41 @@ class PaymentRetryService {
     const bookingId = payment.booking?._id || payment.booking;
 
     if (customerId) {
-      await notificationService.notifyPayment(customerId, {
+      await queueInAppNotification({
+        userId: customerId,
         title: "Payment retries exhausted",
         message:
           "We could not complete your payment after 3 automatic attempts today. Please pay manually from your booking.",
+        type: NOTIFICATION_TYPES.PAYMENT,
         paymentId: payment._id,
         bookingId,
         metadata: { exhausted: true, errorMessage },
       });
+
+      await queuePushNotification({
+        userId: customerId,
+        title: "Payment retries exhausted",
+        body: "Please open your booking and pay manually.",
+        data: {
+          type: "payment.retry_exhausted",
+          paymentId: String(payment._id),
+          bookingId: String(bookingId || ""),
+          actionUrl: bookingId ? `/bookings/${bookingId}` : "/bookings",
+        },
+      });
     }
 
     if (payment.customer?.email) {
-      try {
-        await emailService.sendPaymentRetryExhausted({
+      await queueEmailJob({
+        method: "sendPaymentRetryExhausted",
+        userId: payment.customer._id || customerId,
+        payload: {
           user: payment.customer,
           payment,
           booking: payment.booking,
           errorMessage,
-        });
-      } catch (error) {
-        logger.warn(`Retry exhausted email failed: ${error.message}`);
-      }
+        },
+      });
     }
   }
 }

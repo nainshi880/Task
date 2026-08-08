@@ -35,6 +35,7 @@ import {
 import validate from "../middlewares/validation.middleware.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import authorize from "../middlewares/role.middleware.js";
+import idempotencyMiddleware from "../middlewares/idempotency.middleware.js";
 import ROLES from "../constants/roles.js";
 
 const router = express.Router();
@@ -128,6 +129,11 @@ router.post(
   "/orders",
   authenticate,
   authorize(ROLES.CUSTOMER),
+  idempotencyMiddleware({
+    required: false,
+    prefix: "payment-order",
+    ttlSeconds: 60 * 60 * 24,
+  }),
   createPaymentOrderValidation,
   validate,
   createPaymentOrder

@@ -1,10 +1,12 @@
 import { getFirebaseMessaging, isFirebaseReady } from "../config/firebase.js";
 import authRepository from "../repositories/auth.repository.js";
+import { firebaseCircuit } from "../utils/circuitBreaker.js";
 import logger from "../utils/logger.js";
 
 /**
  * Send FCM push via Firebase Admin SDK.
  * Invalid / unregistered tokens are pruned from the user document.
+ * Protected by firebase_fcm circuit breaker.
  */
 class PushService {
   async sendToTokens(tokens, { title, body, data = {} } = {}) {
@@ -24,19 +26,21 @@ class PushService {
     );
 
     try {
-      const response = await messaging.sendEachForMulticast({
-        tokens: unique,
-        notification: {
-          title: title || "Notification",
-          body: body || "",
-        },
-        data: stringData,
-        webpush: {
-          fcmOptions: {
-            link: stringData.actionUrl || stringData.link || "/",
+      const response = await firebaseCircuit.exec(() =>
+        messaging.sendEachForMulticast({
+          tokens: unique,
+          notification: {
+            title: title || "Notification",
+            body: body || "",
           },
-        },
-      });
+          data: stringData,
+          webpush: {
+            fcmOptions: {
+              link: stringData.actionUrl || stringData.link || "/",
+            },
+          },
+        })
+      );
 
       const invalidTokens = [];
       response.responses.forEach((res, index) => {
@@ -63,6 +67,9 @@ class PushService {
         invalidTokens,
       };
     } catch (error) {
+      if (error.code === "CIRCUIT_OPEN") {
+        return { sent: false, reason: "circuit_open" };
+      }
       logger.warn(`FCM multicast failed: ${error.message}`);
       return { sent: false, reason: error.message };
     }

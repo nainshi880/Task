@@ -15,9 +15,34 @@ const env = {
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || "",
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || "",
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || "",
-  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-  PAYMENT_RETRY_ENABLED:
-    process.env.PAYMENT_RETRY_ENABLED !== "false",
+  REDIS_URL: process.env.REDIS_URL || "redis://127.0.0.1:6379",
+  REDIS_PREFIX: process.env.REDIS_PREFIX || "ssm",
+  PROCESS_ROLE: process.env.PROCESS_ROLE || "all",
+  PAYMENT_RETRY_ENABLED: process.env.PAYMENT_RETRY_ENABLED !== "false",
+  PAYMENT_RETRY_WORKER_CONCURRENCY: Math.max(
+    1,
+    Number(process.env.PAYMENT_RETRY_WORKER_CONCURRENCY) || 8
+  ),
+  PAYMENT_RETRY_QUEUE_MAX_PER_SECOND: Math.max(
+    1,
+    Number(process.env.PAYMENT_RETRY_QUEUE_MAX_PER_SECOND) || 5
+  ),
+  RAZORPAY_MAX_PER_WINDOW: Math.max(
+    1,
+    Number(process.env.RAZORPAY_MAX_PER_WINDOW) || 8
+  ),
+  RAZORPAY_WINDOW_MS: Math.max(
+    100,
+    Number(process.env.RAZORPAY_WINDOW_MS) || 1000
+  ),
+  NOTIFICATION_WORKER_CONCURRENCY: Math.max(
+    1,
+    Number(process.env.NOTIFICATION_WORKER_CONCURRENCY) || 20
+  ),
+  NOTIFICATION_QUEUE_MAX_PER_SECOND: Math.max(
+    1,
+    Number(process.env.NOTIFICATION_QUEUE_MAX_PER_SECOND) || 50
+  ),
   // Nodemailer + Google SMTP (Gmail App Password)
   EMAIL_FROM: process.env.EMAIL_FROM || process.env.COMPANY_EMAIL || "",
   EMAIL_FROM_NAME:

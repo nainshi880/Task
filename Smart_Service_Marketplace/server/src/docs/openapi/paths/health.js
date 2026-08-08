@@ -14,11 +14,13 @@ export const healthPaths = {
   "/health": {
     get: {
       tags: ["Health & Monitoring"],
-      summary: "Health check (liveness)",
+      summary: "Deep health check",
+      description:
+        "Mongo, Redis, queue depths, dead-letter stats, and circuit breaker states.",
       security: [],
       responses: {
         200: jsonResponse("Service healthy.", "healthResponse"),
-        503: { description: "Service unhealthy (MongoDB down)." },
+        503: { description: "Service unhealthy (MongoDB/Redis down)." },
       },
     },
   },
@@ -26,7 +28,7 @@ export const healthPaths = {
     get: {
       tags: ["Health & Monitoring"],
       summary: "Readiness check",
-      description: "Checks MongoDB readiness.",
+      description: "Checks MongoDB (+ Redis when configured for this role).",
       security: [],
       responses: {
         200: jsonResponse("Service ready."),
@@ -34,10 +36,23 @@ export const healthPaths = {
       },
     },
   },
+  "/live": {
+    get: {
+      tags: ["Health & Monitoring"],
+      summary: "Liveness probe",
+      description: "Process is up (no dependency checks).",
+      security: [],
+      responses: {
+        200: jsonResponse("Service alive."),
+      },
+    },
+  },
   "/metrics": {
     get: {
       tags: ["Health & Monitoring"],
       summary: "Performance metrics",
+      description:
+        "HTTP, queue, DLQ, circuit, lock, and idempotency counters.",
       security: [],
       responses: { 200: jsonResponse("Metrics snapshot.") },
     },

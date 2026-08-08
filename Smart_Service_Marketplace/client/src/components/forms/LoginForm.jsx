@@ -66,12 +66,14 @@ function LoginForm() {
         ? getProfileSetupPath(response.user?.role)
         : null;
 
+      const fromLocation = location.state?.from;
+      const fromPath = fromLocation
+        ? `${fromLocation.pathname || ""}${fromLocation.search || ""}`
+        : null;
+
       const redirectTo =
         setupPath ||
-        getPostLoginRedirect(
-          response.user?.role,
-          location.state?.from?.pathname
-        );
+        getPostLoginRedirect(response.user?.role, fromPath);
       navigate(redirectTo, { replace: true });
     } catch (error) {
       const message =

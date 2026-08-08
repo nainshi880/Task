@@ -99,12 +99,13 @@ function AppRoutes() {
       />
 
       {/* Customer routes */}
+      <Route path="/services" element={<ServicesPage />} />
+      <Route path="/services/:serviceId" element={<ServiceDetailPage />} />
+
       <Route element={<CustomerRoute />}>
         <Route path="/dashboard" element={<CustomerDashboard />} />
         <Route path="/profile" element={<CustomerProfilePage />} />
         <Route path="/profile/addresses" element={<AddressesPage />} />
-        <Route path="/services" element={<ServicesPage />} />
-        <Route path="/services/:serviceId" element={<ServiceDetailPage />} />
         <Route path="/book-service" element={<BookServicePage />} />
         <Route path="/booking/confirm" element={<BookingConfirmPage />} />
         <Route path="/bookings" element={<MyBookingsPage />} />

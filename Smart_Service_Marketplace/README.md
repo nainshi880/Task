@@ -315,9 +315,22 @@ Base path: `/api/v1`
 | Reviews | `/reviews/*` |
 | Chat | `/chat/*` + Socket.IO |
 | Admin | `/admin/*` — users, bookings, settings, analytics |
-| Health | `/health` |
+| Health | `/health`, `/ready`, `/live`, `/metrics` |
 
-Swagger UI may be available on the server when enabled in the app bootstrap.
+### Resilience (Redis / BullMQ)
+
+Requires `REDIS_URL`. Designed for the scale-out topology (API cluster → Redis → workers → Mongo).
+
+| Capability | Behavior |
+| --- | --- |
+| Dead Letter Queue | Exhausted `payment-retry` / `notifications` jobs move to BullMQ queue `dead-letter` |
+| Distributed locks | Razorpay webhooks + payment-retry charges use Redis `SET NX PX` locks |
+| Idempotency | Redis keys for webhooks & retry attempts; Mongo unique webhook events; optional `Idempotency-Key` middleware |
+| Circuit breakers | `razorpay`, `firebase_fcm`, `smtp` — open after consecutive failures, expose state on `/health` & `/metrics` |
+| Metrics | HTTP + queue enqueue/complete/fail + DLQ + locks + idempotency + circuits on `GET /api/v1/metrics` |
+| Health | `/health` (deps), `/ready` (traffic), `/live` (process) |
+
+Process roles: `PROCESS_ROLE=api|payment-worker|notification-worker|all` with `npm run start:api`, `start:worker:payment-retry`, `start:worker:notifications`.
 
 ---
 
