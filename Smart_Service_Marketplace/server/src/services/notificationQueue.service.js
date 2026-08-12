@@ -57,11 +57,15 @@ export async function queuePushNotification(payload) {
     NOTIFICATION_QUEUE.JOBS.PUSH,
     payload,
     {
-      dedupeKey: optionsDedupe(
-        payload.userId,
-        payload.title,
-        payload.data?.bookingId || payload.data?.paymentId
-      ),
+      dedupeKey:
+        payload.dedupeKey ||
+        optionsDedupe(
+          payload.userId,
+          payload.title,
+          payload.data?.messageId ||
+            payload.data?.bookingId ||
+            payload.data?.paymentId
+        ),
       priority: 1,
     }
   );

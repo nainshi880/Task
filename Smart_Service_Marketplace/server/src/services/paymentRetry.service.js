@@ -105,9 +105,12 @@ class PaymentRetryService {
 
     // Email + in-app notify once per failure wave (offloaded to notification queue)
     // Fire-and-forget so webhook/API returns quickly under load.
-    this.notifyCustomerFailure(payment, meta).catch((error) => {
-      logger.warn(`Payment failure notify failed: ${error.message}`);
-    });
+    // Load tests can pass skipNotify: true to avoid SMTP/FCM storms.
+    if (!meta.skipNotify) {
+      this.notifyCustomerFailure(payment, meta).catch((error) => {
+        logger.warn(`Payment failure notify failed: ${error.message}`);
+      });
+    }
 
     const enqueueResult = await enqueuePaymentRetryJob({
       paymentId: payment._id,

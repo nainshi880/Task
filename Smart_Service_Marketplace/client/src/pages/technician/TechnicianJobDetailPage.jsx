@@ -9,6 +9,7 @@ import {
   Phone,
   StickyNote,
   UserRound,
+  CircleDollarSign,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -20,10 +21,16 @@ import BookingTimeline from "../../components/customer/bookings/BookingTimeline"
 import JobStatusFlow from "../../components/technician/JobStatusFlow";
 import RejectJobModal from "../../components/technician/RejectJobModal";
 import * as technicianJobsService from "../../services/technicianJobs.service";
+import * as technicianService from "../../services/technician.service";
 import * as bookingService from "../../services/booking.service";
 import * as chatService from "../../services/chat.service";
+import * as extraChargeService from "../../services/extraCharge.service";
 import { technicianKeys, bookingKeys } from "../../lib/queryClient";
 import { BOOKING_STATUS } from "../../constants/bookingStatus";
+import {
+  EXTRA_CHARGE_STATUS,
+  isOpenExtraCharge,
+} from "../../constants/extraCharge";
 import { formatCurrency, formatDate } from "../../utils/format";
 import { formatTimeSlot } from "../../constants/timeSlots";
 
@@ -43,6 +50,9 @@ function TechnicianJobDetailPage() {
   const [workNote, setWorkNote] = useState("");
   const [completeNotes, setCompleteNotes] = useState("");
   const [completionFiles, setCompletionFiles] = useState([]);
+  const [extraDescription, setExtraDescription] = useState("");
+  const [extraAmount, setExtraAmount] = useState("");
+  const [extraFiles, setExtraFiles] = useState([]);
 
   const openChatMutation = useMutation({
     mutationFn: () => chatService.getOrCreateBookingRoom(bookingId),
@@ -77,6 +87,17 @@ function TechnicianJobDetailPage() {
     },
   });
 
+  const profileQuery = useQuery({
+    queryKey: technicianKeys.profile(),
+    queryFn: technicianService.getProfile,
+    staleTime: 60_000,
+  });
+
+  const applicationStatus = String(
+    profileQuery.data?.applicationStatus || "pending"
+  ).toLowerCase();
+  const isApprovedForJobs = applicationStatus === "approved";
+
   // Ensure chat room exists for this job (backfills if assign ran before chat wiring).
   useQuery({
     queryKey: ["chat", "booking-room", bookingId],
@@ -93,12 +114,23 @@ function TechnicianJobDetailPage() {
     retry: false,
   });
 
+  const extraChargesQuery = useQuery({
+    queryKey: bookingKeys.extraCharges(bookingId),
+    queryFn: () => extraChargeService.listExtraCharges(bookingId),
+    enabled: Boolean(bookingId),
+    retry: false,
+    refetchInterval: 15_000,
+  });
+
   const timeline = useMemo(() => {
     const events = timelineQuery.data?.timeline || [];
     return [...events].sort(
       (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
   }, [timelineQuery.data]);
+
+  const extraCharges = extraChargesQuery.data || [];
+  const openExtraCharge = extraCharges.find((c) => isOpenExtraCharge(c.status));
 
   const hasArriving = timeline.some((event) => event.event === "ARRIVING");
 
@@ -108,8 +140,34 @@ function TechnicianJobDetailPage() {
       queryClient.invalidateQueries({ queryKey: technicianKeys.jobs({}) }),
       queryClient.invalidateQueries({ queryKey: technicianKeys.all }),
       queryClient.invalidateQueries({ queryKey: bookingKeys.timeline(bookingId) }),
+      queryClient.invalidateQueries({
+        queryKey: bookingKeys.extraCharges(bookingId),
+      }),
     ]);
   };
+
+  const requestExtraCharge = useMutation({
+    mutationFn: () =>
+      extraChargeService.createExtraCharge(bookingId, {
+        description: extraDescription.trim(),
+        amount: Number(extraAmount),
+        files: extraFiles,
+      }),
+    onSuccess: async () => {
+      toast.success("Extra charge sent to the customer.");
+      setExtraDescription("");
+      setExtraAmount("");
+      setExtraFiles([]);
+      await invalidateJob();
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Could not submit extra charge."
+      );
+    },
+  });
 
   const runAction = useMutation({
     mutationFn: async ({ action, payload }) => {
@@ -215,11 +273,12 @@ function TechnicianJobDetailPage() {
   const busy = runAction.isPending;
 
   const canAccept =
-    status === BOOKING_STATUS.ASSIGNED ||
-    ((status === BOOKING_STATUS.CONFIRMED ||
-      status === BOOKING_STATUS.PENDING) &&
-      !job?.technician);
-  const canReject = status === BOOKING_STATUS.ASSIGNED;
+    isApprovedForJobs &&
+    (status === BOOKING_STATUS.ASSIGNED ||
+      ((status === BOOKING_STATUS.CONFIRMED ||
+        status === BOOKING_STATUS.PENDING) &&
+        !job?.technician));
+  const canReject = isApprovedForJobs && status === BOOKING_STATUS.ASSIGNED;
   const isOpenOffer =
     (status === BOOKING_STATUS.CONFIRMED ||
       status === BOOKING_STATUS.PENDING) &&
@@ -232,7 +291,12 @@ function TechnicianJobDetailPage() {
     status === BOOKING_STATUS.IN_PROGRESS || status === BOOKING_STATUS.PAUSED;
   const canComplete =
     status === BOOKING_STATUS.IN_PROGRESS &&
-    (job.completionImages?.length || 0) > 0;
+    (job.completionImages?.length || 0) > 0 &&
+    !openExtraCharge;
+  const canRequestExtra =
+    (status === BOOKING_STATUS.IN_PROGRESS ||
+      status === BOOKING_STATUS.PAUSED) &&
+    !openExtraCharge;
   const awaitingCustomer =
     status === BOOKING_STATUS.AWAITING_CONFIRMATION;
   const canAddNote = [
@@ -298,6 +362,16 @@ function TechnicianJobDetailPage() {
           <h2 className="mb-4 text-lg font-semibold text-slate-900">
             Update status
           </h2>
+          {!isApprovedForJobs && (
+            <div
+              className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              role="status"
+            >
+              {applicationStatus === "rejected"
+                ? "Your application was rejected. You cannot accept or reject bookings until an admin re-approves you."
+                : "Your application is pending admin approval. You can accept or reject bookings only after approval."}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             {canAccept && (
               <>
@@ -364,7 +438,33 @@ function TechnicianJobDetailPage() {
                 }
               >
                 Finish work
+                {job.scopeExpanded ? " (full scope)" : ""}
               </Button>
+            )}
+            {openExtraCharge && status === BOOKING_STATUS.IN_PROGRESS && (
+              <p className="text-sm text-amber-700">
+                Waiting for customer to{" "}
+                {openExtraCharge.status === EXTRA_CHARGE_STATUS.PENDING
+                  ? "accept or reject"
+                  : "pay"}{" "}
+                the extra charge ({formatCurrency(openExtraCharge.amount)})
+                before you can finish.
+              </p>
+            )}
+            {job.scopeExpanded === false &&
+              extraCharges.some(
+                (c) => c.status === EXTRA_CHARGE_STATUS.REJECTED
+              ) &&
+              status === BOOKING_STATUS.IN_PROGRESS && (
+                <p className="text-sm text-slate-600">
+                  Extra charge was rejected — complete the original booked scope
+                  only.
+                </p>
+              )}
+            {job.scopeExpanded && status === BOOKING_STATUS.IN_PROGRESS && (
+              <p className="text-sm text-emerald-700">
+                Extra charge paid — complete the full expanded scope.
+              </p>
             )}
             {awaitingCustomer && (
               <p className="text-sm text-violet-700">
@@ -450,6 +550,113 @@ function TechnicianJobDetailPage() {
             </div>
           )}
         </section>
+
+        {(canRequestExtra || extraCharges.length > 0) && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <CircleDollarSign size={18} className="text-indigo-600" />
+              Extra charge
+            </h2>
+            <p className="mb-4 text-sm text-slate-500">
+              If you find additional issues on site, request an extra charge with
+              photos. The customer must accept and pay before you expand the
+              scope.
+            </p>
+
+            {extraCharges.length > 0 && (
+              <ul className="mb-4 space-y-3">
+                {extraCharges.map((charge) => (
+                  <li
+                    key={charge._id}
+                    className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-900">
+                        {formatCurrency(charge.amount)}
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                        {charge.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-slate-700">{charge.description}</p>
+                    {charge.images?.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {charge.images.map((url) => (
+                          <a
+                            key={url}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block h-14 w-14 overflow-hidden rounded-lg border border-slate-200"
+                          >
+                            <img
+                              src={url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {canRequestExtra && (
+              <div className="space-y-3 rounded-xl border border-amber-100 bg-amber-50/60 p-4">
+                <label className="block text-sm font-medium text-slate-800">
+                  Description of additional issue
+                  <textarea
+                    value={extraDescription}
+                    onChange={(e) => setExtraDescription(e.target.value)}
+                    rows={3}
+                    maxLength={2000}
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    placeholder="Describe the extra work needed..."
+                  />
+                </label>
+                <label className="block text-sm font-medium text-slate-800">
+                  Extra amount (₹)
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={extraAmount}
+                    onChange={(e) => setExtraAmount(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    placeholder="e.g. 500"
+                  />
+                </label>
+                <label className="block text-sm font-medium text-slate-800">
+                  Photos of the issue
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    onChange={(e) =>
+                      setExtraFiles(Array.from(e.target.files || []))
+                    }
+                    className="mt-2 block w-full text-sm text-slate-600"
+                  />
+                </label>
+                <Button
+                  type="button"
+                  loading={requestExtraCharge.isPending}
+                  disabled={
+                    extraDescription.trim().length < 10 ||
+                    !Number(extraAmount) ||
+                    Number(extraAmount) <= 0 ||
+                    extraFiles.length === 0
+                  }
+                  onClick={() => requestExtraCharge.mutate()}
+                >
+                  Request extra charge
+                </Button>
+              </div>
+            )}
+          </section>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
           <div className="space-y-6">

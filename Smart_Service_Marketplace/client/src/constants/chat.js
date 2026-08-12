@@ -25,6 +25,7 @@ export const BOOKING_EVENTS = {
   UPDATED: "booking:updated",
   AVAILABLE: "booking:available",
   CLAIMED: "booking:claimed",
+  EXTRA_CHARGE: "booking:extra-charge",
 };
 
 export function getSocketBaseUrl() {

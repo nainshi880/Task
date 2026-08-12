@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, LogOut, UserCircle } from "lucide-react";
 
@@ -12,10 +12,14 @@ import * as notificationService from "../services/notification.service";
 import {
   notificationKeys,
   technicianKeys,
+  bookingKeys,
   chatKeys,
+  adminKeys,
 } from "../lib/queryClient";
 import { ROLES, isAdminRole } from "../constants/roles";
 import { BOOKING_EVENTS, CHAT_EVENTS } from "../constants/chat";
+import { playNotificationSound } from "../utils/notificationSound";
+import toast from "react-hot-toast";
 
 function notificationsPath(role) {
   if (role === ROLES.TECHNICIAN) return "/technician/notifications";
@@ -27,6 +31,8 @@ function DashboardLayout({ children }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { user, logout, role, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { on } = useChatSocket({
     enabled: Boolean(isAuthenticated),
   });
@@ -51,23 +57,140 @@ function DashboardLayout({ children }) {
     const offAssigned = on(BOOKING_EVENTS.ASSIGNED, invalidateJobs);
     const offAvailable = on(BOOKING_EVENTS.AVAILABLE, invalidateJobs);
     const offClaimed = on(BOOKING_EVENTS.CLAIMED, invalidateJobs);
+    const offExtra = on(BOOKING_EVENTS.EXTRA_CHARGE, invalidateJobs);
 
     return () => {
       offAssigned?.();
       offAvailable?.();
       offClaimed?.();
+      offExtra?.();
     };
   }, [role, on, queryClient]);
 
-  // Refresh notification badge when a new chat message arrives
+  useEffect(() => {
+    if (role !== ROLES.CUSTOMER) return undefined;
+
+    const invalidateCustomer = () => {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    };
+
+    return on(BOOKING_EVENTS.EXTRA_CHARGE, (payload) => {
+      invalidateCustomer();
+      if (payload?.type === "extra_charge.pending") {
+        toast("New extra charge request on your booking.", { icon: "💳" });
+      }
+    });
+  }, [role, on, queryClient]);
+
+  // Chat message → badge + toast (when not already inside that room)
   useEffect(() => {
     if (!isAuthenticated) return undefined;
 
-    return on(CHAT_EVENTS.MESSAGE_NEW, () => {
+    return on(CHAT_EVENTS.MESSAGE_NEW, (payload) => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
       queryClient.invalidateQueries({ queryKey: chatKeys.all });
+
+      const roomId = String(
+        payload?.roomId || payload?.message?.room || ""
+      );
+      const senderId = String(
+        payload?.message?.sender?._id || payload?.message?.sender || ""
+      );
+      const myId = String(user?._id || user?.id || "");
+
+      // Ignore own echoes
+      if (senderId && myId && senderId === myId) return;
+
+      const viewingThisRoom =
+        roomId &&
+        (location.pathname === `/chat/${roomId}` ||
+          location.pathname.startsWith(`/chat/${roomId}/`));
+
+      if (viewingThisRoom) return;
+
+      const preview =
+        payload?.message?.content ||
+        (payload?.message?.type === "image" ? "📷 Image" : "New message");
+      const senderName =
+        payload?.message?.sender?.name ||
+        payload?.message?.senderName ||
+        "Chat";
+
+      playNotificationSound();
+      toast(
+        (t) => (
+          <button
+            type="button"
+            className="text-left"
+            onClick={() => {
+              toast.dismiss(t.id);
+              if (roomId) navigate(`/chat/${roomId}`);
+            }}
+          >
+            <span className="font-semibold">{senderName}</span>
+            <span className="mt-0.5 block text-sm opacity-90">
+              {String(preview).slice(0, 80)}
+            </span>
+          </button>
+        ),
+        {
+          icon: "💬",
+          duration: 6000,
+          id: roomId ? `chat-${roomId}` : undefined,
+        }
+      );
     });
-  }, [isAuthenticated, on, queryClient]);
+  }, [isAuthenticated, on, queryClient, location.pathname, user, navigate]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+
+    return on("notification:new", (payload) => {
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+
+      if (isAdminRole(role) && payload?.technicianId) {
+        queryClient.invalidateQueries({
+          queryKey: [...adminKeys.all, "technicians"],
+        });
+        queryClient.invalidateQueries({
+          queryKey: [...adminKeys.all, "dashboard"],
+        });
+      }
+
+      if (payload?.type === "Chat") {
+        // MESSAGE_NEW toast already covers chat; badge refresh is enough
+        return;
+      }
+
+      if (payload?.title) {
+        playNotificationSound();
+        toast(
+          (t) => (
+            <button
+              type="button"
+              className="text-left"
+              onClick={() => {
+                toast.dismiss(t.id);
+                if (payload.actionUrl) navigate(payload.actionUrl);
+              }}
+            >
+              <span className="font-semibold">{payload.title}</span>
+              {payload.message ? (
+                <span className="mt-0.5 block text-sm opacity-90">
+                  {String(payload.message).slice(0, 100)}
+                </span>
+              ) : null}
+            </button>
+          ),
+          {
+            icon: "🔔",
+            duration: 6000,
+          }
+        );
+      }
+    });
+  }, [isAuthenticated, on, queryClient, role, navigate]);
 
   const unread =
     unreadQuery.data?.unreadCount ??

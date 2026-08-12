@@ -16,17 +16,14 @@ function toObjectIds(ids = []) {
 
 class TechnicianRepository {
   async getApprovedTechnicianIds() {
+    // Only admin-approved technicians may be assigned / accept / reject jobs.
     return await TechnicianProfile.find({
       isDeleted: false,
       isSuspended: { $ne: true },
       $or: [
         { applicationStatus: TECHNICIAN_APPLICATION_STATUS.APPROVED },
+        // Legacy profiles created before applicationStatus existed.
         { applicationStatus: { $exists: false } },
-        // Completed setup but still pending admin review — allow booking.
-        {
-          applicationStatus: TECHNICIAN_APPLICATION_STATUS.PENDING,
-          profileCompleted: true,
-        },
       ],
     }).distinct("user");
   }
@@ -73,7 +70,7 @@ class TechnicianRepository {
     if (!isApproved) {
       throw new ApiError(
         HTTP_STATUS.FORBIDDEN,
-        "Technician profile is not approved for jobs yet."
+        "Your technician application is pending admin approval. You can accept or reject bookings only after approval."
       );
     }
 

@@ -35,6 +35,7 @@ export const bookingKeys = {
   list: (filters) => [...bookingKeys.all, "list", filters],
   detail: (id) => [...bookingKeys.all, "detail", id],
   timeline: (id) => [...bookingKeys.all, "timeline", id],
+  extraCharges: (id) => [...bookingKeys.all, "extraCharges", id],
   draft: () => [...bookingKeys.all, "draft"],
 };
 

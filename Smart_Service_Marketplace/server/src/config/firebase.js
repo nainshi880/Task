@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert, getApp } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
+import { getAuth } from "firebase-admin/auth";
 import env from "./env.js";
 import logger from "../utils/logger.js";
 
@@ -80,7 +81,7 @@ export function initFirebase() {
       projectId: credentials.projectId || env.FIREBASE_PROJECT_ID,
     });
     initialized = true;
-    logger.info("Firebase Admin initialized for FCM push.");
+    logger.info("Firebase Admin initialized for FCM + Auth.");
     return app;
   } catch (error) {
     logger.warn(`Firebase Admin init failed: ${error.message}`);
@@ -92,12 +93,42 @@ export function isFirebaseReady() {
   return Boolean(initialized || getApps().length > 0);
 }
 
-export function getFirebaseMessaging() {
+function ensureFirebase() {
   if (!isFirebaseReady()) {
     initFirebase();
   }
-  if (!isFirebaseReady()) return null;
+  return isFirebaseReady();
+}
+
+export function getFirebaseMessaging() {
+  if (!ensureFirebase()) return null;
   return getMessaging();
 }
 
-export default { initFirebase, isFirebaseReady, getFirebaseMessaging };
+export function getFirebaseAuth() {
+  if (!ensureFirebase()) return null;
+  return getAuth();
+}
+
+/**
+ * Verify a Firebase ID token from the client (e.g. Google Sign-In).
+ */
+export async function verifyFirebaseIdToken(idToken) {
+  const auth = getFirebaseAuth();
+  if (!auth) {
+    const error = new Error(
+      "Firebase Auth is not configured on the server."
+    );
+    error.code = "FIREBASE_NOT_CONFIGURED";
+    throw error;
+  }
+  return auth.verifyIdToken(String(idToken || "").trim(), true);
+}
+
+export default {
+  initFirebase,
+  isFirebaseReady,
+  getFirebaseMessaging,
+  getFirebaseAuth,
+  verifyFirebaseIdToken,
+};

@@ -4,6 +4,7 @@ import {
   register,
   registerTechnician,
   login,
+  loginWithGoogle,
   logout,
   logoutAll,
   refresh,
@@ -21,6 +22,7 @@ import {
   registerValidation,
   registerTechnicianValidation,
   loginValidation,
+  googleLoginValidation,
   forgotPasswordValidation,
   verifyForgotPasswordOtpValidation,
   resetPasswordValidation,
@@ -66,6 +68,14 @@ router.post(
   loginValidation,
   validate,
   login
+);
+
+router.post(
+  "/google",
+  authLoginLimiter,
+  googleLoginValidation,
+  validate,
+  loginWithGoogle
 );
 
 router.post(

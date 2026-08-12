@@ -114,6 +114,29 @@ export const loginValidation = [
   body("password").notEmpty().withMessage("Password is required"),
 ];
 
+export const googleLoginValidation = [
+  body("idToken")
+    .trim()
+    .notEmpty()
+    .withMessage("idToken is required.")
+    .isLength({ min: 20 })
+    .withMessage("Invalid Google idToken."),
+
+  body("role")
+    .optional()
+    .trim()
+    .toLowerCase()
+    .isIn(["customer", "technician"])
+    .withMessage("role must be customer or technician."),
+
+  body("intent")
+    .optional()
+    .trim()
+    .toLowerCase()
+    .isIn(["login", "register"])
+    .withMessage("intent must be login or register."),
+];
+
 export const forgotPasswordValidation = [
   body("email").isEmail().withMessage("Valid email required"),
 ];

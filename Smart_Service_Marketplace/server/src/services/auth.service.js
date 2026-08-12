@@ -1,6 +1,7 @@
 import authRepository from "../repositories/auth.repository.js";
 import technicianProfileRepository from "../repositories/technicianProfile.repository.js";
 import customerRepository from "../repositories/customer.repository.js";
+import adminRepository from "../repositories/admin.repository.js";
 import Otp from "../models/Otp.js";
 import PendingRegistration, {
   PENDING_REGISTRATION_TTL_MS,
@@ -12,14 +13,21 @@ import HTTP_STATUS from "../constants/httpStatus.js";
 import generateResetToken from "../utils/generateResetToken.js";
 import tokenService from "./token.service.js";
 import emailService from "./email.service.js";
+import notificationService from "./notification.service.js";
+import {
+  queuePushNotification,
+  queueSocketEmit,
+} from "./notificationQueue.service.js";
 import crypto from "crypto";
 import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
 import ROLES, { isAdminRole } from "../constants/roles.js";
+import NOTIFICATION_TYPES from "../constants/notificationType.js";
 import { defaultWorkingHours } from "../models/TechnicianProfile.js";
 import User from "../models/User.js";
 import CustomerProfile from "../models/CustomerProfile.js";
 import TechnicianProfile from "../models/TechnicianProfile.js";
+import logger from "../utils/logger.js";
 
 const EMAIL_OTP_TTL_MS = 10 * 60 * 1000;
 const EMAIL_OTP_MAX_ATTEMPTS = 5;
@@ -30,6 +38,82 @@ class AuthService {
       ipAddress: meta.ipAddress || meta.ip || "",
       userAgent: meta.userAgent || "",
     };
+  }
+
+  /**
+   * Alert every admin when a technician account is created for the first time.
+   * In-app + push + socket (plays notification sound on admin dashboards).
+   */
+  async notifyAdminsOfNewTechnician(user, { source = "signup" } = {}) {
+    if (!user?._id || user.role !== ROLES.TECHNICIAN) return;
+
+    try {
+      const admins = await adminRepository.listAdmins();
+      const activeAdmins = (admins || []).filter(
+        (admin) => admin.isActive !== false
+      );
+      if (!activeAdmins.length) return;
+
+      const techName = user.name || "A technician";
+      const techEmail = user.email || "";
+      const technicianId = String(user._id);
+      const title = "New technician signup";
+      const message = techEmail
+        ? `${techName} (${techEmail}) registered and awaits approval.`
+        : `${techName} registered and awaits approval.`;
+      const actionUrl = `/admin/technicians/${technicianId}`;
+
+      await Promise.all(
+        activeAdmins.map(async (admin) => {
+          const created = await notificationService.notify({
+            userId: admin._id,
+            title,
+            message,
+            type: NOTIFICATION_TYPES.SYSTEM,
+            actionUrl,
+            priority: "high",
+            metadata: {
+              event: "TECHNICIAN_SIGNUP",
+              technicianId,
+              technicianName: techName,
+              technicianEmail: techEmail,
+              source,
+            },
+          });
+
+          await queuePushNotification({
+            userId: admin._id,
+            title,
+            body: message,
+            data: {
+              type: "technician.signup",
+              technicianId,
+              actionUrl,
+              link: actionUrl,
+              deeplink: actionUrl,
+            },
+            dedupeKey: `admin_tech_signup_${technicianId}_${admin._id}`,
+          });
+
+          await queueSocketEmit({
+            userId: admin._id,
+            event: "notification:new",
+            payload: {
+              type: NOTIFICATION_TYPES.SYSTEM,
+              title,
+              message,
+              actionUrl,
+              technicianId,
+              notificationId: created?._id ? String(created._id) : null,
+            },
+          });
+        })
+      );
+    } catch (error) {
+      logger.warn(
+        `Failed to notify admins of new technician: ${error.message}`
+      );
+    }
   }
 
   resolveFullName(userData = {}) {
@@ -340,6 +424,12 @@ class AuthService {
 
     emailService.sendWelcome({ user }).catch(() => {});
 
+    if (pending.role === ROLES.TECHNICIAN) {
+      this.notifyAdminsOfNewTechnician(user, { source: "email" }).catch(
+        () => {}
+      );
+    }
+
     const tokens = await tokenService.issueTokenPair(
       user,
       this.sessionMeta(meta)
@@ -365,6 +455,12 @@ class AuthService {
     const isPasswordMatched = await user.comparePassword(password);
 
     if (!isPasswordMatched) {
+      if (user.authProvider === "google" && !user.password) {
+        throw new ApiError(
+          HTTP_STATUS.UNAUTHORIZED,
+          "This account uses Google sign-in. Please continue with Google."
+        );
+      }
       throw new ApiError(
         HTTP_STATUS.UNAUTHORIZED,
         "Invalid email or password."
@@ -396,6 +492,210 @@ class AuthService {
     return {
       user,
       ...tokens,
+    };
+  }
+
+  /**
+   * Google Sign-In via Firebase ID token (customer or technician).
+   * - Existing users: log in as their stored role (admins blocked).
+   * - New users: create account for `role` (`customer` | `technician`).
+   * Technicians created via Google finish documents in profile setup.
+   */
+  async loginWithGoogle(idToken, meta = {}, options = {}) {
+    const requestedRoleRaw = String(options.role || "customer")
+      .trim()
+      .toLowerCase();
+    const requestedRole =
+      requestedRoleRaw === ROLES.TECHNICIAN
+        ? ROLES.TECHNICIAN
+        : ROLES.CUSTOMER;
+
+    let decoded;
+    try {
+      const { verifyFirebaseIdToken } = await import("../config/firebase.js");
+      decoded = await verifyFirebaseIdToken(idToken);
+    } catch (error) {
+      if (error.code === "FIREBASE_NOT_CONFIGURED") {
+        throw new ApiError(
+          HTTP_STATUS.SERVICE_UNAVAILABLE,
+          "Google sign-in is not configured on the server."
+        );
+      }
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        "Invalid or expired Google sign-in token."
+      );
+    }
+
+    const firebaseUid = decoded.uid;
+    const email = String(decoded.email || "")
+      .trim()
+      .toLowerCase();
+    const emailVerified = Boolean(decoded.email_verified);
+    const name =
+      String(decoded.name || "").trim() ||
+      (email ? email.split("@")[0] : "User");
+    const picture = decoded.picture || null;
+    const googleId =
+      decoded.firebase?.identities?.["google.com"]?.[0] ||
+      decoded.sub ||
+      firebaseUid;
+
+    if (!email) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Google account must have an email address."
+      );
+    }
+
+    if (!emailVerified) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Please verify your Google email before signing in."
+      );
+    }
+
+    let user =
+      (await authRepository.findByFirebaseUid(firebaseUid)) ||
+      (await authRepository.findByGoogleId(googleId));
+
+    if (!user) {
+      user = await authRepository.findByEmail(email);
+    }
+
+    let isNewUser = false;
+
+    if (user) {
+      if (!user.isActive) {
+        throw new ApiError(
+          HTTP_STATUS.FORBIDDEN,
+          "Your account has been deactivated."
+        );
+      }
+
+      if (isAdminRole(user.role)) {
+        throw new ApiError(
+          HTTP_STATUS.FORBIDDEN,
+          "Admin accounts must sign in through the admin portal."
+        );
+      }
+
+      // Register intent with a conflicting role
+      if (
+        options.requireRoleMatch &&
+        user.role !== requestedRole
+      ) {
+        throw new ApiError(
+          HTTP_STATUS.CONFLICT,
+          user.role === ROLES.TECHNICIAN
+            ? "This Google email is already registered as a technician. Sign in instead."
+            : "This Google email is already registered as a customer. Sign in instead."
+        );
+      }
+
+      user.firebaseUid = user.firebaseUid || firebaseUid;
+      user.googleId = user.googleId || googleId;
+      if (!user.authProvider) {
+        user.authProvider = user.password ? "local" : "google";
+      }
+      user.isVerified = true;
+      if (picture && !user.avatar) {
+        user.avatar = picture;
+      }
+      user.lastLogin = new Date();
+      await user.save();
+    } else {
+      isNewUser = true;
+      user = await authRepository.createUser({
+        name,
+        email,
+        role: requestedRole,
+        authProvider: "google",
+        firebaseUid,
+        googleId,
+        avatar: picture,
+        isVerified: true,
+        profileCompleted: false,
+        availability: requestedRole === ROLES.TECHNICIAN ? false : undefined,
+        lastLogin: new Date(),
+      });
+
+      try {
+        if (requestedRole === ROLES.CUSTOMER) {
+          await customerRepository.createProfile({
+            user: user._id,
+            fullName: name,
+            avatar: picture,
+            profileCompleted: false,
+          });
+        } else {
+          await technicianProfileRepository.create({
+            user: user._id,
+            fullName: name,
+            profilePhoto: picture,
+            workingCity: "Pending",
+            skills: [],
+            serviceCategories: [],
+            experienceYears: 0,
+            availabilityStatus: false,
+            workingHours: defaultWorkingHours(),
+            profileCompleted: false,
+            applicationStatus: "pending",
+          });
+        }
+      } catch (error) {
+        await User.findByIdAndDelete(user._id).catch(() => {});
+        throw error;
+      }
+
+      emailService.sendWelcome({ user }).catch(() => {});
+
+      if (requestedRole === ROLES.TECHNICIAN) {
+        this.notifyAdminsOfNewTechnician(user, { source: "google" }).catch(
+          () => {}
+        );
+      }
+    }
+
+    // Backfill missing role profile for older accounts
+    if (user.role === ROLES.CUSTOMER) {
+      const profile = await CustomerProfile.findOne({ user: user._id });
+      if (!profile) {
+        await customerRepository.createProfile({
+          user: user._id,
+          fullName: user.name || name,
+          avatar: user.avatar || picture,
+          profileCompleted: false,
+        });
+      }
+    } else if (user.role === ROLES.TECHNICIAN) {
+      const techProfile = await TechnicianProfile.findOne({ user: user._id });
+      if (!techProfile) {
+        await technicianProfileRepository.create({
+          user: user._id,
+          fullName: user.name || name,
+          profilePhoto: user.avatar || picture,
+          workingCity: "Pending",
+          skills: [],
+          serviceCategories: [],
+          experienceYears: 0,
+          availabilityStatus: false,
+          workingHours: defaultWorkingHours(),
+          profileCompleted: false,
+          applicationStatus: "pending",
+        });
+      }
+    }
+
+    const tokens = await tokenService.issueTokenPair(
+      user,
+      this.sessionMeta(meta)
+    );
+
+    return {
+      user,
+      ...tokens,
+      isNewUser,
     };
   }
 

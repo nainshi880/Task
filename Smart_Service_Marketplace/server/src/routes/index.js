@@ -15,6 +15,7 @@ import bookingWorkflowRoutes from "./bookingWorkflow.routes.js";
 import bookingAnalyticsRoutes from "./bookingAnalytics.routes.js";
 import bookingTimelineRoutes from "./bookingTimeline.routes.js";
 import paymentRoutes from "./payment.routes.js";
+import extraChargeRoutes from "./extraCharge.routes.js";
 import notificationRoutes from "./notification.routes.js";
 import chatRoutes from "./chat.routes.js";
 import adminRoutes from "./admin.routes.js";
@@ -67,6 +68,8 @@ router.use("/bookings", bookingRoutes);
 router.use("/technicians", technicianRoutes);
 
 router.use("/payments", paymentRoutes);
+
+router.use("/", extraChargeRoutes);
 
 router.use("/notifications", notificationRoutes);
 

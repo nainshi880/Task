@@ -5,6 +5,9 @@ const unwrap = (response) => response.data?.data ?? response.data;
 export const createOrder = async (data) =>
   unwrap(await paymentApi.createOrder(data));
 
+export const createExtraChargeOrder = async (extraChargeId) =>
+  unwrap(await paymentApi.createExtraChargeOrder(extraChargeId));
+
 export const verifyPayment = async (data) =>
   unwrap(await paymentApi.verifyPayment(data));
 
@@ -114,6 +117,81 @@ export async function payForBooking({
         // non-blocking
       }
       reject(new Error(description));
+    });
+    checkout.open();
+  });
+}
+
+/**
+ * Accept (if needed) → create extra-charge order → Razorpay checkout → verify.
+ */
+export async function payForExtraCharge({
+  extraChargeId,
+  customerName,
+  customerEmail,
+  customerPhone,
+  description,
+}) {
+  const order = await createExtraChargeOrder(extraChargeId);
+
+  const Razorpay = await loadRazorpayScript();
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      key: order.razorpayKeyId,
+      amount: order.amountInPaise,
+      currency: order.currency || "INR",
+      name: "Smart Service Marketplace",
+      description: description || "Extra charge payment",
+      order_id: order.razorpayOrderId,
+      prefill: {
+        name: customerName || "",
+        email: customerEmail || "",
+        contact: customerPhone || "",
+      },
+      notes: {
+        bookingId: String(order.bookingId || ""),
+        extraChargeId: String(extraChargeId),
+        purpose: "extra_charge",
+      },
+      handler: async (response) => {
+        try {
+          const verified = await verifyPayment({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          });
+          resolve(verified);
+        } catch (error) {
+          reject(error);
+        }
+      },
+      modal: {
+        ondismiss: () => {
+          reject(new Error("Payment cancelled."));
+        },
+      },
+    };
+
+    const checkout = new Razorpay(options);
+    checkout.on("payment.failed", async (event) => {
+      const failDescription =
+        event?.error?.description ||
+        event?.error?.reason ||
+        "Payment failed. Please try again.";
+
+      try {
+        await reportPaymentFailure({
+          razorpay_order_id:
+            event?.error?.metadata?.order_id || order.razorpayOrderId,
+          razorpay_payment_id: event?.error?.metadata?.payment_id,
+          failureReason: failDescription,
+          failureCode: event?.error?.code,
+        });
+      } catch {
+        // non-blocking
+      }
+      reject(new Error(failDescription));
     });
     checkout.open();
   });

@@ -16,6 +16,12 @@ export const createPaymentOrderValidation = [
     .toFloat(),
 ];
 
+export const createExtraChargeOrderValidation = [
+  param("extraChargeId")
+    .isMongoId()
+    .withMessage("Invalid extraChargeId."),
+];
+
 export const verifyPaymentValidation = [
   body("razorpay_order_id")
     .trim()

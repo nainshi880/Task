@@ -37,6 +37,8 @@ import {
   completeWork,
   addWorkNotes,
 } from "../controllers/bookingWorkflow.controller.js";
+import { createExtraCharge } from "../controllers/extraCharge.controller.js";
+import { createExtraChargeValidation } from "../validations/extraCharge.validation.js";
 
 import { getTechnicianDashboard } from "../controllers/technicianDashboard.controller.js";
 import subscriptionRoutes from "./subscription.routes.js";
@@ -303,6 +305,17 @@ router.post(
   validate,
   uploadIssueImages,
   uploadCompletionImages
+);
+
+router.post(
+  "/jobs/:bookingId/extra-charges",
+  authenticate,
+  authorize(ROLES.TECHNICIAN),
+  bookingWriteLimiter,
+  uploadIssueImages,
+  createExtraChargeValidation,
+  validate,
+  createExtraCharge
 );
 
 router.patch(

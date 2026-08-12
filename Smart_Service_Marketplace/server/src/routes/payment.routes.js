@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 
 import {
   createPaymentOrder,
+  createExtraChargePaymentOrder,
   verifyPayment,
   getPaymentStatus,
   getPaymentByBooking,
@@ -20,6 +21,7 @@ import {
 
 import {
   createPaymentOrderValidation,
+  createExtraChargeOrderValidation,
   verifyPaymentValidation,
   paymentFailureValidation,
   paymentIdValidation,
@@ -137,6 +139,20 @@ router.post(
   createPaymentOrderValidation,
   validate,
   createPaymentOrder
+);
+
+router.post(
+  "/extra-charges/:extraChargeId/orders",
+  authenticate,
+  authorize(ROLES.CUSTOMER),
+  idempotencyMiddleware({
+    required: false,
+    prefix: "extra-charge-order",
+    ttlSeconds: 60 * 60 * 24,
+  }),
+  createExtraChargeOrderValidation,
+  validate,
+  createExtraChargePaymentOrder
 );
 
 router.post(

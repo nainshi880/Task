@@ -318,6 +318,8 @@ class BookingWorkflowService {
   // ======================================
 
   async rejectJob(technicianId, bookingId, rejectionReason) {
+    await technicianRepository.ensureTechnicianReady(technicianId);
+
     const booking = await bookingRepository.findById(bookingId);
 
     if (!booking) {
@@ -529,6 +531,11 @@ class BookingWorkflowService {
       );
     }
 
+    const { default: extraChargeService } = await import(
+      "./extraCharge.service.js"
+    );
+    await extraChargeService.assertNoBlockingExtraCharge(bookingId);
+
     if (!booking.completionImages?.length) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
@@ -559,6 +566,10 @@ class BookingWorkflowService {
       );
     }
 
+    const scopeNote = booking.scopeExpanded
+      ? "Work finished (expanded scope) — awaiting customer confirmation"
+      : "Work finished — awaiting customer confirmation";
+
     await bookingEventService.record({
       bookingId,
       event: BOOKING_TIMELINE_EVENT.AWAITING_CONFIRMATION,
@@ -567,7 +578,11 @@ class BookingWorkflowService {
       action: AUDIT_ACTION.COMPLETE,
       fromStatus: BOOKING_STATUS.IN_PROGRESS,
       toStatus: BOOKING_STATUS.AWAITING_CONFIRMATION,
-      note: workNotes || "Work finished — awaiting customer confirmation",
+      note: workNotes || scopeNote,
+      metadata: {
+        scopeExpanded: Boolean(booking.scopeExpanded),
+        extraChargeTotal: booking.extraChargeTotal || 0,
+      },
     });
 
     return this.enrichBooking(updated);

@@ -13,7 +13,6 @@ import {
   isChatEncryptionEnabled,
 } from "../utils/messageCrypto.js";
 import {
-  queueInAppNotification,
   queuePushNotification,
 } from "./notificationQueue.service.js";
 import notificationService from "./notification.service.js";
@@ -401,56 +400,80 @@ class ChatService {
 
     const formatted = this.formatMessage(populated);
 
+    // Always notify the other participant (stringify for socket room keys)
+    const recipientId = String(peerId?._id || peerId);
+    const roomIdStr = String(room._id);
+    const messageIdStr = String(message._id);
+    const bookingId = room.booking?._id || room.booking;
+    const bookingIdStr = bookingId ? String(bookingId) : "";
+
     const notifTitle = "New chat message";
     const notifBody =
       type === MESSAGE_TYPE.TEXT
         ? `${user.name}: ${content.slice(0, 80)}`
         : `${user.name} sent a ${type}`;
-    const actionUrl = `/chat/${room._id}`;
-    const bookingId = room.booking._id || room.booking;
+    const actionUrl = `/chat/${roomIdStr}`;
 
-    // Every new message notifies the recipient (in-app + push)
+    // In-app: create immediately (do not depend on Redis/BullMQ worker)
+    let createdNotification = null;
     try {
-      await queueInAppNotification({
-        userId: peerId,
+      createdNotification = await notificationService.notifyChat(recipientId, {
         title: notifTitle,
         message: notifBody,
-        type: NOTIFICATION_TYPES.CHAT,
-        bookingId,
+        bookingId: bookingId || null,
         actionUrl,
         metadata: {
-          roomId: room._id.toString(),
-          messageId: message._id.toString(),
-          senderId: user._id.toString(),
+          roomId: roomIdStr,
+          messageId: messageIdStr,
+          senderId: String(user._id),
           senderName: user.name,
         },
       });
+    } catch (error) {
+      logger.warn(`Chat in-app notification failed: ${error.message}`);
+    }
 
+    // Push: unique per message so Redis dedupe cannot drop later messages
+    try {
       await queuePushNotification({
-        userId: peerId,
+        userId: recipientId,
         title: notifTitle,
         body: notifBody,
         data: {
           type: NOTIFICATION_TYPES.CHAT,
-          roomId: room._id.toString(),
-          messageId: message._id.toString(),
-          bookingId: bookingId ? String(bookingId) : "",
+          roomId: roomIdStr,
+          messageId: messageIdStr,
+          bookingId: bookingIdStr,
           actionUrl,
           link: actionUrl,
+          deeplink: actionUrl,
         },
+        dedupeKey: `${recipientId}_chat_${messageIdStr}`,
       });
     } catch (error) {
-      logger.warn(`Chat recipient notification failed: ${error.message}`);
+      logger.warn(`Chat push notification failed: ${error.message}`);
     }
 
     if (io) {
-      io.to(`room:${room._id}`).emit(CHAT_EVENTS.MESSAGE_NEW, {
-        message: formatted,
-      });
+      const messagePayload = { message: formatted, roomId: roomIdStr };
 
-      io.to(`user:${peerId}`).emit(CHAT_EVENTS.MESSAGE_NEW, {
-        message: formatted,
-        roomId: room._id,
+      io.to(`room:${roomIdStr}`).emit(CHAT_EVENTS.MESSAGE_NEW, messagePayload);
+      io.to(`user:${recipientId}`).emit(
+        CHAT_EVENTS.MESSAGE_NEW,
+        messagePayload
+      );
+
+      io.to(`user:${recipientId}`).emit("notification:new", {
+        type: NOTIFICATION_TYPES.CHAT,
+        title: notifTitle,
+        message: notifBody,
+        actionUrl,
+        roomId: roomIdStr,
+        messageId: messageIdStr,
+        bookingId: bookingIdStr,
+        notificationId: createdNotification?._id
+          ? String(createdNotification._id)
+          : null,
       });
     }
 

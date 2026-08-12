@@ -131,7 +131,17 @@ class TechnicianJobsService {
     if (wantsOpen && !options.search) {
       const busy = await technicianRepository.hasActiveJob(technicianId);
       if (!busy) {
-        const technician = await technicianRepository.findById(technicianId);
+        let isJobReady = false;
+        try {
+          await technicianRepository.ensureTechnicianReady(technicianId);
+          isJobReady = true;
+        } catch {
+          isJobReady = false;
+        }
+
+        const technician = isJobReady
+          ? await technicianRepository.findById(technicianId)
+          : null;
         if (technician?.availability !== false && technician?.isActive !== false) {
           const { bookings: openBookings } =
             await bookingRepository.findOpenJobsForTechnician({

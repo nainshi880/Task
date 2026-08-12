@@ -12,7 +12,7 @@ const paymentSchema = new mongoose.Schema(
 
     purpose: {
       type: String,
-      enum: ["booking", "subscription"],
+      enum: ["booking", "subscription", "extra_charge"],
       default: "booking",
       index: true,
     },
@@ -20,6 +20,13 @@ const paymentSchema = new mongoose.Schema(
     subscription: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Subscription",
+      default: null,
+      index: true,
+    },
+
+    extraCharge: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ExtraCharge",
       default: null,
       index: true,
     },

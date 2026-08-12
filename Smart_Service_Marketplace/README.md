@@ -153,13 +153,23 @@ Required in **production**.
 | `RAZORPAY_WEBHOOK_SECRET` | Webhook signing secret |
 
 
-#### Firebase Admin (optional push)
+#### Firebase Admin (optional push + Google login)
 
 | Variable | Description |
 | --- | --- |
 | `FIREBASE_PROJECT_ID` | Project ID |
 | `FIREBASE_CLIENT_EMAIL` | Service account email |
 | `FIREBASE_PRIVATE_KEY` | Private key (`\n` escaped) |
+
+Same Admin credentials verify Firebase **ID tokens** for **customer and technician** Google Sign-In / Sign-Up (`POST /auth/google` with optional `role` and `intent`).
+
+**Firebase Console setup for Google Login**
+
+1. Authentication → Sign-in method → enable **Google**
+2. Add your app origin to **Authorized domains** (e.g. `localhost`)
+3. Client already uses `VITE_FIREBASE_*` web config
+
+Push payloads include a **custom sound** (`/sounds/notification.wav`) and an absolute **deeplink** (`CLIENT_URL` + `actionUrl`). Tapping a notification opens the relevant booking/job/chat page. Foreground pushes also play the chime and show a clickable toast.
 
 #### Chat / logging / seed
 
@@ -252,6 +262,16 @@ Assigned / Accepted
        ↓
  In Progress (optionally Paused)
        ↓
+ [Optional] Technician finds extra issues on site
+       ↓
+ Upload photos + description + amount → Extra charge PENDING
+       ↓
+ Customer notified (in-app + FCM + Socket.IO)
+       ↓
+    Accept & pay (Razorpay)          OR          Reject
+       ↓                                           ↓
+ Extra charge PAID · scope expanded     Original scope only
+       ↓                                           ↓
  Technician finishes → Awaiting Confirmation
        ↓
  Customer confirms → Completed
@@ -261,7 +281,14 @@ Assigned / Accepted
  Technician rating & review count updated
 ```
 
-Technicians can upload completion photos, update job status from job detail, and chat with the customer.
+Technicians can upload completion photos, request on-site **extra charges**, update job status from job detail, and chat with the customer.
+
+**Extra charge rules**
+
+- Allowed while the job is **In Progress** or **Paused**, and the booking is already paid.
+- At most one open (pending/approved) extra charge per booking.
+- Job completion is blocked until the customer accepts+pays or rejects.
+- Accept & pay expands booking amount (`extraChargeTotal`, `scopeExpanded`); reject keeps original scope.
 
 ---
 
@@ -306,11 +333,12 @@ Base path: `/api/v1`
 
 | Area | Routes (examples) |
 | --- | --- |
-| Auth | `/auth/*` — register, login, verify, password reset |
+| Auth | `/auth/*` — register, login, **Google login** (`POST /auth/google`), verify, password reset |
 | Customers | `/customers/*` |
 | Technicians | `/technicians/*` — profile, availability, jobs |
 | Bookings | `/bookings/*`, workflow & assignment routes |
-| Payments | `/payments/*` — Razorpay order, verify, webhook |
+| Extra charges | `POST /technicians/jobs/:id/extra-charges`, `GET /bookings/:id/extra-charges`, `POST /extra-charges/:id/accept|reject`, `POST /payments/extra-charges/:id/orders` |
+| Payments | `/payments/*` — Razorpay order, verify, webhook (booking + extra_charge) |
 | Services | `/services/*` |
 | Reviews | `/reviews/*` |
 | Chat | `/chat/*` + Socket.IO |
@@ -331,6 +359,19 @@ Requires `REDIS_URL`. Designed for the scale-out topology (API cluster → Redis
 | Health | `/health` (deps), `/ready` (traffic), `/live` (process) |
 
 Process roles: `PROCESS_ROLE=api|payment-worker|notification-worker|all` with `npm run start:api`, `start:worker:payment-retry`, `start:worker:notifications`.
+
+### Booking reminders (technicians)
+
+Cron (server local time; disable with `CRON_ENABLED=false`):
+
+| Schedule | Kind | Who |
+| --- | --- | --- |
+| `07:00` daily | Morning of service day | Technician (+ customer) for `ASSIGNED` / `ACCEPTED` jobs |
+| `08:00` daily | Day before service | Technician (+ customer) for upcoming jobs |
+
+Delivery: in-app + FCM push + `notification:new` socket (plays sound when the app is open). Toggle via admin platform settings → `notifications.bookingReminders`.
+
+Manual test from `server/`: `npm run reminders:run` (or `npm run reminders:run -- morning_of` / `day_before`).
 
 ---
 

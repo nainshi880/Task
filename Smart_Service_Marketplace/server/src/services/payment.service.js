@@ -22,7 +22,10 @@ import crypto from "crypto";
 import paymentRepository from "../repositories/payment.repository.js";
 import assignmentService from "./assignment.service.js";
 import paymentRetryService from "./paymentRetry.service.js";
+import extraChargeService from "./extraCharge.service.js";
+import extraChargeRepository from "../repositories/extraCharge.repository.js";
 import BOOKING_STATUS from "../constants/bookingStatus.js";
+import EXTRA_CHARGE_STATUS from "../constants/extraChargeStatus.js";
 import razorpayRateLimiter from "../utils/razorpayRateLimiter.js";
 import { withDistributedLock } from "../utils/distributedLock.js";
 import {
@@ -222,6 +225,141 @@ class PaymentService {
   }
 
   // ======================================
+  // Create Extra Charge Payment Order
+  // ======================================
+
+  async createExtraChargeOrder(customerId, { extraChargeId }, meta = {}) {
+    const razorpay = this.ensureRazorpay();
+    const { keyId } = getRazorpayConfig();
+
+    const extraCharge = await extraChargeRepository.findById(extraChargeId);
+    if (!extraCharge) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, "Extra charge not found.");
+    }
+
+    const ownerId =
+      extraCharge.customer?._id?.toString() ||
+      extraCharge.customer?.toString();
+
+    if (!ownerId || ownerId !== customerId.toString()) {
+      throw new ApiError(
+        HTTP_STATUS.FORBIDDEN,
+        "You cannot pay this extra charge."
+      );
+    }
+
+    if (extraCharge.status === EXTRA_CHARGE_STATUS.PAID) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "This extra charge is already paid."
+      );
+    }
+
+    if (
+      extraCharge.status !== EXTRA_CHARGE_STATUS.PENDING &&
+      extraCharge.status !== EXTRA_CHARGE_STATUS.APPROVED
+    ) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        `Cannot pay an extra charge with status ${extraCharge.status}.`
+      );
+    }
+
+    // Accepting implies intent to pay — promote PENDING → APPROVED
+    if (extraCharge.status === EXTRA_CHARGE_STATUS.PENDING) {
+      await extraChargeService.acceptExtraCharge(customerId, extraChargeId);
+    }
+
+    const bookingId = extraCharge.booking?._id || extraCharge.booking;
+    const orderAmount = Number(extraCharge.amount);
+
+    if (!orderAmount || orderAmount <= 0) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Extra charge amount must be greater than 0."
+      );
+    }
+
+    const amountInPaise = this.toPaise(orderAmount);
+    const receipt = `xc_${String(extraChargeId).slice(-8)}_${Date.now()
+      .toString()
+      .slice(-6)}`;
+
+    const razorpayOrder = await razorpayRateLimiter.schedule(
+      () =>
+        withRetry(
+          async () =>
+            razorpay.orders.create({
+              amount: amountInPaise,
+              currency: "INR",
+              receipt,
+              notes: {
+                bookingId: String(bookingId),
+                customerId: customerId.toString(),
+                extraChargeId: String(extraChargeId),
+                purpose: "extra_charge",
+              },
+            }),
+          {
+            retries: 2,
+            delayMs: 400,
+            shouldRetry: isTransientError,
+          }
+        ),
+      "orders.create"
+    );
+
+    const payment = await paymentRepository.create({
+      booking: bookingId,
+      purpose: "extra_charge",
+      extraCharge: extraChargeId,
+      customer: customerId,
+      amount: orderAmount,
+      amountInPaise,
+      currency: "INR",
+      status: PAYMENT_STATUS.PENDING,
+      razorpayOrderId: razorpayOrder.id,
+      receipt,
+      notes: {
+        bookingId: String(bookingId),
+        extraChargeId: String(extraChargeId),
+        purpose: "extra_charge",
+      },
+    });
+
+    await writePaymentAudit({
+      actorId: customerId,
+      action: AUDIT_ACTION.PAY,
+      resourceId: payment._id,
+      description: "Extra charge payment order created",
+      metadata: {
+        bookingId,
+        extraChargeId,
+        amount: orderAmount,
+        razorpayOrderId: razorpayOrder.id,
+      },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    await invalidatePaymentCache(payment._id, customerId);
+
+    return {
+      paymentId: payment._id,
+      bookingId,
+      extraChargeId,
+      amount: orderAmount,
+      amountInPaise,
+      currency: "INR",
+      status: payment.status,
+      razorpayOrderId: razorpayOrder.id,
+      razorpayKeyId: keyId,
+      receipt,
+      purpose: "extra_charge",
+    };
+  }
+
+  // ======================================
   // Verify Payment (transactional)
   // ======================================
 
@@ -255,6 +393,31 @@ class PaymentService {
     }
 
     if (payment.status === PAYMENT_STATUS.PAID) {
+      if (payment.purpose === "extra_charge") {
+        const extraChargeId =
+          payment.extraCharge?._id ||
+          payment.extraCharge ||
+          payment.notes?.extraChargeId;
+        if (extraChargeId) {
+          try {
+            await extraChargeService.finalizePaidExtraCharge(
+              extraChargeId,
+              payment._id
+            );
+            await extraChargeService.afterExtraChargePaid(extraChargeId);
+          } catch {
+            // non-blocking — may already be finalized
+          }
+        }
+        return {
+          alreadyPaid: true,
+          payment,
+          purpose: "extra_charge",
+          extraChargeId,
+          bookingPaymentStatus: "Paid",
+        };
+      }
+
       const bookingId = payment.booking?._id || payment.booking;
       let activation = null;
       if (bookingId) {
@@ -322,6 +485,21 @@ class PaymentService {
         session
       );
 
+      if (payment.purpose === "extra_charge") {
+        const extraChargeId =
+          payment.extraCharge?._id ||
+          payment.extraCharge ||
+          payment.notes?.extraChargeId;
+        if (extraChargeId) {
+          await extraChargeService.finalizePaidExtraCharge(
+            extraChargeId,
+            payment._id,
+            session
+          );
+        }
+        return paid;
+      }
+
       const bookingId = payment.booking?._id || payment.booking;
       if (bookingId) {
         await paymentRepository.updateBookingPaymentStatus(
@@ -335,27 +513,44 @@ class PaymentService {
     });
 
     const bookingId = payment.booking?._id || payment.booking;
+    const extraChargeId =
+      payment.extraCharge?._id ||
+      payment.extraCharge ||
+      payment.notes?.extraChargeId;
 
     await writePaymentAudit({
       actorId: customerId,
       action: AUDIT_ACTION.PAY,
       resourceId: payment._id,
-      description: "Payment verified successfully",
+      description:
+        payment.purpose === "extra_charge"
+          ? "Extra charge payment verified successfully"
+          : "Payment verified successfully",
       metadata: {
         bookingId,
+        extraChargeId,
         razorpayPaymentId: razorpay_payment_id,
         method,
+        purpose: payment.purpose,
       },
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });
 
     await notificationService.notifyPayment(customerId, {
-      title: "Payment successful",
+      title:
+        payment.purpose === "extra_charge"
+          ? "Extra charge paid"
+          : "Payment successful",
       message: `Your payment of ₹${payment.amount} was successful.`,
       paymentId: payment._id,
       bookingId,
-      metadata: { method, status: "Paid" },
+      metadata: {
+        method,
+        status: "Paid",
+        purpose: payment.purpose,
+        extraChargeId,
+      },
     });
 
     // Email receipt (non-blocking)
@@ -376,6 +571,27 @@ class PaymentService {
     }
 
     await invalidatePaymentCache(payment._id, customerId);
+
+    if (payment.purpose === "extra_charge") {
+      if (extraChargeId) {
+        try {
+          await extraChargeService.afterExtraChargePaid(extraChargeId);
+        } catch (error) {
+          logger.warn("Post extra-charge paid notify failed", {
+            extraChargeId: String(extraChargeId),
+            message: error.message,
+          });
+        }
+      }
+
+      return {
+        alreadyPaid: false,
+        payment: updated,
+        purpose: "extra_charge",
+        extraChargeId,
+        bookingPaymentStatus: "Paid",
+      };
+    }
 
     let activation = null;
     if (bookingId) {
@@ -1267,6 +1483,21 @@ class PaymentService {
               session
             );
 
+            if (payment.purpose === "extra_charge") {
+              const extraChargeId =
+                payment.extraCharge?._id ||
+                payment.extraCharge ||
+                payment.notes?.extraChargeId;
+              if (extraChargeId) {
+                await extraChargeService.finalizePaidExtraCharge(
+                  extraChargeId,
+                  payment._id,
+                  session
+                );
+              }
+              return paid;
+            }
+
             const bookingId = payment.booking?._id || payment.booking;
             if (bookingId) {
               await paymentRepository.updateBookingPaymentStatus(
@@ -1284,13 +1515,31 @@ class PaymentService {
             action: AUDIT_ACTION.WEBHOOK,
             resourceId: payment._id,
             description: `Webhook ${eventName} — marked paid`,
-            metadata: { eventId, eventName },
+            metadata: { eventId, eventName, purpose: payment.purpose },
           });
 
           await invalidatePaymentCache(
             payment._id,
             payment.customer?._id || payment.customer
           );
+        }
+
+        if (payment.purpose === "extra_charge") {
+          const extraChargeId =
+            payment.extraCharge?._id ||
+            payment.extraCharge ||
+            payment.notes?.extraChargeId;
+          if (extraChargeId) {
+            try {
+              await extraChargeService.afterExtraChargePaid(extraChargeId);
+            } catch (error) {
+              logger.warn("Webhook post extra-charge paid notify failed", {
+                extraChargeId: String(extraChargeId),
+                message: error.message,
+              });
+            }
+          }
+          return { handled: true, event: eventName, status: "Paid", eventId };
         }
 
         {

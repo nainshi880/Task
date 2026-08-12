@@ -16,6 +16,20 @@ class AuthRepository {
 
   }
 
+  async findByFirebaseUid(firebaseUid) {
+    if (!firebaseUid) return null;
+    return await User.findOne({ firebaseUid: String(firebaseUid) }).select(
+      "+password"
+    );
+  }
+
+  async findByGoogleId(googleId) {
+    if (!googleId) return null;
+    return await User.findOne({ googleId: String(googleId) }).select(
+      "+password"
+    );
+  }
+
   async findByPhone(phone) {
     if (!phone) return null;
     return await User.findOne({ phone });

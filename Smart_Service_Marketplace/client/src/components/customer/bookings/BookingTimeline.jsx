@@ -19,6 +19,10 @@ const EVENT_LABELS = {
   CUSTOMER_CONFIRMED: "Customer confirmed",
   CLOSED: "Booking closed",
   ISSUE_IMAGES_UPLOADED: "Issue photos uploaded",
+  EXTRA_CHARGE_REQUESTED: "Extra charge requested",
+  EXTRA_CHARGE_APPROVED: "Extra charge accepted",
+  EXTRA_CHARGE_REJECTED: "Extra charge rejected",
+  EXTRA_CHARGE_PAID: "Extra charge paid",
 };
 
 function BookingTimeline({ events = [] }) {

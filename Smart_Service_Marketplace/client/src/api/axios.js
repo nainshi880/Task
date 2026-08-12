@@ -103,6 +103,7 @@ api.interceptors.response.use(
     const skipRefresh =
       url.includes("/auth/refresh") ||
       url.includes("/auth/login") ||
+      url.includes("/auth/google") ||
       url.includes("/admin/login") ||
       url.includes("/admin/refresh") ||
       url.includes("/auth/register") ||

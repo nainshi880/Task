@@ -7,6 +7,7 @@ import ApiError from "../utils/ApiError.js";
 import HTTP_STATUS from "../constants/httpStatus.js";
 import BOOKING_STATUS from "../constants/bookingStatus.js";
 import cacheService, {
+  CACHE_KEYS,
   CACHE_TTL,
 } from "../utils/cache.js";
 
@@ -40,7 +41,7 @@ class TechnicianDashboardService {
   // ======================================
 
   async getDashboard(technicianId) {
-    const cacheKey = `technicians:dashboard:${technicianId}`;
+    const cacheKey = `${CACHE_KEYS.TECH_DASHBOARD_PREFIX}v2:${technicianId}`;
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       return { ...cached, cached: true };
@@ -110,9 +111,21 @@ class TechnicianDashboardService {
     const maxWorkload = user.maxWorkload || 5;
     const rating = profile?.rating ?? user.rating ?? 5;
 
-    // Open marketplace offers for this technician's skills (paid + confirmed)
+    // Open marketplace offers only for admin-approved, available technicians
     let openOffers = [];
-    if (currentWorkload === 0 && (profile?.availabilityStatus ?? user.availability) !== false) {
+    let isJobReady = false;
+    try {
+      await technicianRepository.ensureTechnicianReady(technicianId);
+      isJobReady = true;
+    } catch {
+      isJobReady = false;
+    }
+
+    if (
+      isJobReady &&
+      currentWorkload === 0 &&
+      (profile?.availabilityStatus ?? user.availability) !== false
+    ) {
       try {
         const skills = [
           ...new Set([
@@ -157,6 +170,8 @@ class TechnicianDashboardService {
         workingCity: profile?.workingCity || user.city,
         availability:
           profile?.availabilityStatus ?? user.availability ?? true,
+        applicationStatus: profile?.applicationStatus || "pending",
+        rejectionReason: profile?.rejectionReason || "",
         skills: profile?.skills?.length
           ? profile.skills
           : user.skills || [],

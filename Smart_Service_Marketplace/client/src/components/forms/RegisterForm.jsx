@@ -9,9 +9,16 @@ import Button from "../ui/Button";
 import Input from "../ui/Input";
 import PasswordStrength from "../ui/PasswordStrength";
 import FileUpload from "../ui/FileUpload";
+import GoogleSignInButton from "../auth/GoogleSignInButton";
 import * as authService from "../../services/auth.service";
+import useAuth from "../../hooks/useAuth";
 import { validateStrongPassword } from "../../utils/password";
 import SERVICE_CATEGORIES from "../../constants/serviceCategories";
+import {
+  getProfileSetupPath,
+  getPostLoginRedirect,
+  needsProfileSetup,
+} from "../../constants/roles";
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const PHONE_PATTERN = /^[0-9+\-\s]{10,15}$/;
@@ -24,8 +31,10 @@ const ROLE_TABS = [
 
 function RegisterForm() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [role, setRole] = useState("customer");
   const [formError, setFormError] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const [identityProof, setIdentityProof] = useState(null);
   const [fileErrors, setFileErrors] = useState({});
@@ -137,6 +146,46 @@ function RegisterForm() {
     }
   };
 
+  const onGoogleSuccess = async ({ idToken }) => {
+    setFormError("");
+    setGoogleLoading(true);
+    try {
+      const response = await authService.loginWithGoogle({
+        idToken,
+        role,
+        intent: "register",
+      });
+
+      login(response.user, response.token || response.accessToken, {
+        rememberMe: true,
+        refreshToken: response.refreshToken,
+      });
+
+      toast.success(
+        response.isNewUser
+          ? `Account created with Google as ${role}.`
+          : "You're already registered — signed in with Google."
+      );
+
+      const setupPath = needsProfileSetup(response.user)
+        ? getProfileSetupPath(response.user?.role)
+        : null;
+      navigate(setupPath || getPostLoginRedirect(response.user?.role), {
+        replace: true,
+      });
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Google sign-up failed. Please try again.";
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const busy = isSubmitting || googleLoading;
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
@@ -144,6 +193,7 @@ function RegisterForm() {
           <button
             key={tab.id}
             type="button"
+            disabled={busy}
             onClick={() => switchRole(tab.id)}
             className={clsx(
               "rounded-lg px-4 py-2.5 text-sm font-semibold transition",
@@ -394,7 +444,7 @@ function RegisterForm() {
         className="w-full"
         size="lg"
         loading={isSubmitting}
-        disabled={isSubmitting}
+        disabled={busy}
       >
         {isSubmitting
           ? role === "technician"
@@ -404,6 +454,26 @@ function RegisterForm() {
             ? "Apply as technician"
             : "Create customer account"}
       </Button>
+
+      <div className="space-y-3">
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center" aria-hidden="true">
+            <div className="w-full border-t border-slate-200" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase tracking-wide">
+            <span className="bg-white px-3 text-slate-500">or</span>
+          </div>
+        </div>
+        <GoogleSignInButton
+          disabled={busy}
+          onSuccess={onGoogleSuccess}
+          label={
+            role === "technician"
+              ? "Continue with Google"
+              : "Continue with Google"
+          }
+        />
+      </div>
     </form>
   );
 }

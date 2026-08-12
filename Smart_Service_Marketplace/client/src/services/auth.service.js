@@ -9,6 +9,9 @@ export const registerTechnician = async (formData) =>
 
 export const login = async (data) => unwrap(await authApi.loginUser(data));
 
+export const loginWithGoogle = async (data) =>
+  unwrap(await authApi.loginWithGoogle(data));
+
 export const logout = async () => unwrap(await authApi.logoutUser());
 
 export const me = async () => unwrap(await authApi.getCurrentUser());

@@ -21,9 +21,35 @@ const userSchema = new mongoose.Schema(
 
     password: {
       type: String,
-      required: true,
+      required: function requiredPassword() {
+        return (this.authProvider || "local") === "local";
+      },
       minlength: 8,
       select: false,
+    },
+
+    /** local = email/password; google = Firebase Google Sign-In */
+    authProvider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
+      index: true,
+    },
+
+    firebaseUid: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+
+    googleId: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+      index: true,
     },
 
     phone: {
@@ -213,6 +239,10 @@ userSchema.pre("save", async function () {
     return;
   }
 
+  if (!this.password) {
+    return;
+  }
+
   // Allow creating users from an already-hashed pending registration password
   if (this.$locals?.passwordAlreadyHashed) {
     return;
@@ -222,6 +252,9 @@ userSchema.pre("save", async function () {
 });
 
 userSchema.methods.comparePassword = async function (password) {
+  if (!this.password) {
+    return false;
+  }
   return await bcrypt.compare(password, this.password);
 };
 

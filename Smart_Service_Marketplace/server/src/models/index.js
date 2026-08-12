@@ -6,6 +6,7 @@ import "./CustomerProfile.js";
 import "./TechnicianProfile.js";
 import "./AdminProfile.js";
 import "./Booking.js";
+import "./ExtraCharge.js";
 import "./Payment.js";
 import "./Review.js";
 import "./Notification.js";

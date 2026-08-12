@@ -24,6 +24,22 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
   );
 });
 
+export const createExtraChargePaymentOrder = asyncHandler(async (req, res) => {
+  const order = await paymentService.createExtraChargeOrder(
+    req.user._id,
+    { extraChargeId: req.params.extraChargeId || req.body.extraChargeId },
+    actorMeta(req)
+  );
+
+  res.status(HTTP_STATUS.CREATED).json(
+    new ApiResponse(
+      HTTP_STATUS.CREATED,
+      "Extra charge payment order created successfully.",
+      order
+    )
+  );
+});
+
 export const verifyPayment = asyncHandler(async (req, res) => {
   const result = await paymentService.verifyPayment(
     req.user._id,

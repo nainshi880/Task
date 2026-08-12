@@ -8,6 +8,7 @@ import {
   MapPin,
   StickyNote,
   UserRound,
+  CircleDollarSign,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -23,6 +24,7 @@ import ReviewBookingModal from "../../components/customer/bookings/ReviewBooking
 import * as bookingService from "../../services/booking.service";
 import * as chatService from "../../services/chat.service";
 import * as reviewService from "../../services/review.service";
+import * as extraChargeService from "../../services/extraCharge.service";
 import { bookingKeys, customerKeys, technicianKeys } from "../../lib/queryClient";
 import * as paymentService from "../../services/payment.service";
 import { useAuthStore } from "../../store/authStore";
@@ -34,6 +36,12 @@ import {
   needsPayment,
   shouldTrackLive,
 } from "../../constants/bookingStatus";
+import {
+  EXTRA_CHARGE_STATUS,
+  canCustomerPay,
+  canCustomerRespond,
+  isOpenExtraCharge,
+} from "../../constants/extraCharge";
 import { formatCurrency, formatDate, formatRelativeTime } from "../../utils/format";
 import { formatTimeSlot } from "../../constants/timeSlots";
 
@@ -60,6 +68,7 @@ function BookingDetailPage() {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [payingExtra, setPayingExtra] = useState(false);
 
   const detailQuery = useQuery({
     queryKey: bookingKeys.detail(bookingId),
@@ -99,6 +108,17 @@ function BookingDetailPage() {
     },
   });
 
+  const extraChargesQuery = useQuery({
+    queryKey: bookingKeys.extraCharges(bookingId),
+    queryFn: () => extraChargeService.listExtraCharges(bookingId),
+    enabled: Boolean(bookingId),
+    retry: false,
+    refetchInterval: (query) => {
+      const items = query.state.data || [];
+      return items.some((c) => isOpenExtraCharge(c.status)) ? 8_000 : false;
+    },
+  });
+
   const openChatMutation = useMutation({
     mutationFn: () => chatService.getOrCreateBookingRoom(bookingId),
     onSuccess: (data) => {
@@ -118,6 +138,9 @@ function BookingDetailPage() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: bookingKeys.detail(bookingId) }),
       queryClient.invalidateQueries({ queryKey: bookingKeys.timeline(bookingId) }),
+      queryClient.invalidateQueries({
+        queryKey: bookingKeys.extraCharges(bookingId),
+      }),
       queryClient.invalidateQueries({ queryKey: bookingKeys.all }),
       queryClient.invalidateQueries({ queryKey: customerKeys.dashboard() }),
     ]);
@@ -247,7 +270,55 @@ function BookingDetailPage() {
     }
   };
 
+  const rejectExtraMutation = useMutation({
+    mutationFn: (extraChargeId) =>
+      extraChargeService.rejectExtraCharge(extraChargeId),
+    onSuccess: async () => {
+      toast.success(
+        "Extra charge rejected. Technician will complete the original scope only."
+      );
+      await invalidateBooking();
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Could not reject extra charge."
+      );
+    },
+  });
+
+  const handlePayExtra = async (charge) => {
+    setPayingExtra(true);
+    try {
+      await paymentService.payForExtraCharge({
+        extraChargeId: charge._id,
+        customerName: user?.name,
+        customerEmail: user?.email,
+        customerPhone: user?.phone,
+        description: `Extra charge — ${booking?.serviceName || "service"}`,
+      });
+      toast.success("Extra charge paid. Technician will complete the full scope.");
+      await invalidateBooking();
+    } catch (error) {
+      if (error?.message === "Payment cancelled.") {
+        toast("Payment cancelled.");
+        await invalidateBooking();
+      } else {
+        toast.error(
+          error.response?.data?.message ||
+            error.message ||
+            "Extra charge payment failed."
+        );
+      }
+    } finally {
+      setPayingExtra(false);
+    }
+  };
+
   const booking = detailQuery.data;
+  const extraCharges = extraChargesQuery.data || [];
+  const openExtra = extraCharges.find((c) => isOpenExtraCharge(c.status));
   const timeline = useMemo(() => {
     const events = timelineQuery.data?.timeline || [];
     return [...events].sort(
@@ -395,6 +466,98 @@ function BookingDetailPage() {
             </p>
           </div>
         )}
+
+        {openExtra && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-5 text-sm text-amber-950 shadow-sm">
+            <div className="flex items-start gap-3">
+              <CircleDollarSign className="mt-0.5 shrink-0 text-amber-700" size={20} />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-amber-950">
+                  Extra charge requested — {formatCurrency(openExtra.amount)}
+                </p>
+                <p className="mt-1 text-amber-900/90">
+                  Your technician found additional issues on site. Accept and pay
+                  to expand the job, or reject to keep the original booked scope
+                  only.
+                </p>
+                <p className="mt-3 whitespace-pre-wrap text-slate-800">
+                  {openExtra.description}
+                </p>
+                {openExtra.images?.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {openExtra.images.map((url) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block h-20 w-20 overflow-hidden rounded-lg border border-amber-200 bg-white"
+                      >
+                        <img
+                          src={url}
+                          alt="Extra issue"
+                          className="h-full w-full object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {canCustomerPay(openExtra.status) && (
+                    <Button
+                      type="button"
+                      loading={payingExtra}
+                      onClick={() => handlePayExtra(openExtra)}
+                    >
+                      {canCustomerRespond(openExtra.status)
+                        ? "Accept & pay"
+                        : "Pay"}{" "}
+                      {formatCurrency(openExtra.amount)}
+                    </Button>
+                  )}
+                  {canCustomerRespond(openExtra.status) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={payingExtra || rejectExtraMutation.isPending}
+                      loading={rejectExtraMutation.isPending}
+                      onClick={() => rejectExtraMutation.mutate(openExtra._id)}
+                    >
+                      Reject
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!openExtra &&
+          extraCharges.some((c) => c.status === EXTRA_CHARGE_STATUS.PAID) && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
+              <p className="font-semibold">Extra charge paid</p>
+              <p className="mt-1">
+                The technician will complete the full expanded scope
+                {booking.extraChargeTotal > 0
+                  ? ` (+${formatCurrency(booking.extraChargeTotal)})`
+                  : ""}
+                .
+              </p>
+            </div>
+          )}
+
+        {!openExtra &&
+          extraCharges.some(
+            (c) => c.status === EXTRA_CHARGE_STATUS.REJECTED
+          ) &&
+          !booking.scopeExpanded && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-700">
+              <p className="font-semibold text-slate-900">Extra charge rejected</p>
+              <p className="mt-1">
+                The technician will complete only the original booked scope.
+              </p>
+            </div>
+          )}
 
         {showReview && !showConfirm && (
           <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-5 py-4 text-sm text-indigo-900">

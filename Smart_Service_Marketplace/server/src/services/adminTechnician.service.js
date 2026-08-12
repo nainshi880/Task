@@ -10,8 +10,16 @@ import AUDIT_ACTION from "../constants/auditAction.js";
 import TECHNICIAN_APPLICATION_STATUS from "../constants/technicianApplication.js";
 import NOTIFICATION_TYPES from "../constants/notificationType.js";
 import ROLES from "../constants/roles.js";
+import cacheService, { CACHE_KEYS } from "../utils/cache.js";
 
 class AdminTechnicianService {
+  async invalidateTechnicianCaches(technicianId) {
+    await Promise.all([
+      cacheService.del(`${CACHE_KEYS.TECH_DASHBOARD_PREFIX}${technicianId}`),
+      cacheService.del(`${CACHE_KEYS.TECH_DASHBOARD_PREFIX}v2:${technicianId}`),
+      cacheService.invalidatePrefix(CACHE_KEYS.TECH_JOBS_PREFIX),
+    ]);
+  }
   parsePagination(query = {}) {
     let page = parseInt(query.page, 10);
     let limit = parseInt(query.limit, 10);
@@ -200,6 +208,8 @@ class AdminTechnicianService {
       actionUrl: "/technician/dashboard",
     });
 
+    await this.invalidateTechnicianCaches(technicianId);
+
     return {
       user: await adminTechnicianRepository.findTechnicianUser(technicianId),
       profile: updatedProfile,
@@ -246,6 +256,8 @@ class AdminTechnicianService {
       type: NOTIFICATION_TYPES.SYSTEM,
       actionUrl: "/technician/profile",
     });
+
+    await this.invalidateTechnicianCaches(technicianId);
 
     return {
       user,

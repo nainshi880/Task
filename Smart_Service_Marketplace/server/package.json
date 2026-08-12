@@ -9,7 +9,9 @@
     "start:api": "node src/api.entry.js",
     "start:worker:payment-retry": "node src/workers/paymentRetry.entry.js",
     "start:worker:notifications": "node src/workers/notification.entry.js",
-    "seed:super-admin": "node src/seeds/runSeedSuperAdmin.js"
+    "seed:super-admin": "node src/seeds/runSeedSuperAdmin.js",
+    "simulate:payment-retry-load": "node src/scripts/simulatePaymentRetryLoad.js",
+    "reminders:run": "node src/scripts/runBookingReminders.js"
   },
   "keywords": [],
   "author": "",

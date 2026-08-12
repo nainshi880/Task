@@ -35,7 +35,8 @@ class TechnicianProfileService {
   calculateProfileCompletion(data = {}) {
     const hasName = Boolean(data.fullName?.trim());
     const hasPhone = Boolean(data.phone?.trim());
-    const hasCity = Boolean(data.workingCity?.trim());
+    const city = String(data.workingCity || "").trim();
+    const hasCity = Boolean(city) && city.toLowerCase() !== "pending";
     const hasSkills =
       (data.skills?.length || 0) > 0 ||
       (data.serviceCategories?.length || 0) > 0;
@@ -52,15 +53,20 @@ class TechnicianProfileService {
         : profile.serviceCategories || [];
 
     const onVacation = Boolean(profile.vacationMode);
+    const isApproved =
+      !profile.applicationStatus ||
+      profile.applicationStatus === "approved";
     const isAvailable =
+      isApproved &&
       profile.availabilityStatus !== false &&
       profile.onlineStatus !== false &&
-      !onVacation;
+      !onVacation &&
+      !profile.isSuspended;
 
     await technicianProfileRepository.syncUserFields(userId, {
       city: profile.workingCity || "",
       skills,
-      availability: isAvailable || Boolean(profile.profileCompleted),
+      availability: isAvailable,
       avatar: profile.profilePhoto || null,
       phone: profile.phone || undefined,
       name: profile.fullName || undefined,
@@ -438,10 +444,16 @@ class TechnicianProfileService {
     if (data.workingCity) {
       updateData.workingCity = data.workingCity;
     }
+    if (data.phone !== undefined) {
+      updateData.phone = String(data.phone || "").trim();
+    }
+    if (data.fullName !== undefined) {
+      updateData.fullName = String(data.fullName || "").trim();
+    }
 
     const merged = {
-      fullName: profile.fullName,
-      phone: profile.phone,
+      fullName: updateData.fullName ?? profile.fullName,
+      phone: updateData.phone ?? profile.phone,
       workingCity: updateData.workingCity ?? profile.workingCity,
       skills: updateData.skills ?? profile.skills,
       serviceCategories:
@@ -452,12 +464,17 @@ class TechnicianProfileService {
 
     updateData.profileCompleted = this.calculateProfileCompletion(merged);
 
-    // Make completed profiles bookable (browse + auto-assign) once setup finishes.
-    if (updateData.profileCompleted) {
-      updateData.applicationStatus = "approved";
-      if (updateData.availabilityStatus === undefined) {
-        updateData.availabilityStatus = true;
-      }
+    if (!updateData.profileCompleted) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        "Complete required profile details (name, phone, city, skills, experience) before finishing setup."
+      );
+    }
+
+    // Stay pending for admin review — do not auto-approve.
+    if (profile.applicationStatus !== "approved") {
+      updateData.applicationStatus = "pending";
+      updateData.rejectionReason = "";
     }
 
     const updated = await technicianProfileRepository.updateByUserId(

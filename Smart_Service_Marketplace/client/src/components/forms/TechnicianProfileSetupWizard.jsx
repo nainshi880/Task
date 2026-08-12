@@ -81,6 +81,8 @@ function TechnicianProfileSetupWizard() {
 
   const radiusForm = useForm({
     defaultValues: {
+      fullName: user?.name || "",
+      phone: user?.phone || "",
       workingCity: user?.city || "",
       workingRadius: 10,
       experienceYears: 1,
@@ -111,6 +113,29 @@ function TechnicianProfileSetupWizard() {
         setHasIdentity(identityDone);
         setPhotoUrl(photo);
 
+        if (profile.fullName || profile.phone || profile.workingCity) {
+          radiusForm.reset({
+            fullName: profile.fullName || user?.name || "",
+            phone: profile.phone || user?.phone || "",
+            workingCity:
+              profile.workingCity && profile.workingCity !== "Pending"
+                ? profile.workingCity
+                : user?.city || "",
+            workingRadius: profile.workingRadius || 10,
+            experienceYears:
+              profile.experienceYears !== undefined &&
+              profile.experienceYears !== null
+                ? profile.experienceYears
+                : 1,
+          });
+        }
+
+        if (Array.isArray(profile.serviceCategories) && profile.serviceCategories.length) {
+          setSelectedCategories(profile.serviceCategories);
+        } else if (Array.isArray(profile.skills) && profile.skills.length) {
+          setSelectedCategories(profile.skills);
+        }
+
         // Photo + ID are collected at registration — jump to certificates.
         if (photoDone && identityDone) setStep(2);
         else if (photoDone) setStep(1);
@@ -137,8 +162,8 @@ function TechnicianProfileSetupWizard() {
         : "Upload Aadhaar or PAN for verification.",
       "Add at least one skill certificate (optional to skip).",
       "Select the service categories you offer.",
-      "Set your working city and service radius.",
-      "Choose when you are available for jobs.",
+      "Add your contact details, city, and service radius.",
+      "Choose when you are available for jobs (after admin approval).",
     ];
     return messages[step];
   }, [step, hasPhoto, hasIdentity]);
@@ -274,10 +299,14 @@ function TechnicianProfileSetupWizard() {
     setFormError("");
     setSubmitting(true);
     try {
+      const fullName = data.fullName.trim();
+      const phone = data.phone.trim();
       const city = data.workingCity.trim();
       const radius = Number(data.workingRadius);
 
       await technicianService.updateProfile({
+        fullName,
+        phone,
         workingCity: city,
         workingRadius: radius,
         experienceYears: Number(data.experienceYears),
@@ -290,7 +319,7 @@ function TechnicianProfileSetupWizard() {
         `${city} (${radius} km)`,
       ]);
 
-      toast.success("Working radius saved");
+      toast.success("Details saved");
       setStep(5);
     } catch (error) {
       const message =
@@ -315,6 +344,8 @@ function TechnicianProfileSetupWizard() {
       await technicianService.updateWorkingHours(workingHours);
       await technicianService.updateAvailability(Boolean(data.availabilityStatus));
       await technicianService.completeSetup({
+        fullName: radiusForm.getValues("fullName")?.trim(),
+        phone: radiusForm.getValues("phone")?.trim(),
         workingCity: city,
         workingRadius: radius,
         experienceYears: Number(radiusForm.getValues("experienceYears")),
@@ -325,7 +356,9 @@ function TechnicianProfileSetupWizard() {
       });
 
       await refreshMe();
-      toast.success("Profile setup complete");
+      toast.success(
+        "Profile submitted for admin approval. You can accept jobs after an admin approves you."
+      );
       navigate(getRoleHome("technician"), { replace: true });
     } catch (error) {
       const message =
@@ -503,6 +536,27 @@ function TechnicianProfileSetupWizard() {
           noValidate
         >
           <Input
+            label="Full name"
+            error={radiusForm.formState.errors.fullName?.message}
+            register={radiusForm.register("fullName", {
+              required: "Full name is required",
+              minLength: { value: 2, message: "Enter your full name" },
+            })}
+          />
+          <Input
+            label="Phone number"
+            type="tel"
+            placeholder="10–15 digit mobile number"
+            error={radiusForm.formState.errors.phone?.message}
+            register={radiusForm.register("phone", {
+              required: "Phone number is required",
+              pattern: {
+                value: /^[0-9+\-\s]{10,15}$/,
+                message: "Enter a valid phone number",
+              },
+            })}
+          />
+          <Input
             label="Working city"
             error={radiusForm.formState.errors.workingCity?.message}
             register={radiusForm.register("workingCity", {
@@ -554,8 +608,12 @@ function TechnicianProfileSetupWizard() {
               className="h-4 w-4"
               {...availabilityForm.register("availabilityStatus")}
             />
-            Available for new jobs
+            Prefer to be available for new jobs after admin approval
           </label>
+          <p className="text-xs text-slate-500">
+            Submitting finishes your application. An admin must approve you
+            before you can accept or reject bookings.
+          </p>
 
           <div className="space-y-3">
             {Object.keys(DEFAULT_HOURS).map((day) => (

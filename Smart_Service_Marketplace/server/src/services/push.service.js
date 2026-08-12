@@ -1,14 +1,105 @@
 import { getFirebaseMessaging, isFirebaseReady } from "../config/firebase.js";
 import authRepository from "../repositories/auth.repository.js";
 import { firebaseCircuit } from "../utils/circuitBreaker.js";
+import {
+  PUSH_NATIVE_SOUND,
+  PUSH_SOUND_PATH,
+  buildDeeplink,
+  getClientOrigin,
+  getPushSoundUrl,
+  toAppPath,
+} from "../utils/pushPayload.js";
 import logger from "../utils/logger.js";
 
 /**
  * Send FCM push via Firebase Admin SDK.
+ * Includes custom sound (Android / APNs / web) and absolute deeplink.
  * Invalid / unregistered tokens are pruned from the user document.
  * Protected by firebase_fcm circuit breaker.
  */
 class PushService {
+  buildMessagePayload({ title, body, data = {} }) {
+    const stringData = Object.fromEntries(
+      Object.entries(data || {}).map(([k, v]) => [k, v == null ? "" : String(v)])
+    );
+
+    const appPath = toAppPath(
+      stringData.deeplink ||
+        stringData.actionUrl ||
+        stringData.link ||
+        stringData.click_action ||
+        "/"
+    );
+    const deeplink = buildDeeplink(appPath);
+    const soundUrl = getPushSoundUrl();
+    const origin = getClientOrigin();
+    const iconUrl = origin ? `${origin}/favicon.svg` : "/favicon.svg";
+
+    // Canonical deeplink fields for clients / SW click handlers
+    stringData.deeplink = deeplink;
+    stringData.actionUrl = appPath;
+    stringData.link = appPath;
+    stringData.click_action = deeplink;
+    stringData.sound = soundUrl;
+    stringData.soundPath = PUSH_SOUND_PATH;
+    if (!stringData.title && title) stringData.title = String(title);
+    if (!stringData.body && body) stringData.body = String(body);
+
+    return {
+      notification: {
+        title: title || "Notification",
+        body: body || "",
+      },
+      data: stringData,
+      android: {
+        priority: "high",
+        notification: {
+          sound: PUSH_NATIVE_SOUND,
+          channelId: "ssm_default",
+          clickAction: deeplink,
+          defaultSound: true,
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: PUSH_NATIVE_SOUND,
+            badge: 1,
+          },
+        },
+        fcmOptions: {
+          imageUrl: iconUrl.startsWith("http") ? iconUrl : undefined,
+        },
+      },
+      webpush: {
+        headers: {
+          Urgency: "high",
+        },
+        notification: {
+          title: title || "Notification",
+          body: body || "",
+          icon: iconUrl,
+          badge: iconUrl,
+          // Custom sound — supported on some browsers / WebView shells
+          sound: soundUrl,
+          requireInteraction: Boolean(
+            stringData.type?.includes("extra_charge") ||
+              stringData.type?.includes("assigned")
+          ),
+          data: {
+            ...stringData,
+            deeplink,
+            link: appPath,
+            actionUrl: appPath,
+          },
+        },
+        fcmOptions: {
+          link: deeplink,
+        },
+      },
+    };
+  }
+
   async sendToTokens(tokens, { title, body, data = {} } = {}) {
     const messaging = getFirebaseMessaging();
     if (!messaging) {
@@ -21,24 +112,13 @@ class PushService {
       return { sent: false, reason: "no_tokens" };
     }
 
-    const stringData = Object.fromEntries(
-      Object.entries(data || {}).map(([k, v]) => [k, v == null ? "" : String(v)])
-    );
+    const message = this.buildMessagePayload({ title, body, data });
 
     try {
       const response = await firebaseCircuit.exec(() =>
         messaging.sendEachForMulticast({
           tokens: unique,
-          notification: {
-            title: title || "Notification",
-            body: body || "",
-          },
-          data: stringData,
-          webpush: {
-            fcmOptions: {
-              link: stringData.actionUrl || stringData.link || "/",
-            },
-          },
+          ...message,
         })
       );
 
@@ -65,6 +145,7 @@ class PushService {
         successCount: response.successCount,
         failureCount: response.failureCount,
         invalidTokens,
+        deeplink: message.data?.deeplink,
       };
     } catch (error) {
       if (error.code === "CIRCUIT_OPEN") {

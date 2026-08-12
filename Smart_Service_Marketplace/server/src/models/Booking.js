@@ -97,6 +97,19 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
     },
 
+    /** Sum of paid on-site extra charges. */
+    extraChargeTotal: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    /** True after customer pays an on-site extra charge (expanded scope). */
+    scopeExpanded: {
+      type: Boolean,
+      default: false,
+    },
+
     coupon: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Coupon",

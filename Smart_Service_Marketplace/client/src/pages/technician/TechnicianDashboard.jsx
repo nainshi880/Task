@@ -122,7 +122,11 @@ function TechnicianDashboard() {
   }
 
   const displayName = profile.name || user?.name || "Technician";
-  const isAvailable = profile.availability !== false;
+  const applicationStatus = String(profile.applicationStatus || "pending").toLowerCase();
+  const isApproved = applicationStatus === "approved";
+  const isRejected = applicationStatus === "rejected";
+  const isPendingApproval = !isApproved && !isRejected;
+  const isAvailable = isApproved && profile.availability !== false;
   const ratingValue = Number(ratings.average || 0).toFixed(1);
   const subscription = data.subscription || {};
   const isPro = subscription.isPro;
@@ -130,11 +134,46 @@ function TechnicianDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-7">
+        {(isPendingApproval || isRejected) && (
+          <div
+            className={`rounded-2xl border px-5 py-4 ${
+              isRejected
+                ? "border-red-200 bg-red-50 text-red-800"
+                : "border-amber-200 bg-amber-50 text-amber-900"
+            }`}
+            role="status"
+          >
+            <p className="text-sm font-semibold">
+              {isRejected
+                ? "Application rejected"
+                : "Awaiting admin approval"}
+            </p>
+            <p className="mt-1 text-sm">
+              {isRejected
+                ? profile.rejectionReason ||
+                  "Your application was rejected. Update your profile and resubmit, or contact support."
+                : "Your profile is complete and waiting for an admin to approve you. You can accept or reject bookings only after approval."}
+            </p>
+            {isRejected && (
+              <Link
+                to="/technician/profile"
+                className="mt-3 inline-flex text-sm font-semibold underline"
+              >
+                Review profile and contact support
+              </Link>
+            )}
+          </div>
+        )}
+
         <DashboardWelcome
           greeting={getGreeting()}
           title={`Welcome back, ${displayName}`}
           subtitle={
-            profile.workingCity
+            !isApproved
+              ? isRejected
+                ? "Your application was rejected — update your profile to reapply"
+                : "Profile submitted — waiting for admin approval"
+              : profile.workingCity
               ? `Serving ${profile.workingCity}${
                   isAvailable ? "" : " · Currently unavailable"
                 }`

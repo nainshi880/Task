@@ -72,6 +72,39 @@ export const login = asyncHandler(async (req, res) => {
   );
 });
 
+export const loginWithGoogle = asyncHandler(async (req, res) => {
+  const { idToken, role, intent } = req.body;
+
+  const result = await authService.loginWithGoogle(
+    idToken,
+    sessionMeta(req),
+    {
+      role,
+      requireRoleMatch: intent === "register",
+    }
+  );
+
+  setAuthCookies(res, { refreshToken: result.refreshToken });
+
+  const roleLabel =
+    result.user?.role === "technician" ? "technician" : "customer";
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(
+      HTTP_STATUS.OK,
+      result.isNewUser
+        ? `Account created with Google as ${roleLabel}. Welcome!`
+        : "Google login successful.",
+      {
+        user: result.user,
+        token: result.token,
+        accessToken: result.accessToken,
+        isNewUser: Boolean(result.isNewUser),
+      }
+    )
+  );
+});
+
 export const refresh = asyncHandler(async (req, res) => {
   const refreshToken = getRefreshToken(req);
 
